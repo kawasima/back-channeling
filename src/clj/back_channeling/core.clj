@@ -3,12 +3,18 @@
         [hiccup.page :only [html5 include-css include-js]]
         [ring.util.response :only [resource-response content-type header]]
         [environ.core :only [env]])
-  (:require [hiccup.middleware :refer [wrap-base-url]]
+  (:require [clojure.edn :as edn]
+            [clojure.tools.logging :as log]
+            [hiccup.middleware :refer [wrap-base-url]]
             [compojure.core :refer [defroutes GET POST routing]]
             [compojure.handler :as handler]
             [compojure.route :as route]
-            (back-channeling [style :as style]
-                             [model :as model])))
+            [ring.middleware.defaults :refer [wrap-defaults site-defaults]]
+            [ring.middleware.reload :refer [wrap-reload]]
+            (back-channeling [server :as server]
+                             [style :as style]
+                             [model :as model]))
+  (:import [java.util Date]))
 
 (def watchers (atom {}))
 
@@ -61,8 +67,7 @@
 (defn -main [& {:keys [port] :or {port 3009}}]
   (server/run-server
    (-> app-routes
-       (wrap-defaults api-defaults)
-       wrap-reload)
+       (wrap-defaults site-defaults))
    :port port
    :websockets [{:path "/ws"
                  :on-message (fn [ch message]
