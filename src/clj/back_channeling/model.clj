@@ -4,7 +4,8 @@
   (:require [datomic.api :as d]
             [datomic-schema.schema :as s]))
 
-(def uri (or (env :datomic-url "datomic:free://localhost:4334/bc")))
+;;(def uri (or (env :datomic-url "datomic:free://localhost:4334/bc")))
+(def uri (or (env :datomic-url "datomic:mem://bc")))
 (defonce conn (atom nil))
 
 (defn query [q & params]
@@ -30,8 +31,9 @@
    (schema thread
            (fields
             [title :string]
-            [messages :ref :many]))
-   (schema message
+            [comments :ref :many]
+            [since :instant]))
+   (schema comment
            (fields
             [posted-at :instant]
             [posted-by :ref]
@@ -52,7 +54,6 @@
                 (s/generate-parts (dbparts))
                 (generate-enums [:action [:abort :alert]])
                 (s/generate-schema (dbschema)))]
-    (d/transact
-     @conn
-     schema)))
+    (transact schema)
+    (transact [{:db/id #db/id[:db.part/user] :board/name "default" :board/description "Default board"}])))
 

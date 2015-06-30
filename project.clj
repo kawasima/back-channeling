@@ -18,7 +18,7 @@
                  [com.datomic/datomic-free "0.9.5130" :exclusions [org.slf4j/slf4j-api org.slf4j/slf4j-nop joda-time]]
                  [ch.qos.logback/logback-classic "1.1.3"]
                  [datomic-schema "1.3.0"]
-                 [liberator "0.12.2"]
+                 [liberator "0.13"]
 
                  [ring/ring-defaults "0.1.4"]
                  [ring "1.3.2"]]
