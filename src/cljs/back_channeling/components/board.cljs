@@ -48,13 +48,6 @@
       [:div.ui.equal.width.grid
        [:div.row
         [:div.column
-         [:div.two.fields
-          [:div.field
-           [:label "Name"]
-           [:input#name {:type "text" :name "name"}]]
-          [:div.field
-           [:label "Email"]
-           [:input#email {:type "text" :name "email"}]]]
          [:div.field
           [:textarea#comment
            {:name "comment"
@@ -74,8 +67,6 @@
                           (let [dom (om/get-node owner)]
                             (save-comment {:thread/id  (:db/id thread)
                                            :comment/content (.. dom (querySelector "[name=comment]") -value)
-                                           :user/name  (or (not-empty (.. dom (querySelector "[name=name]") -value)) "名無しさん")
-                                           :user/email (or (not-empty (.. dom (querySelector "[name=email]") -value)) "sage")
                                            :comment/format (keyword (.. dom (querySelector "[name=format]") -value))}
                                           
                                           (fn [_] (om/set-state! owner :comment "")))))}
@@ -162,13 +153,6 @@
          [:div.field
           [:label "Title"]
           [:input {:type "text" :name "title"}]]
-         [:div.two.fields
-          [:div.field
-           [:label "Name"]
-           [:input {:type "text" :name "name"}]]
-          [:div.field
-           [:label "Email"]
-           [:input#email {:type "text" :name "email"}]]]
          [:div.field
           [:textarea {:name "comment"
                       :on-change (fn [e]
@@ -189,9 +173,7 @@
                             (if (->> [title comment] (keep not-empty) not-empty)
                               (save-thread {:board/name (:board/name board)
                                             :thread/title title
-                                            :comment/content comment
-                                            :user/name  (or (not-empty (.. dom (querySelector "[name=name]") -value)) "名無しさん")
-                                            :user/email (or (not-empty (.. dom (querySelector "[name=email]") -value)) "sage")})
+                                            :comment/content comment})
                               (js/alert "title and content are required."))))}
              [:i.icon.edit] "Create thread"]]]]]
         [:div.column

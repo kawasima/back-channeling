@@ -6,6 +6,8 @@
                  [garden "1.2.5"]
                  [compojure "1.3.4"]
                  [environ "1.0.0"]
+                 [buddy "0.6.0"]
+                 
                  [org.clojure/clojurescript "0.0-3165"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [sablono "0.3.4"]

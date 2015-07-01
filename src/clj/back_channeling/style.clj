@@ -3,7 +3,11 @@
         [garden.units :only [px em]]))
 
 (def styles
-  [[:.ui.page {:height "inherit"}]
+  [[:body :html {:height "100%"}]
+   [:body
+    [:.login.grid {:height "100%"}
+     [:.column {:max-width (px 450)}]]]
+
    [:.main.content {:min-height "100%"
                     :max-width (px 960)
                     :margin {:left "auto" :right "auto"}

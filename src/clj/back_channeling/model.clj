@@ -41,8 +41,10 @@
             [format :enum [:plain :markdown]]))
    (schema user
            (fields
-            [name :string]
-            [email :string]))])
+            [name :string :unique-value]
+            [email :string :unique-value]
+            [password :string]
+            [salt :bytes]))])
 
 (defn generate-enums [& enums]
   (apply concat

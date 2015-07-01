@@ -38,7 +38,7 @@
 (defresource board-resource [board-name]
   :available-media-types ["application/edn"]
   :allowed-methods [:get]
-  :handle-ok (fn [_]
+  :handle-ok (fn [ctx]
                (let [board (model/query '{:find [(pull ?board [:*]) .]
                                           :in [$ ?b-name]
                                           :where [[?board :board/name ?b-name]]} board-name)]
@@ -55,14 +55,11 @@
   :available-media-types ["application/edn"]
   :allowed-methods [:get :post]
   :malformed? #(parse-edn %)
-  :post! (fn [{th :edn}]
-           (let [user (or (model/query '{:find [?u .]
-                                        :in [$ ?name ?email]
-                                        :where [[?u :user/name ?name]
-                                                [?u :user/email ?email]]}
-                                       (:user/name th)
-                                       (:user/email th))
-                          (d/tempid :db.part/user))]
+  :post! (fn [{th :edn req :request}]
+           (let [user (model/query '{:find [?u .]
+                                     :in [$ ?name]
+                                     :where [[?u :user/name ?name]]}
+                                   (:identity req))]
              (model/transact [[:db/add [:board/name (:board/name th)] :board/threads #db/id[:db.part/user -1]]
                               {:db/id #db/id[:db.part/user -1]
                                :thread/title (:thread/title th)
@@ -72,10 +69,7 @@
                                :comment/posted-at (Date.)
                                :comment/posted-by user
                                :comment/format (get th :comment/format :comment.format/plain)
-                               :comment/content (:comment/content th)}
-                              {:db/id user
-                               :user/name (:user/name th)
-                               :user/email (:user/email th)}])
+                               :comment/content (:comment/content th)}])
              (server/broadcast-message "/ws" [:update-board {:board/name board-name}])))
   :handle-ok (fn [_]
                (model/query '{:find [[(pull ?thread
@@ -93,30 +87,24 @@
                                  {:thread/comments
                                   [:*
                                    {:comment/format [:db/ident]}
-                                   {:comment/posted-by [:*]}]}] thread-id)
+                                   {:comment/posted-by [:user/name :user/email]}]}] thread-id)
                    (update-in [:thread/comments] (partial map-indexed #(assoc %2  :comment/no (inc %1)))))))
 
 (defresource comments-resource [thread-id]
   :available-media-types ["application/edn"]
   :allowed-methods [:get :post]
   :malformed? #(parse-edn %)
-  :post! (fn [{comment :edn}]
-           (let [user (or (model/query '{:find [?u .]
-                                        :in [$ ?name ?email]
-                                        :where [[?u :user/name ?name]
-                                                [?u :user/email ?email]]}
-                                       (:user/name comment)
-                                       (:user/email comment))
-                          (d/tempid :db.part/user))]
+  :post! (fn [{comment :edn req :request}]
+           (let [user (model/query '{:find [?u .]
+                                     :in [$ ?name]
+                                     :where [[?u :user/name ?name]]}
+                                   (get-in req [:session :identity]))]
              (model/transact [[:db/add thread-id :thread/comments #db/id[:db.part/user -1]]
                               {:db/id #db/id[:db.part/user -1]
                                :comment/posted-at (Date.)
                                :comment/posted-by user
                                :comment/format (get comment :comment/format :comment.format/plain)
-                               :comment/content (:comment/content comment)}
-                              {:db/id user
-                               :user/name (:user/name comment)
-                               :user/email (:user/email comment)}])
+                               :comment/content (:comment/content comment)}])
              (server/broadcast-message "/ws" [:update-thread {:thread/id thread-id}])))
   :handle-ok (fn [_]))
 
