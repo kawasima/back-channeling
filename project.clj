@@ -20,9 +20,9 @@
                  [datomic-schema "1.3.0"]
                  [liberator "0.13"]
 
-                 [ring/ring-defaults "0.1.4"]
-                 [ring "1.3.2"]]
-  
+                 [ring/ring-defaults "0.1.4" :exclusions [[javax.servlet/servlet-api]]]
+                 [ring "1.3.2" :exclusions [[org.eclipse.jetty.orbit/javax.servlet]]]]
+
     :plugins [[lein-ring "0.9.3"]
               [lein-cljsbuild "1.0.5"]
               [lein-environ "1.0.0"]]
