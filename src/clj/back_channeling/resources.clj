@@ -71,6 +71,7 @@
                               {:db/id #db/id[:db.part/user -2]
                                :comment/posted-at (Date.)
                                :comment/posted-by user
+                               :comment/format (get th :comment/format :comment.format/plain)
                                :comment/content (:comment/content th)}
                               {:db/id user
                                :user/name (:user/name th)
@@ -91,6 +92,7 @@
                (-> (model/pull '[:*
                                  {:thread/comments
                                   [:*
+                                   {:comment/format [:db/ident]}
                                    {:comment/posted-by [:*]}]}] thread-id)
                    (update-in [:thread/comments] (partial map-indexed #(assoc %2  :comment/no (inc %1)))))))
 
@@ -110,6 +112,7 @@
                               {:db/id #db/id[:db.part/user -1]
                                :comment/posted-at (Date.)
                                :comment/posted-by user
+                               :comment/format (get comment :comment/format :comment.format/plain)
                                :comment/content (:comment/content comment)}
                               {:db/id user
                                :user/name (:user/name comment)

@@ -37,7 +37,8 @@
            (fields
             [posted-at :instant]
             [posted-by :ref]
-            [content :string]))
+            [content :string]
+            [format :enum [:plain :markdown]]))
    (schema user
            (fields
             [name :string]
@@ -52,7 +53,7 @@
   (reset! conn (d/connect uri))
   (let [schema (concat
                 (s/generate-parts (dbparts))
-                (generate-enums [:action [:abort :alert]])
+                #_(generate-enums [])
                 (s/generate-schema (dbschema)))]
     (transact schema)
     (transact [{:db/id #db/id[:db.part/user] :board/name "default" :board/description "Default board"}])))

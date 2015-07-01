@@ -1,6 +1,6 @@
 (defproject net.unit8/back-channeling "0.1.0-SNAPSHOT"
   :source-paths ["src/clj"]
-  :dependencies [[org.clojure/clojure "1.7.0-RC2"]
+  :dependencies [[org.clojure/clojure "1.7.0"]
                  [org.clojure/tools.logging "0.3.1"]
                  [hiccup "1.0.5"]
                  [garden "1.2.5"]
