@@ -6,8 +6,8 @@
             [buddy.core.hash]
             (back-channeling [model :as model])))
 
-(defn signup-view [params]
-  (layout
+(defn signup-view [req]
+  (layout req
    [:div.ui.middle.aligned.center.aligned.login.grid
     [:div.column
      [:h2.ui.header
@@ -20,7 +20,7 @@
          [:input {:type "text" :name "user/name" :placeholder "User name"}]]]
        [:div.field
         [:div.ui.left.icon.input
-         [:i.user.icon]
+         [:i.mail.icon]
          [:input {:type "text" :name "user/email" :placeholder "Email address"}]]]
        [:div.field
         [:div.ui.left.icon.input

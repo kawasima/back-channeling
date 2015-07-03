@@ -25,13 +25,13 @@
 
 
 
-(defn index-view []
-  (layout
+(defn index-view [req]
+  (layout req
    [:div#app.ui.page]
    (include-js (str "/js/extern/back-channeling"
                     (when-not (:dev env) ".min") ".js"))))
 (defn login-view [req]
-  (layout
+  (layout req
    [:div.ui.middle.aligned.center.aligned.login.grid
     [:div.column
      [:h2.ui.header
@@ -64,15 +64,15 @@
                          [?s :user/password ?hash-hex]]} username password)))
 
 (defroutes app-routes
-  (GET "/" [] (index-view))
+  (GET "/" req (index-view req))
   (GET "/login" req (login-view req))
   (POST "/login" {{:keys [username password]} :params :as req}
     (if-let [user (auth-by-password username password)]
         (-> (redirect (get-in req [:query-params "next"] "/"))
-            (assoc-in [:session :identity] username))
+            (assoc-in [:session :identity] (select-keys user [:user/name :user/email])))
         (login-view req)))
-  (GET "/signup" {params :params}
-    (signup/signup-view params))
+  (GET "/signup" req
+    (signup/signup-view req))
   (POST "/signup" req
     (signup/signup (select-keys (clojure.walk/keywordize-keys (:params req))
                                 [:user/email :user/name :user/password])))
@@ -90,10 +90,14 @@
   (route/resources "/")
   (route/not-found "Not found."))
 
-(defmulti handle-command (fn [msg ch] (:command msg)))
+(defmulti handle-command (fn [msg ch] (first msg)))
 
-(defmethod handle-command :bye [message ch]
-  (log/info "disconnect" ch))
+(defmethod handle-command :leave [[_ message] ch]
+  (log/info "disconnect" ch)
+  (server/broadcast-message "/ws" [:leave {:user/name (:user/name message)}]))
+
+(defmethod handle-command :join [[_ message] ch]
+  (server/broadcast-message "/ws" [:join  {:user/name (:user/name message)}]))
 
 (def access-rules [{:pattern #"^(/|/api/?)$" :handler authenticated?}])
 (def backend (session-backend
@@ -118,4 +122,4 @@
                                (handle-command (edn/read-string message) ch))
                  :on-close (fn [ch close-reason]
                              (log/info "disconnect" ch "for" close-reason)
-                             (handle-command {:command :bye} ch))}]))
+                             (handle-command [:leave nil] ch))}]))

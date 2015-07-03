@@ -6,7 +6,8 @@
 (.setOptions js/marked
              (clj->js {:highlight (fn [code]
                                     (.. js/hljs (highlightAuto code) -value))}))
-(def app-state (atom {:boards {}}))
+(def app-state (atom {:boards {}
+                      :users #{}}))
 
 (om/root root-view app-state
          {:target (.getElementById js/document "app")})

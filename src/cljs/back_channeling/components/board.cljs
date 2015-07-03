@@ -4,22 +4,14 @@
             [om-tools.core :refer-macros [defcomponent]]
             [sablono.core :as html :refer-macros [html]]
             [cljs.core.async :refer [put! <! chan timeout]]
-            [goog.crypt :as crypt]
-            [goog.crypt.Md5]
-            [back-channeling.api :as api])
-  (:import [goog.crypt]
-           [goog.i18n DateTimeFormat]))
+            [back-channeling.api :as api]
+            [back-channeling.components.avatar :refer [avatar]])
+  (:import [goog.i18n DateTimeFormat]))
 
 (enable-console-print!)
-(def md5digester (goog.crypt.Md5.))
+
 (def date-format-m  (DateTimeFormat. goog.i18n.DateTimeFormat.Format.MEDIUM_DATETIME
                                      (aget goog.i18n (str "DateTimeSymbols_" (.-language js/navigator)))))
-
-(defn md5 [text]
-  (doto md5digester
-    (.reset)
-    (.update text))
-  (crypt/byteArrayToHex (.digest md5digester)))
 
 (defn save-comment [comment on-success]
   (api/request (str "/api/thread/" (:thread/id comment) "/comments")
@@ -74,7 +66,7 @@
         [:div.column
          [:div.preview
           [:div.ui.top.right.attached.label "Preview"]
-          [:div
+          [:div.attached
            (case comment-format
              "comment.format/plain" comment
              "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]]])))
@@ -86,10 +78,7 @@
       [:h3.ui.dividing.header (:thread/title thread)]
       (for [comment (:thread/comments thread)]
         [:div.comment
-         [:a.avatar
-          [:img {:src (str "https://www.gravatar.com/avatar/"
-                           (md5 (get-in comment [:comment/posted-by :user/email]))
-                           "?d=mm")}]]
+         (om/build avatar (get-in comment [:comment/posted-by :user/email]))
          [:div.content
           [:a.number (:comment/no comment)] ": "
           [:a.author (get-in comment [:comment/posted-by :user/name])]
@@ -113,7 +102,7 @@
     {:sort-key [:thread/since :desc]})
   (render-state [_ {:keys [board-channel sort-key]}]
     (html
-     [:table.ui.basic.table
+     [:table.ui.violet.table
       [:thead
        [:tr
         [:th {:on-click (fn [_] (toggle-sort-key owner :thread/title))}
@@ -195,8 +184,7 @@
 (defcomponent board-view [board owner]
   (init-state [_]
     {:tabs [{:id 0 :name "New"}]
-     :current-tab 0
-     :channel (chan)})
+     :current-tab 0})
   (will-mount [_]
     (go-loop []
       (let [[cmd data] (<! (om/get-state owner :channel))]
@@ -205,7 +193,7 @@
         (recur))))
   (render-state [_ {:keys [tabs current-tab channel]}]
     (html
-     [:div
+     [:div.main.content
       (om/build thread-list-view (:board/threads board)
                 {:init-state {:board-channel channel}})
       [:div.ui.top.attached.segment

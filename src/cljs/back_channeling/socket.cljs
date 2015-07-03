@@ -14,10 +14,11 @@
 
 (def ws (WebSocket. true (fn [] 10)))
 
-(defn open [url & {:keys [on-message]}]
-  (events/listen ws EventType.OPEN
+(defn open [url & {:keys [on-message on-open]}]
+  (events/listen ws EventType.OPENED
                  (fn [e]
-                   (.log js/console "Websocket opened.")))
+                   (when on-open
+                     (on-open))))
   (events/listen ws EventType.MESSAGE
                  (fn [e]
                    (when on-message
@@ -29,4 +30,7 @@
                  (fn [e]
                    (.log js/console (str "Websocket error" e))))
   (.open ws url))
+
+(defn send [message]
+  (.send ws (pr-str message)))
 

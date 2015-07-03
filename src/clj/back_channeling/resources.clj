@@ -59,24 +59,40 @@
            (let [user (model/query '{:find [?u .]
                                      :in [$ ?name]
                                      :where [[?u :user/name ?name]]}
-                                   (:identity req))]
+                                   (get-in req [:identity :user/name]))
+                 now (Date.)]
              (model/transact [[:db/add [:board/name (:board/name th)] :board/threads #db/id[:db.part/user -1]]
                               {:db/id #db/id[:db.part/user -1]
                                :thread/title (:thread/title th)
-                               :thread/since (Date.)}
+                               :thread/since now
+                               :thread/last-updated now}
                               [:db/add #db/id[:db.part/user -1] :thread/comments #db/id[:db.part/user -2]]
                               {:db/id #db/id[:db.part/user -2]
-                               :comment/posted-at (Date.)
+                               :comment/posted-at now
                                :comment/posted-by user
                                :comment/format (get th :comment/format :comment.format/plain)
                                :comment/content (:comment/content th)}])
              (server/broadcast-message "/ws" [:update-board {:board/name board-name}])))
-  :handle-ok (fn [_]
-               (model/query '{:find [[(pull ?thread
-                                            [:*]) ...]]
-                              :in [$ ?b-name]
-                              :where [[?board :board/name ?b-name]
-                                      [?thread :thread/title]]})))
+  :handle-ok (fn [{{{:keys [q]} :params} :request}]
+               (when q
+                 (->> (model/query '{:find [?thread ?comment ?score] 
+                                 :in [$ ?board-name ?search]
+                                 :where [[?board :board/name ?board-name]
+                                         [?board :board/threads ?thread]
+                                         [?thread :thread/comments ?comment]
+                                         [(fulltext $ :comment/content ?search) [[?comment ?content ?tx ?score]]]
+                                         ]} board-name q)
+                    (map (fn [[thread-id comment-id score]]
+                           (let [thread (model/pull '[:db/id :thread/title] thread-id)
+                                 comment (model/pull '[:comment/content] comment-id)]
+                             (merge thread comment
+                                    {:score/value score}))
+                           ))
+                    (group-by :db/id)
+                    (map (fn [[k v]]
+                           (apply max-key :score/value v)))
+                    (sort-by :score/value >)
+                    vec))))
 
 (defresource thread-resource [thread-id]
   :available-media-types ["application/edn"]
@@ -98,13 +114,17 @@
            (let [user (model/query '{:find [?u .]
                                      :in [$ ?name]
                                      :where [[?u :user/name ?name]]}
-                                   (get-in req [:session :identity]))]
-             (model/transact [[:db/add thread-id :thread/comments #db/id[:db.part/user -1]]
-                              {:db/id #db/id[:db.part/user -1]
-                               :comment/posted-at (Date.)
-                               :comment/posted-by user
-                               :comment/format (get comment :comment/format :comment.format/plain)
-                               :comment/content (:comment/content comment)}])
+                                   (get-in req [:session :identity :user/name]))
+                 now (Date.)]
+             (model/transact
+              (concat [[:db/add thread-id :thread/comments #db/id[:db.part/user -1]]
+                       {:db/id #db/id[:db.part/user -1]
+                        :comment/posted-at now
+                        :comment/posted-by user
+                        :comment/format (get comment :comment/format :comment.format/plain)
+                        :comment/content (:comment/content comment)}]
+                      (when-not (:comment/sage? comment)
+                        [{:db/id thread-id :thread/last-updated now}])))
              (server/broadcast-message "/ws" [:update-thread {:thread/id thread-id}])))
   :handle-ok (fn [_]))
 

@@ -32,19 +32,31 @@
            (fields
             [title :string]
             [comments :ref :many]
-            [since :instant]))
+            [since :instant]
+            [last-updated :instant]
+            [watchers :ref :many]))
    (schema comment
            (fields
             [posted-at :instant]
             [posted-by :ref]
-            [content :string]
+            [content :string :fulltext]
             [format :enum [:plain :markdown]]))
    (schema user
            (fields
             [name :string :unique-value]
             [email :string :unique-value]
             [password :string]
-            [salt :bytes]))])
+            [salt :bytes]))
+   (schema article
+           (fields
+            [name :string]
+            [content :string]
+            [thread :ref]
+            [curator :ref]))
+   (schema notification
+           (fields
+            [target-user :ref :many]
+            [type :enum [:referred :mentioned]]))])
 
 (defn generate-enums [& enums]
   (apply concat
