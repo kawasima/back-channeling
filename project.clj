@@ -8,22 +8,22 @@
                  [environ "1.0.0"]
                  [buddy "0.6.0"]
                  
-                 [org.clojure/clojurescript "0.0-3165"]
+                 [org.clojure/clojurescript "0.0-3308"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [sablono "0.3.4"]
                  [prismatic/om-tools "0.3.11"]
                  [bouncer "0.3.2"]
-                 [secretary "1.2.2"]
-                 [org.omcljs/om "0.8.8"]
+                 [secretary "1.2.3"]
+                 [org.omcljs/om "0.9.0"]
                  [io.undertow/undertow-websockets-jsr "1.1.1.Final"]
 
-                 [com.datomic/datomic-free "0.9.5130" :exclusions [org.slf4j/slf4j-api org.slf4j/slf4j-nop joda-time]]
+                 [com.datomic/datomic-free "0.9.5186" :exclusions [org.slf4j/slf4j-api org.slf4j/slf4j-nop joda-time]]
                  [ch.qos.logback/logback-classic "1.1.3"]
                  [datomic-schema "1.3.0"]
                  [liberator "0.13"]
 
-                 [ring/ring-defaults "0.1.4" :exclusions [[javax.servlet/servlet-api]]]
-                 [ring "1.3.2" :exclusions [[org.eclipse.jetty.orbit/javax.servlet]]]]
+                 [ring/ring-defaults "0.1.5" :exclusions [[javax.servlet/servlet-api]]]
+                 [ring "1.4.0-RC2" :exclusions [ring/ring-jetty-adapter]]]
 
     :plugins [[lein-ring "0.9.3"]
               [lein-cljsbuild "1.0.5"]
