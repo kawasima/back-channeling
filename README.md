@@ -7,8 +7,14 @@
 
 Currently, we support a development mode only.
 
+Start datomic.
+
 ```
-% lein cljsbuild auto dev
+% bin/transactor config/xxx.properties
+```
+
+```
+% lein cljsbuild once dev
 % lein run
 ```
 
