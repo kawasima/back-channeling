@@ -8,6 +8,7 @@
     [:.login.grid {:height "100%"}
      [:.column {:max-width (px 450)}]]]
 
+   [:.preview {:white-space "pre"}]
    [:.main.content {:min-height "100%"
                     :max-width (px 960)
                     :margin {:left "auto" :right "auto"}
@@ -23,7 +24,10 @@
                          :color "#e0e0e0"}
                 :padding (px 8)
                 :position "relative"
-                :height "100%"}]]])
+                :height "100%"}]
+    [:.comment
+     [:.text {:white-space "pre"}]]
+    [:.comment.selected {:background-color "#f4b3c2"}]]])
 
 
 (defn build []

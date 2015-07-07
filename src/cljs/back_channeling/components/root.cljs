@@ -8,6 +8,7 @@
             [back-channeling.socket :as socket]
             [back-channeling.components.avatar :refer [avatar]])
   (:use [back-channeling.components.board :only [board-view]]
+        [back-channeling.components.curation :only [curation-page]]
         [cljs.reader :only [read-string]]))
 
 (defn refresh-board [app board-name]
@@ -39,24 +40,34 @@
 (defcomponent root-view [app owner]
   (init-state [_]
     {:open-profile? false
+     :open-users? false
      :search-result nil
-     :board-channel (chan)})
+     :board-channel (chan)
+     :user {:user/name  (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))
+            :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}
+     :called-message nil})
   (will-mount [_]
     (routing/init app owner)
     (refresh-board app "default")
+    (api/request "/api/users"
+                 {:handler (fn [response]
+                             (om/update! app :users (apply hash-set response)))})
     (socket/open (str "ws://" (.-host js/location) "/ws")
                  :on-open (fn []
-                            (socket/send [:join {:user/name (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))
-                                                 :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}]))
+                            (socket/send :join (om/get-state owner :user)))
                  :on-message (fn [message]
                                (let [[cmd data] (read-string message)]
                                  (case cmd
                                    :update-board (refresh-board app "default")
                                    :update-thread (fetch-comments app data)
                                    :join  (om/transact! app [:users] #(conj % data))
-                                   :leave (om/transact! app [:users] #(disj % data)))))))
+                                   :leave (om/transact! app [:users] #(disj % data))
+                                   :call  (js/alert (:message data)))))))
+  (did-update [_ _ _]
+    (when-let [thread-id (:target-thread app)]
+      (put! (om/get-state owner :board-channel) [:open-thread thread-id])))
 
-  (render-state [_ {:keys [open-profile? search-result board-channel]}]
+  (render-state [_ {:keys [open-profile? open-users? search-result user board-channel]}]
     (html
      [:div
       [:div.ui.fixed.menu
@@ -87,12 +98,28 @@
        
        [:div.right.menu
         [:a.item
-         [:i.users.icon]]
+         [:div {:on-click (fn [_]
+                            (om/set-state! owner :open-users? (not open-users?)))}
+          [:i.users.icon]
+          [:floating.ui.label (count (:users app))]]
+         (when open-users?
+           [:div.ui.flowing.popup.left.bottom.transition.visible {:style {:top "60px"}}
+            [:ui.grid
+             (for [member (:users app)]
+               [:column {:on-click (fn [_]
+                                     (socket/send :call {:from user
+                                                         :to #{member}
+                                                         :message (str (:user/name user) " is calling!!")}))}
+                (om/build avatar (:user/email member))])]])]
         [:div.ui.dropdown.item
          [:div {:on-click (fn [_]
                             (om/set-state! owner :open-profile? (not open-profile?)))}
-          (om/build avatar (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content")))
-          [:span (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))] ]
+          (om/build avatar (:user/email user))
+          [:span (:user/name user)] ]
          [:div.menu.transition {:class (if open-profile? "visible" "hidden")} 
           [:a.item {:href "/logout"} "Logout"]]]]]
-      (om/build board-view (get-in app [:boards "default"]) {:init-state {:channel board-channel}})])))
+      (when-let [board (get-in app [:boards "default"])]
+        (case (:page app)
+          :board (om/build board-view board
+                           {:init-state {:channel board-channel}})
+          :curation (om/build curation-page (get-in board [:board/threads (:target-thread app)]))))])))

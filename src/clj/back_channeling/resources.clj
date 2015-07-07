@@ -47,8 +47,15 @@
                                      :where [[?board :board/threads ?thread]
                                              [?thread :thread/comments ?comment]]}
                                    (:db/id board))
-                      (map #(-> (model/pull '[:db/id :thread/title :thread/since] (first %))
-                                (assoc :thread/resnum (second %))))
+                      (map #(-> (model/pull '[:db/id :thread/title :thread/since
+                                              {:thread/watchers [:user/name]}]
+                                            (first %))
+                                (assoc :thread/resnum (second %))
+                                (update-in [:thread/watchers]
+                                           (fn [watchers]
+                                             (->> watchers
+                                                  (map :user/name)
+                                                  (apply hash-set))))))
                       ((fn [threads] (assoc board :board/threads threads)))))))
 
 (defresource threads-resource [board-name]
@@ -83,11 +90,10 @@
                                          [(fulltext $ :comment/content ?search) [[?comment ?content ?tx ?score]]]
                                          ]} board-name q)
                     (map (fn [[thread-id comment-id score]]
-                           (let [thread (model/pull '[:db/id :thread/title] thread-id)
+                           (let [thread (model/pull '[:db/id :thread/title {:thread/watchers [:user/name]}] thread-id)
                                  comment (model/pull '[:comment/content] comment-id)]
                              (merge thread comment
-                                    {:score/value score}))
-                           ))
+                                    {:score/value score}))))
                     (group-by :db/id)
                     (map (fn [[k v]]
                            (apply max-key :score/value v)))
@@ -96,8 +102,16 @@
 
 (defresource thread-resource [thread-id]
   :available-media-types ["application/edn"]
-  :allowed-methods [:get]
+  :allowed-methods [:get :put]
   :malformed? #(parse-edn %)
+  :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
+          (when-let [user (model/query '{:find [?u .] :in [$ ?name] :where [[?u :user/name ?name]]}
+                                       (get-in req [:identity :user/name]))]
+            (println "add " add-watcher "/remove " remove-watcher)
+            (when add-watcher
+              (model/transact [[:db/add thread-id :thread/watchers user]]))
+            (when remove-watcher
+              (model/transact [[:db/retract thread-id :thread/watchers user]]))))
   :handle-ok (fn [_]
                (-> (model/pull '[:*
                                  {:thread/comments
@@ -114,7 +128,7 @@
            (let [user (model/query '{:find [?u .]
                                      :in [$ ?name]
                                      :where [[?u :user/name ?name]]}
-                                   (get-in req [:session :identity :user/name]))
+                                   (get-in req [:identity :user/name]))
                  now (Date.)]
              (model/transact
               (concat [[:db/add thread-id :thread/comments #db/id[:db.part/user -1]]
@@ -128,6 +142,12 @@
              (server/broadcast-message "/ws" [:update-thread {:thread/id thread-id}])))
   :handle-ok (fn [_]))
 
+(defresource users-resource [path]
+  :available-media-types ["application/edn"]
+  :allowed-methods [:get]
+  :handle-ok (fn [_]
+               (vec (server/find-users path))))
+
 (defroutes api-routes
   (ANY "/boards" [] boards-resource)
   (ANY "/board/:board-name" [board-name]
@@ -137,5 +157,6 @@
   (ANY "/thread/:thread-id" [thread-id]
     (thread-resource (Long/parseLong thread-id)))
   (ANY "/thread/:thread-id/comments" [thread-id]
-    (comments-resource (Long/parseLong thread-id))))
+    (comments-resource (Long/parseLong thread-id)))
+  (ANY "/users" [] (users-resource "/ws")))
 

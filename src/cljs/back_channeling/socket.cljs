@@ -31,6 +31,6 @@
                    (.log js/console (str "Websocket error" e))))
   (.open ws url))
 
-(defn send [message]
-  (.send ws (pr-str message)))
+(defn send [command message]
+  (.send ws (pr-str [command message])))
 

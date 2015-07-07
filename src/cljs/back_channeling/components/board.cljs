@@ -6,6 +6,7 @@
             [cljs.core.async :refer [put! <! chan timeout]]
             [back-channeling.api :as api]
             [back-channeling.components.avatar :refer [avatar]])
+  (:use [back-channeling.comment-helper :only [format-plain]])
   (:import [goog.i18n DateTimeFormat]))
 
 (enable-console-print!)
@@ -30,6 +31,20 @@
                {:handler (fn [response]
                            (om/update! thread [:thread/comments] (:thread/comments response))
                            (put! ch [:open-tab response]))}))
+
+(defn watch-thread [thread user owner]
+  (api/request (str "/api/thread/" (:db/id thread))
+               :PUT
+               {:add-watcher user}
+               {:handler (fn [response]
+                           (om/set-state! owner :watching? true))}))
+
+(defn unwatch-thread [thread user owner]
+  (api/request (str "/api/thread/" (:db/id thread))
+               :PUT
+               {:remove-watcher user}
+               {:handler (fn [response]
+                           (om/set-state! owner :watching? false))}))
 
 (defcomponent comment-new-view [thread owner]
   (init-state [_] {:comment ""
@@ -68,14 +83,16 @@
           [:div.ui.top.right.attached.label "Preview"]
           [:div.attached
            (case comment-format
-             "comment.format/plain" comment
+             "comment.format/plain" (format-plain comment) 
              "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]]])))
 
-(defcomponent thread-view [thread owner]
+(defcomponent thread-view [thread owner {:keys [board-name]}]
   (render [_]
     (html
      [:div.ui.thread.comments
       [:h3.ui.dividing.header (:thread/title thread)]
+      [:a {:href (str "#/curation/" board-name "/" (:db/id thread))}
+       [:i.external.share.icon]]
       (for [comment (:thread/comments thread)]
         [:div.comment
          (om/build avatar (get-in comment [:comment/posted-by :user/email]))
@@ -86,7 +103,7 @@
            [:span.date (.format date-format-m (get-in comment [:comment/posted-at]))]]
           [:div.text (case (get-in comment [:comment/format :db/ident])
                        :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
-                       (:comment/content comment))]]])
+                       (format-plain (:comment/content comment)))]]])
       (om/build comment-new-view thread)])))
 
 (defn toggle-sort-key [owner sort-key]
@@ -97,14 +114,35 @@
                       (case direction :asc :desc :desc :asc)
                       :asc)])))
 
-(defcomponent thread-list-view [threads owner]
+(defcomponent thread-watch-icon [thread owner]
   (init-state [_]
-    {:sort-key [:thread/since :desc]})
-  (render-state [_ {:keys [board-channel sort-key]}]
+    {:hover? false})
+  (render-state [_ {:keys [watching? hover? user]}]
+    (html
+     [:td
+      {:on-click (fn [_]
+                   (if watching?
+                     (unwatch-thread thread user owner)
+                     (watch-thread thread user owner)))
+       :on-mouse-over (fn [_] (om/set-state! owner :hover? true))
+       :on-mouse-out  (fn [_] (om/set-state! owner :hover? false))}
+      [:i.icon {:class (case [watching? hover?]
+                         [true true]   "hide red"
+                         [true false]  "unhide green"
+                         [false true]  "unhide green"
+                         [false false] "hide grey")}]])))
+
+(defcomponent thread-list-view [threads owner {:keys [board-name]}]
+  (init-state [_]
+    {:sort-key [:thread/since :desc]
+     :user {:user/name  (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))
+            :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}})
+  (render-state [_ {:keys [board-channel sort-key user]}]
     (html
      [:table.ui.violet.table
       [:thead
        [:tr
+        [:th ""]
         [:th {:on-click (fn [_] (toggle-sort-key owner :thread/title))}
          "Title" (when (= (first sort-key) :thread/title) (case (second sort-key)
                                                             :asc  [:i.caret.up.icon]
@@ -120,14 +158,15 @@
       [:tbody
        (for [thread (->> (vals threads)
                         (sort-by (first sort-key) (case (second sort-key)
-                                      :asc < :desc >))) ]
-        [:tr
-         [:td
-          [:a {:on-click (fn [_]
-                           (open-thread thread board-channel))}
-           (:thread/title thread)]]
-         [:td (:thread/resnum thread)]
-         [:td (.format date-format-m (:thread/since thread))]])]])))
+                                                    :asc < :desc >))) ]
+         [:tr
+          (om/build thread-watch-icon thread {:init-state {:watching? (boolean ((:thread/watchers thread) (:user/name user)))
+                                                           :user user}})
+          [:td
+           [:a {:href (str "#/board/" board-name "/" (:db/id thread))}
+            (:thread/title thread)]]
+          [:td (:thread/resnum thread)]
+          [:td (.format date-format-m (:thread/since thread))]])]])))
 
 
 (defcomponent thread-new-view [board owner]
@@ -170,7 +209,7 @@
           [:div.ui.top.right.attached.label "Preview"]
           [:div
            (case comment-format
-             "comment.format/plain" comment
+             "comment.format/plain" (format-plain comment)
              "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]]])))
 
 (defn open-tab [owner data]
@@ -189,13 +228,16 @@
     (go-loop []
       (let [[cmd data] (<! (om/get-state owner :channel))]
         (case cmd
-          :open-tab (open-tab owner data))
+          :open-tab (open-tab owner data)
+          :open-thread (open-thread (get-in board [:board/threads data])
+                                    (om/get-state owner :channel)))
         (recur))))
   (render-state [_ {:keys [tabs current-tab channel]}]
     (html
      [:div.main.content
       (om/build thread-list-view (:board/threads board)
-                {:init-state {:board-channel channel}})
+                {:init-state {:board-channel channel}
+                 :opts {:board-name (:board/name board)}})
       [:div.ui.top.attached.segment
        [:div.ui.top.attached.tabular.menu
         (for [tab tabs]
@@ -216,6 +258,7 @@
           (when (= current-tab (:id tab)) {:class "active"})
           (if (= current-tab 0)
             (om/build thread-new-view board)
-            (om/build thread-view (get-in board [:board/threads current-tab])))])]])))
+            (om/build thread-view (get-in board [:board/threads current-tab])
+                      {:opts {:board-name (:board/name board)}}))])]])))
 
 

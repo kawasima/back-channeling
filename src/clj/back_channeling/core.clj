@@ -94,10 +94,18 @@
 
 (defmethod handle-command :leave [[_ message] ch]
   (log/info "disconnect" ch)
-  (server/broadcast-message "/ws" [:leave {:user/name (:user/name message)}]))
+  (server/broadcast-message "/ws" [:leave {:user/name (:user/name message)
+                                           :user/email (:user/email message)}]))
+(defmethod handle-command :call [[_ message] ch]
+  (log/info "call from " (:from message) " to " (:to message))
+  (server/multicast-message "/ws" [:call message]
+                            (:to message)))
 
 (defmethod handle-command :join [[_ message] ch]
-  (server/broadcast-message "/ws" [:join  {:user/name (:user/name message)}]))
+  (log/info "bind user " ch message)
+  (server/bind-user "/ws" ch message)
+  (server/broadcast-message "/ws" [:join  {:user/name (:user/name message)
+                                           :user/email (:user/email message)}]))
 
 (def access-rules [{:pattern #"^(/|/api/?)$" :handler authenticated?}])
 (def backend (session-backend

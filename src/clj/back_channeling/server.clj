@@ -10,14 +10,32 @@
            [io.undertow.websockets.core WebSockets WebSocketCallback AbstractReceiveListener]
            [io.undertow.websockets.jsr WebSocketDeploymentInfo]))
 
-(def channels (atom {}))
+(defonce channels (atom {}))
 
 (defn broadcast-message [path message]
-  (doseq [channel (get @channels path)]
+  (doseq [[channel user] (get @channels path)]
     (WebSockets/sendText (pr-str message) channel
                          (proxy [WebSocketCallback] []
                            (complete [channel context])
                            (onError [channel context throwable])))))
+
+(defn multicast-message [path message users]
+  (doseq [[channel user] (get @channels path)]
+    (when (users user)
+      (WebSockets/sendText (pr-str message) channel
+                           (proxy [WebSocketCallback] []
+                             (complete [channel context])
+                             (onError [channel context throwable]))))))
+
+(defn bind-user [path ch user]
+  (log/info "bind user" user ch)
+  (swap! channels assoc-in [path ch] user))
+
+(defn find-users [path]
+  (->> (get @channels path)
+       vals
+       (keep identity)
+       (apply hash-set)))
 
 (defn websocket-callback [path {:keys [on-close on-message]}]
   (proxy [WebSocketConnectionCallback] []
@@ -35,9 +53,9 @@
       (.addCloseTask channel
                      (proxy [org.xnio.ChannelListener] []
                        (handleEvent [channel]
-                         (swap! channels update-in [path] (partial remove #(= % channel)))
+                         (swap! channels update-in [path] dissoc channel)
                          (when on-close (on-close channel nil)))))
-      (swap! channels update-in [path] conj channel))))
+      (swap! channels assoc-in [path channel] nil))))
 
 (defn run-server [ring-handler & {port :port websockets :websockets}]
   (let [ring-servlet (servlet/servlet ring-handler)
@@ -58,7 +76,7 @@
     (.deploy servlet-manager)
 
     (doseq [ws websockets]
-      (swap! channels assoc (:path ws) [])
+      (swap! channels assoc (:path ws) {})
       (.addPrefixPath handler
                       (:path ws)
                       (Handlers/websocket

@@ -9,11 +9,19 @@
   (:use [cljs.reader :only [read-string]])
   (:import [goog.History]))
 
-(defn- setup-routing [app-state]
+(defn- setup-routing [app]
   (sec/set-config! :prefix "#")
   (sec/defroute "/" []
-    ))
-
+    (om/update! app :page :board))
+  (sec/defroute "/board/:board-name/" [board-name]
+    (om/update! app :page :board))
+  (sec/defroute "/board/:board-name/:thread-id" [board-name thread-id]
+    (om/update! app :page :board)
+    (om/update! app :target-thread (js/parseInt thread-id)))
+  (sec/defroute "/curation/:board-name/:thread-id" [board-name thread-id]
+    (om/update! app :page :curation)
+    (om/update! app :target-thread (js/parseInt thread-id))))
+  
 (defn- setup-history [owner]
   (let [history (goog.History.)
         navigation HistoryEventType/NAVIGATE]

@@ -4,8 +4,8 @@
   (:require [datomic.api :as d]
             [datomic-schema.schema :as s]))
 
-;;(def uri (or (env :datomic-url "datomic:free://localhost:4334/bc")))
-(def uri (or (env :datomic-url "datomic:mem://bc")))
+(def uri (or (env :datomic-url "datomic:free://localhost:4334/bc")))
+;;(def uri (or (env :datomic-url "datomic:mem://bc")))
 (defonce conn (atom nil))
 
 (defn query [q & params]
@@ -70,5 +70,6 @@
                 #_(generate-enums [])
                 (s/generate-schema (dbschema)))]
     (transact schema)
-    (transact [{:db/id #db/id[:db.part/user] :board/name "default" :board/description "Default board"}])))
+    (when-not (query '{:find [?e .] :where [[?e :board/name "default"]]})
+      (transact [{:db/id #db/id[:db.part/user] :board/name "default" :board/description "Default board"}]))))
 
