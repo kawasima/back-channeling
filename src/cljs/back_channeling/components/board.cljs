@@ -27,10 +27,11 @@
                {:handler (fn [response])}))
 
 (defn open-thread [thread ch]
-  (api/request (str "/api/thread/" (:db/id thread))
+  (when thread
+    (api/request (str "/api/thread/" (:db/id thread))
                {:handler (fn [response]
                            (om/update! thread [:thread/comments] (:thread/comments response))
-                           (put! ch [:open-tab response]))}))
+                           (put! ch [:open-tab response]))})))
 
 (defn watch-thread [thread user owner]
   (api/request (str "/api/thread/" (:db/id thread))
@@ -51,15 +52,20 @@
                    :comment-format "comment.format/plain"})
   (render-state [_ {:keys [comment comment-format]}]
     (html
-     [:form.ui.reply.form
+     [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
       [:div.ui.equal.width.grid
        [:div.row
         [:div.column
          [:div.field
           [:textarea#comment
            {:name "comment"
+            :value comment
             :on-change (fn [e]
-                         (om/set-state! owner :comment (.. e -target -value)))} comment]]
+                         (om/set-state! owner :comment (.. e -target -value)))
+            :on-key-up (fn [e]
+                         (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
+                           (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
+                             (.click btn))))}]]
          [:div.actions
           [:div.two.fields
            [:div.field
@@ -69,8 +75,8 @@
              [:option {:value "comment.format/plain"} "Plain"]
              [:option {:value "comment.format/markdown"} "Markdown"]]]
            [:div.field
-            [:div.ui.blue.labeled.submit.icon.button
-             {:on-click (fn [_]
+            [:button.ui.blue.labeled.submit.icon.button
+             {:on-click (fn [e]
                           (let [dom (om/get-node owner)]
                             (save-comment {:thread/id  (:db/id thread)
                                            :comment/content (.. dom (querySelector "[name=comment]") -value)
@@ -87,14 +93,29 @@
              "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]]])))
 
 (defcomponent thread-view [thread owner {:keys [board-name]}]
+  (did-mount [_]
+    (let [comment-no (om/get-state owner :target-comment)
+          comment-dom (.. (om/get-node owner)
+                          (querySelector (str "[data-comment-no='" comment-no "']")))]
+      (when comment-dom
+        (.scrollTo js/window 0 (- (some->> (.getBoundingClientRect comment-dom) (.-top)) 80)))))
+  (did-update [_ _ _]
+     (let [comment-no (om/get-state owner :target-comment)
+           comment-dom (.. (om/get-node owner)
+                           (querySelector (str "[data-comment-no='" comment-no "']")))
+           scroll-pane (.. (om/get-node owner)
+                           (querySelector "div.scroll-pane"))]
+      (when comment-dom
+        (set! (.-scrollTop scroll-pane) (some->> (.getBoundingClientRect comment-dom) (.-top))))))
   (render [_]
     (html
      [:div.ui.thread.comments
       [:h3.ui.dividing.header (:thread/title thread)]
       [:a {:href (str "#/curation/" board-name "/" (:db/id thread))}
        [:i.external.share.icon]]
-      (for [comment (:thread/comments thread)]
-        [:div.comment
+      [:div.scroll-pane
+       (for [comment (:thread/comments thread)]
+        [:div.comment {:data-comment-no (:comment/no comment)}
          (om/build avatar (get-in comment [:comment/posted-by :user/email]))
          [:div.content
           [:a.number (:comment/no comment)] ": "
@@ -103,8 +124,11 @@
            [:span.date (.format date-format-m (get-in comment [:comment/posted-at]))]]
           [:div.text (case (get-in comment [:comment/format :db/ident])
                        :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
-                       (format-plain (:comment/content comment)))]]])
-      (om/build comment-new-view thread)])))
+                       (format-plain (:comment/content comment)))]]])]
+      (if (> (count (:thread/comments thread)) 1000)
+        [:div.ui.error.message
+         [:div.header "Over 1000 comments. You can't add any comment to this thread."]]
+        (om/build comment-new-view thread))])))
 
 (defn toggle-sort-key [owner sort-key]
   (let [[col direction] (om/get-state owner :sort-key)]
@@ -157,8 +181,9 @@
                                                             :desc [:i.caret.down.icon]))]]]
       [:tbody
        (for [thread (->> (vals threads)
-                        (sort-by (first sort-key) (case (second sort-key)
-                                                    :asc < :desc >))) ]
+                         (map #(if (:thread/watchers %) % (assoc % :thread/watchers #{})))
+                         (sort-by (first sort-key) (case (second sort-key)
+                                                     :asc < :desc >)))]
          [:tr
           (om/build thread-watch-icon thread {:init-state {:watching? (boolean ((:thread/watchers thread) (:user/name user)))
                                                            :user user}})
@@ -214,16 +239,12 @@
 
 (defn open-tab [owner data]
   (let [tabs (om/get-state owner :tabs)]
-    (if-let [tab (->> tabs (filter #(= (:db/id data) (:id %))) first)]
-      (om/set-state! owner :current-tab (:db/id data))
-      (do
-        (om/update-state! owner :tabs #(conj % {:id (:db/id data) :name (:thread/title data)}))
-        (om/set-state! owner :current-tab (:db/id data))))))
+    (if (->> tabs (filter #(= (:db/id data) (:id %))) empty?)
+      (om/update-state! owner :tabs #(conj % {:id (:db/id data) :name (:thread/title data)})))))
 
 (defcomponent board-view [board owner]
   (init-state [_]
-    {:tabs [{:id 0 :name "New"}]
-     :current-tab 0})
+    {:tabs [{:id 0 :name "New"}]})
   (will-mount [_]
     (go-loop []
       (let [[cmd data] (<! (om/get-state owner :channel))]
@@ -231,8 +252,13 @@
           :open-tab (open-tab owner data)
           :open-thread (open-thread (get-in board [:board/threads data])
                                     (om/get-state owner :channel)))
-        (recur))))
-  (render-state [_ {:keys [tabs current-tab channel]}]
+        (recur)))
+    (when-let [target-thread (om/get-state owner :target-thread)]
+      (put! (om/get-state owner :channel) [:open-thread target-thread])))
+
+  (will-update [_ _ {:keys [target-thread]}]
+               (put! (om/get-state owner :channel) [:open-thread target-thread]))
+  (render-state [_ {:keys [tabs target-thread target-comment channel]}]
     (html
      [:div.main.content
       (om/build thread-list-view (:board/threads board)
@@ -241,24 +267,29 @@
       [:div.ui.top.attached.segment
        [:div.ui.top.attached.tabular.menu
         (for [tab tabs]
-          [:a.item
-           (merge {:on-click (fn [_]
-                               (om/set-state! owner :current-tab (:id tab)))}
-                  (when (= current-tab (:id tab)) {:class "active"}))
-           (:name tab)
+          [:a.item (merge {:on-click (fn [_]
+                               (set! (.-href js/location)
+                                     (if (= (:id tab) 0)
+                                       "#/"
+                                       (str "#/board/" (:board/name board) "/" (:id tab)))))}
+                          (when (= target-thread (:id tab)) {:class "active"})) 
+           [:span (:name tab)] 
            (when (not= (:id tab) 0)
              [:span
-            [:i.close.icon {:on-click (fn [e]
-                                        (om/update-state! owner :tabs (fn [tabs] (vec (remove #(= (:id %) (:id tab)) tabs))))
-                                        (when (= (om/get-state owner :current-tab) (:id tab))
-                                          (om/update-state! owner :current-tab 0))
-                                        (.stopPropagation e))}]])])]
+              [:i.close.icon {:on-click (fn [e]
+                                          (om/update-state! owner #(assoc %
+                                                                          :tabs (vec (remove (fn [t] (= (:id t) (:id tab))) (:tabs %)))
+                                                                          :target-thread (if (= (:target-thread %) (:id tab)) 0 (:target-thread %))) )
+                                          (when (= target-thread (:id tab))
+                                            (set! (.. js/location -href) "#/"))
+                                          (.stopPropagation e))}]])])]
        (for [tab tabs]
          [:div.ui.bottom.attached.tab.segment
-          (when (= current-tab (:id tab)) {:class "active"})
-          (if (= current-tab 0)
+          (when (= target-thread (:id tab)) {:class "active"})
+          (if (= target-thread 0)
             (om/build thread-new-view board)
-            (om/build thread-view (get-in board [:board/threads current-tab])
-                      {:opts {:board-name (:board/name board)}}))])]])))
+            (om/build thread-view (get-in board [:board/threads target-thread])
+                      {:state {:target-comment target-comment}
+                       :opts {:board-name (:board/name board)}}))])]])))
 
 

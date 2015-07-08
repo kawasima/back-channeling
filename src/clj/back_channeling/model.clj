@@ -50,9 +50,15 @@
    (schema article
            (fields
             [name :string]
-            [content :string]
+            [blocks :ref :many]
             [thread :ref]
             [curator :ref]))
+   (schema curating-block
+           (fields
+            [posted-at :instant]
+            [posted-by :ref]
+            [content :string]
+            [:format :enum [:plain :markdown]]))
    (schema notification
            (fields
             [target-user :ref :many]

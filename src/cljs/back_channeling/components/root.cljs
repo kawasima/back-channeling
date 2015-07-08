@@ -63,16 +63,14 @@
                                    :join  (om/transact! app [:users] #(conj % data))
                                    :leave (om/transact! app [:users] #(disj % data))
                                    :call  (js/alert (:message data)))))))
-  (did-update [_ _ _]
-    (when-let [thread-id (:target-thread app)]
-      (put! (om/get-state owner :board-channel) [:open-thread thread-id])))
 
   (render-state [_ {:keys [open-profile? open-users? search-result user board-channel]}]
     (html
      [:div
       [:div.ui.fixed.menu
        [:div.item
-        "Back channeling"]
+        [:a {:href "#/"}
+         [:img.ui.logo.image {:src "/img/logo.png" :alt "Back Channeling"}]]]
        [:div.center.menu
         [:div.item
          [:div.ui.search
@@ -121,5 +119,9 @@
       (when-let [board (get-in app [:boards "default"])]
         (case (:page app)
           :board (om/build board-view board
-                           {:init-state {:channel board-channel}})
-          :curation (om/build curation-page (get-in board [:board/threads (:target-thread app)]))))])))
+                           {:init-state {:channel board-channel}
+                            :state {:target-thread (:target-thread app)
+                                    :target-comment (:target-comment app)}
+                            :opts {:user user}})
+          :curation (om/build curation-page (get-in board [:board/threads (:target-thread app)])
+                              {:opts {:user user}})))])))
