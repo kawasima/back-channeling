@@ -6,7 +6,8 @@
             [cljs.core.async :refer [put! <! chan timeout]]
             [back-channeling.api :as api]
             [back-channeling.components.avatar :refer [avatar]])
-  (:use [back-channeling.comment-helper :only [format-plain]])
+  (:use [back-channeling.comment-helper :only [format-plain]]
+        [back-channeling.component-helper :only [make-click-outside-fn]])
   (:import [goog.i18n DateTimeFormat]))
 
 (enable-console-print!)
@@ -20,18 +21,23 @@
                comment
                {:handler (fn [response]
                            (on-success response))}))
+
+(defn open-thread [thread-id board ch]
+  (when (> thread-id 0)
+    (api/request (str "/api/thread/" thread-id)
+                 {:handler (fn [response]
+                             (om/transact! board [:board/threads thread-id]
+                                         #(assoc %
+                                                 :thread/comments (:thread/comments response)
+                                                 :thread/resnum (count (:thread/comments response))))
+                           (put! ch [:open-tab response]))})))
+
 (defn save-thread [thread]
   (api/request (str "/api/board/" (:board/name thread) "/threads")
                :POST
                thread
-               {:handler (fn [response])}))
-
-(defn open-thread [thread ch]
-  (when thread
-    (api/request (str "/api/thread/" (:db/id thread))
                {:handler (fn [response]
-                           (om/update! thread [:thread/comments] (:thread/comments response))
-                           (put! ch [:open-tab response]))})))
+                           (set! (.-href js/location) (str "#/board/" (:board/name thread) "/" (:db/id response))))}))
 
 (defn watch-thread [thread user owner]
   (api/request (str "/api/thread/" (:db/id thread))
@@ -49,70 +55,92 @@
 
 (defcomponent comment-new-view [thread owner]
   (init-state [_] {:comment ""
-                   :comment-format "comment.format/plain"})
-  (render-state [_ {:keys [comment comment-format]}]
+                   :comment-format "comment.format/plain"
+                   :focus? false
+                   :click-outside-fn nil})
+
+  (will-mount [_]
+    (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
+      (.removeEventListener js/document "mousedown" on-click-outside)))
+  (did-mount [_]
+    (when-not (om/get-state owner :click-outside-fn)
+      (om/set-state! owner :click-outside-fn
+                   (make-click-outside-fn
+                    (om/get-node owner)
+                    #(om/set-state! owner :focus? false))))
+    (.addEventListener js/document "mousedown"
+                       (om/get-state owner :click-outside-fn)))
+  (did-update [_ _ _]
+    (if (om/get-state owner :focus?)
+      (.. (om/get-node owner) (querySelector "textarea") focus)))
+  (render-state [_ {:keys [comment comment-format focus?]}]
     (html
      [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
       [:div.ui.equal.width.grid
-       [:div.row
-        [:div.column
-         [:div.field
-          [:textarea#comment
-           {:name "comment"
-            :value comment
-            :on-change (fn [e]
-                         (om/set-state! owner :comment (.. e -target -value)))
-            :on-key-up (fn [e]
-                         (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
-                           (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
-                             (.click btn))))}]]
-         [:div.actions
-          [:div.two.fields
+       (if focus?
+         [:div.row
+          [:div.column
            [:div.field
-            [:select {:name "format"
-                      :on-change (fn [e]
-                                   (om/set-state! owner :comment-format (.. e -target -value)))}
-             [:option {:value "comment.format/plain"} "Plain"]
-             [:option {:value "comment.format/markdown"} "Markdown"]]]
-           [:div.field
-            [:button.ui.blue.labeled.submit.icon.button
-             {:on-click (fn [e]
-                          (let [dom (om/get-node owner)]
-                            (save-comment {:thread/id  (:db/id thread)
-                                           :comment/content (.. dom (querySelector "[name=comment]") -value)
-                                           :comment/format (keyword (.. dom (querySelector "[name=format]") -value))}
-                                          
-                                          (fn [_] (om/set-state! owner :comment "")))))}
-             [:i.icon.edit] "New comment"]]]]]
-        [:div.column
-         [:div.preview
-          [:div.ui.top.right.attached.label "Preview"]
-          [:div.attached
-           (case comment-format
-             "comment.format/plain" (format-plain comment) 
-             "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]]])))
+            [:textarea#comment
+             {:name "comment"
+              :value comment
+              :on-change (fn [e]
+                           (om/set-state! owner :comment (.. e -target -value)))
+              :on-key-up (fn [e]
+                           (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
+                             (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
+                               (.click btn))))}]]
+           [:div.actions
+            [:div.two.fields
+             [:div.field
+              [:select {:name "format"
+                        :on-change (fn [e]
+                                     (om/set-state! owner :comment-format (.. e -target -value)))}
+               [:option {:value "comment.format/plain"} "Plain"]
+               [:option {:value "comment.format/markdown"} "Markdown"]]]
+             [:div.field
+              [:button.ui.blue.labeled.submit.icon.button
+               {:on-click (fn [e]
+                            (let [dom (om/get-node owner)]
+                              (save-comment {:thread/id  (:db/id thread)
+                                             :comment/content (.. dom (querySelector "[name=comment]") -value)
+                                             :comment/format (keyword (.. dom (querySelector "[name=format]") -value))}
+                                            
+                                            (fn [_] (om/set-state! owner :comment "")))))}
+               [:i.icon.edit] "New comment"]]]]]
+          [:div.column
+           [:div.preview
+            [:div.ui.top.right.attached.label "Preview"]
+            [:div.attached
+             (case comment-format
+               "comment.format/plain" (format-plain comment) 
+               "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]
+         [:div.row
+          [:div.column
+           [:div.ui.left.icon.input.field
+            [:i.edit.icon]
+            [:input {:type "text" :value comment :on-focus (fn [_] (om/set-state! owner :focus? true))}]]]])]])))
 
-(defcomponent thread-view [thread owner {:keys [board-name]}]
-  (did-mount [_]
-    (let [comment-no (om/get-state owner :target-comment)
-          comment-dom (.. (om/get-node owner)
-                          (querySelector (str "[data-comment-no='" comment-no "']")))]
-      (when comment-dom
-        (.scrollTo js/window 0 (- (some->> (.getBoundingClientRect comment-dom) (.-top)) 80)))))
-  (did-update [_ _ _]
-     (let [comment-no (om/get-state owner :target-comment)
-           comment-dom (.. (om/get-node owner)
-                           (querySelector (str "[data-comment-no='" comment-no "']")))
-           scroll-pane (.. (om/get-node owner)
+(defn scroll-to-comment [owner thread]
+  (let [comment-no (or (om/get-state owner :target-comment) (count (:thread/comments thread))) 
+        comment-dom (.. (om/get-node owner)
+                        (querySelector (str "[data-comment-no='" comment-no "']")))
+        scroll-pane (.. (om/get-node owner)
                            (querySelector "div.scroll-pane"))]
       (when comment-dom
         (set! (.-scrollTop scroll-pane) (some->> (.getBoundingClientRect comment-dom) (.-top))))))
+
+(defcomponent thread-view [thread owner {:keys [board-name]}]
+  (did-mount [_]
+    (scroll-to-comment owner thread))
+  (did-update [_ _ _]
+    (scroll-to-comment owner thread))
   (render [_]
     (html
      [:div.ui.thread.comments
       [:h3.ui.dividing.header (:thread/title thread)]
-      [:a {:href (str "#/curation/" board-name "/" (:db/id thread))}
-       [:i.external.share.icon]]
+      [:a.curation.link {:href (str "#/curation/" board-name "/" (:db/id thread))}
+       [:i.external.share.big.icon]]
       [:div.scroll-pane
        (for [comment (:thread/comments thread)]
         [:div.comment {:data-comment-no (:comment/no comment)}
@@ -158,58 +186,76 @@
 
 (defcomponent thread-list-view [threads owner {:keys [board-name]}]
   (init-state [_]
-    {:sort-key [:thread/since :desc]
+    {:sort-key [:thread/last-updated :desc]
      :user {:user/name  (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))
             :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}})
   (render-state [_ {:keys [board-channel sort-key user]}]
     (html
-     [:table.ui.violet.table
-      [:thead
-       [:tr
-        [:th ""]
-        [:th {:on-click (fn [_] (toggle-sort-key owner :thread/title))}
-         "Title" (when (= (first sort-key) :thread/title) (case (second sort-key)
-                                                            :asc  [:i.caret.up.icon]
-                                                            :desc [:i.caret.down.icon]))]
-        [:th {:on-click (fn [_] (toggle-sort-key owner :thread/resnum))}
-         "Res" (when (= (first sort-key) :thread/resnum) (case (second sort-key)
-                                                            :asc  [:i.caret.up.icon]
-                                                            :desc [:i.caret.down.icon]))]
-        [:th {:on-click (fn [_] (toggle-sort-key owner :thread/since))}
-         "Since" (when (= (first sort-key) :thread/since) (case (second sort-key)
-                                                            :asc  [:i.caret.up.icon]
-                                                            :desc [:i.caret.down.icon]))]]]
-      [:tbody
-       (for [thread (->> (vals threads)
-                         (map #(if (:thread/watchers %) % (assoc % :thread/watchers #{})))
-                         (sort-by (first sort-key) (case (second sort-key)
-                                                     :asc < :desc >)))]
+     [:div.table.container
+      [:div.tbody.container
+       [:table.ui.table
+        [:thead
          [:tr
-          (om/build thread-watch-icon thread {:init-state {:watching? (boolean ((:thread/watchers thread) (:user/name user)))
-                                                           :user user}})
-          [:td
-           [:a {:href (str "#/board/" board-name "/" (:db/id thread))}
-            (:thread/title thread)]]
-          [:td (:thread/resnum thread)]
-          [:td (.format date-format-m (:thread/since thread))]])]])))
-
+          [:th ""]
+          [:th {:on-click (fn [_] (toggle-sort-key owner :thread/title))}
+           "Title" [:div "Title " (when (= (first sort-key) :thread/title) (case (second sort-key)
+                                                                             :asc  [:i.caret.up.icon]
+                                                                             :desc [:i.caret.down.icon]))]]
+          [:th {:on-click (fn [_] (toggle-sort-key owner :thread/resnum))}
+           "Res"
+           [:div "Res" (when (= (first sort-key) :thread/resnum) (case (second sort-key)
+                                                          :asc  [:i.caret.up.icon]
+                                                          :desc [:i.caret.down.icon]))]]
+          [:th {:on-click (fn [_] (toggle-sort-key owner :thread/last-updated))}
+           "Last updated"
+           [:div "Last updated"
+            (when (= (first sort-key) :thread/last-updated) (case (second sort-key)
+                                                              :asc  [:i.caret.up.icon]
+                                                              :desc [:i.caret.down.icon]))]]
+          [:th {:on-click (fn [_] (toggle-sort-key owner :thread/since))}
+           "Since"
+           [:div "Since"
+            (when (= (first sort-key) :thread/since) (case (second sort-key)
+                                                              :asc  [:i.caret.up.icon]
+                                                              :desc [:i.caret.down.icon]))]]]]
+        [:tbody
+         (for [thread (->> (vals threads)
+                           (map #(if (:thread/watchers %) % (assoc % :thread/watchers #{})))
+                           (sort-by (first sort-key) (case (second sort-key)
+                                                       :asc < :desc >)))]
+           [:tr
+            (om/build thread-watch-icon thread {:init-state {:watching? (boolean ((:thread/watchers thread) (:user/name user)))
+                                                             :user user}})
+            [:td
+             [:a {:href (str "#/board/" board-name "/" (:db/id thread))}
+              (:thread/title thread)]]
+            [:td (:thread/resnum thread)]
+            [:td (.format date-format-m (:thread/last-updated thread))]
+            [:td (.format date-format-m (:thread/since thread))]])]]]])))
 
 (defcomponent thread-new-view [board owner]
   (init-state [_] {:comment ""
+                   :title ""
                    :comment-format "comment.format/plain"})
-  (render-state [_ {:keys [comment comment-format]}]
+  (render-state [_ {:keys [comment comment-format title]}]
     (html
-     [:form.ui.reply.form
+     [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
       [:div.ui.equal.width.grid
        [:div.row
         [:div.column
          [:div.field
           [:label "Title"]
-          [:input {:type "text" :name "title"}]]
+          [:input {:type "text" :name "title" :value title
+                   :on-change (fn [e] (om/set-state! owner :title (.. e -target -value)))}]]
          [:div.field
           [:textarea {:name "comment"
+                      :value comment
                       :on-change (fn [e]
-                                   (om/set-state! owner :comment (.. e -target -value)))}]]
+                                   (om/set-state! owner :comment (.. e -target -value)))
+                      :on-key-up (fn [e]
+                                   (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
+                                     (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
+                                       (.click btn))))}]]
          [:div.actions
           [:div.two.fields
            [:div.field
@@ -219,14 +265,15 @@
              [:option {:value "comment.format/plain"} "Plain"]
              [:option {:value "comment.format/markdown"} "Markdown"]]]
            [:div.field
-            [:div.ui.blue.labeled.submit.icon.button
+            [:button.ui.blue.labeled.submit.icon.button
              {:on-click (fn [_]
                           (let [dom (om/get-node owner)
                                 title (.. dom (querySelector "[name=title]") -value)]
                             (if (->> [title comment] (keep not-empty) not-empty)
-                              (save-thread {:board/name (:board/name board)
-                                            :thread/title title
-                                            :comment/content comment})
+                              (do (save-thread {:board/name (:board/name @board)
+                                                :thread/title title
+                                                :comment/content comment})
+                                  (om/update-state! owner #(assoc % :comment "" :title "")))
                               (js/alert "title and content are required."))))}
              [:i.icon.edit] "Create thread"]]]]]
         [:div.column
@@ -250,14 +297,15 @@
       (let [[cmd data] (<! (om/get-state owner :channel))]
         (case cmd
           :open-tab (open-tab owner data)
-          :open-thread (open-thread (get-in board [:board/threads data])
+          :open-thread (open-thread data board
                                     (om/get-state owner :channel)))
         (recur)))
     (when-let [target-thread (om/get-state owner :target-thread)]
       (put! (om/get-state owner :channel) [:open-thread target-thread])))
 
-  (will-update [_ _ {:keys [target-thread]}]
-               (put! (om/get-state owner :channel) [:open-thread target-thread]))
+  (will-update [_ _ {:keys [target-thread] :as next-state}]
+    (put! (om/get-state owner :channel) [:open-thread target-thread]))
+  
   (render-state [_ {:keys [tabs target-thread target-comment channel]}]
     (html
      [:div.main.content

@@ -19,6 +19,10 @@
 (defn transact [transaction]
   @(d/transact @conn transaction))
 
+(defn resolve-tempid [tempids tempid]
+  (let [db (d/db @conn)]
+    (d/resolve-tempid db tempids tempid)))
+
 (defn dbparts []
   [(part "message")])
 

@@ -36,6 +36,13 @@
                           (om/set-state! owner :editing? true))}
         (:comment/content curating-block)]))))
 
+(defn generate-markdown [curating-blocks]
+  (->> curating-blocks
+       (map #(if (= (:comment/format %) :comment.format/markdown)
+               (:comment/content %)
+               (str "```\n" (:comment/content %) "\n```\n")))
+       (clojure.string/join "\n\n")))
+
 (defcomponent curation-page [thread owner {:keys [user]}]
   (init-state [_]
     {:selected-thread-comments #{}
@@ -47,13 +54,23 @@
   
   (will-mount [_]
     (open-thread thread))
+
+  (did-mount [_]
+    (when-let [markdown-btn (.. (om/get-node owner) (querySelector "button.markdown.button"))]
+      (let [clipboard (js/ZeroClipboard. markdown-btn)]
+        (.on clipboard "ready"
+             (fn [_]
+               (.on clipboard "copy"
+                    (fn [e]
+                      (.. e -clipboardData (setData "text/plain"
+                                                    (generate-markdown (om/get-state owner :curating-blocks)))))))))))
   
   (render-state [_ {:keys [selected-thread-comments curating-blocks editorial-space]}]
     (html
-     [:div.main.content
-      [:div.ui.two.column.grid
+     [:div.curation.content
+      [:div.ui.grid
       [:div.row
-       [:div.column
+       [:div.seven.wide.column
         [:div.ui.thread.comments
          [:h3.ui.dividing.header (:thread/title thread)]
          [:div.comment {:on-click (fn [_]
@@ -78,21 +95,28 @@
              [:div.text (case (get-in comment [:comment/format :db/ident])
                           :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
                           (:comment/content comment))]]])]]
-       (when (not-empty selected-thread-comments)
-         [:i.citation.huge.arrow.circle.outline.right.icon
-          {:on-click (fn [_]
-                       (om/update-state! owner :curating-blocks
-                                         (fn [curating-blocks]
-                                           (into curating-blocks
-                                                 (->> (om/get-state owner :selected-thread-comments)
-                                                      (map (fn [comment-id]
-                                                             (->> (conj (:thread/comments thread) editorial-space)
-                                                                  (filter #(= (:db/id %) comment-id))
-                                                                  first)))))))
-                       (om/set-state! owner :selected-thread-comments #{}))}])
+       
        [:div.column
+        (when (not-empty selected-thread-comments)
+          [:i.citation.huge.arrow.circle.outline.right.icon
+           {:on-click (fn [_]
+                        (om/update-state! owner :curating-blocks
+                                          (fn [curating-blocks]
+                                            (into curating-blocks
+                                                  (->> (om/get-state owner :selected-thread-comments)
+                                                       (map (fn [comment-id]
+                                                              (->> (conj (:thread/comments thread) editorial-space)
+                                                                   (filter #(= (:db/id %) comment-id))
+                                                                   first)))))))
+                        (om/set-state! owner :selected-thread-comments #{}))}])]
+       
+       [:div.eight.wide.column
         [:div.ui.input
-         [:input {:type "text" :placeholder "Curation name"}]]
+         [:input {:type "text" :placeholder "Curation name"}]
+         [:button.ui.olive.basic.markdown.button (when (= (count curating-blocks) 0)
+                                                   {:class "hidden"})
+          [:i.paste.icon]
+          "Markdown"]]
         [:div.ui.comments
          (map-indexed
           (fn [index curating-block]

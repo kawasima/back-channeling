@@ -47,7 +47,7 @@
                                      :where [[?board :board/threads ?thread]
                                              [?thread :thread/comments ?comment]]}
                                    (:db/id board))
-                      (map #(-> (model/pull '[:db/id :thread/title :thread/since
+                      (map #(-> (model/pull '[:db/id :thread/title :thread/since :thread/last-updated
                                               {:thread/watchers [:user/name]}]
                                             (first %))
                                 (assoc :thread/resnum (second %))
@@ -62,38 +62,45 @@
   :available-media-types ["application/edn"]
   :allowed-methods [:get :post]
   :malformed? #(parse-edn %)
+  :handle-created (fn [ctx]
+             {:db/id (:db/id ctx)})
   :post! (fn [{th :edn req :request}]
            (let [user (model/query '{:find [?u .]
                                      :in [$ ?name]
                                      :where [[?u :user/name ?name]]}
                                    (get-in req [:identity :user/name]))
-                 now (Date.)]
-             (model/transact [[:db/add [:board/name (:board/name th)] :board/threads #db/id[:db.part/user -1]]
-                              {:db/id #db/id[:db.part/user -1]
-                               :thread/title (:thread/title th)
-                               :thread/since now
-                               :thread/last-updated now}
-                              [:db/add #db/id[:db.part/user -1] :thread/comments #db/id[:db.part/user -2]]
-                              {:db/id #db/id[:db.part/user -2]
-                               :comment/posted-at now
-                               :comment/posted-by user
-                               :comment/format (get th :comment/format :comment.format/plain)
-                               :comment/content (:comment/content th)}])
-             (server/broadcast-message "/ws" [:update-board {:board/name board-name}])))
+                 now (Date.)
+                 thread-id (d/tempid :db.part/user)
+                 tempids (-> (model/transact [[:db/add [:board/name (:board/name th)] :board/threads thread-id]
+                                              {:db/id thread-id
+                                               :thread/title (:thread/title th)
+                                               :thread/since now
+                                               :thread/last-updated now}
+                                              [:db/add thread-id :thread/comments #db/id[:db.part/user -2]]
+                                              {:db/id #db/id[:db.part/user -2]
+                                               :comment/posted-at now
+                                               :comment/posted-by user
+                                               :comment/format (get th :comment/format :comment.format/plain)
+                                               :comment/content (:comment/content th)}])
+                             :tempids)]
+             (server/broadcast-message "/ws" [:update-board {:board/name board-name}])
+             
+             {:db/id (model/resolve-tempid tempids thread-id)}))
   :handle-ok (fn [{{{:keys [q]} :params} :request}]
                (when q
-                 (->> (model/query '{:find [?thread ?comment ?score] 
+                 (->> (model/query '{:find [?board-name ?thread ?comment ?score] 
                                  :in [$ ?board-name ?search]
                                  :where [[?board :board/name ?board-name]
                                          [?board :board/threads ?thread]
                                          [?thread :thread/comments ?comment]
                                          [(fulltext $ :comment/content ?search) [[?comment ?content ?tx ?score]]]
                                          ]} board-name q)
-                    (map (fn [[thread-id comment-id score]]
+                    (map (fn [[board-name thread-id comment-id score]]
                            (let [thread (model/pull '[:db/id :thread/title {:thread/watchers [:user/name]}] thread-id)
                                  comment (model/pull '[:comment/content] comment-id)]
                              (merge thread comment
-                                    {:score/value score}))))
+                                    {:score/value score}
+                                    {:board/name board-name}))))
                     (group-by :db/id)
                     (map (fn [[k v]]
                            (apply max-key :score/value v)))
@@ -107,7 +114,6 @@
   :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
           (when-let [user (model/query '{:find [?u .] :in [$ ?name] :where [[?u :user/name ?name]]}
                                        (get-in req [:identity :user/name]))]
-            (println "add " add-watcher "/remove " remove-watcher)
             (when add-watcher
               (model/transact [[:db/add thread-id :thread/watchers user]]))
             (when remove-watcher

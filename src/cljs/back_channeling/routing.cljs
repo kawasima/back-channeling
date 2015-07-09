@@ -12,11 +12,11 @@
 (defn- setup-routing [app]
   (sec/set-config! :prefix "#")
   (sec/defroute "/" []
-    (om/transact! app #(assoc % :page :board :target-thread 0 :target-comment 1)))
+    (om/transact! app #(assoc % :page :board :target-thread 0 :target-comment nil)))
   (sec/defroute "/board/:board-name/" [board-name]
-    (om/transact! app #(assoc % :page :board :target-thread 0 :target-comment 1)))
+    (om/transact! app #(assoc % :page :board :target-thread 0 :target-comment nil)))
   (sec/defroute "/board/:board-name/:thread-id" [board-name thread-id]
-    (om/transact! app #(assoc % :page :board :target-thread (js/parseInt thread-id) :target-comment 1)))
+    (om/transact! app #(assoc % :page :board :target-thread (js/parseInt thread-id) :target-comment nil)))
   (sec/defroute "/board/:board-name/:thread-id/:comment-no" [board-name thread-id comment-no]
     (om/transact! app #(assoc %
                               :page :board

@@ -9,20 +9,22 @@
             [back-channeling.components.avatar :refer [avatar]])
   (:use [back-channeling.components.board :only [board-view]]
         [back-channeling.components.curation :only [curation-page]]
+        [back-channeling.component-helper :only [make-click-outside-fn]]
         [cljs.reader :only [read-string]]))
 
 (defn refresh-board [app board-name]
   (api/request (str "/api/board/" board-name)
                {:handler (fn [response]
-                           (if (get-in app [:boards board-name])
-                             (om/transact! app [:boards board-name :board/threads]
-                                           (fn [threads]
-                                             (merge-with merge (:board/threads response) threads)))
-                             (let [board (update-in response [:board/threads]
-                                                    (fn [threads]
-                                                      (->> threads
-                                                           (map (fn [t] {(:db/id t) t}))
-                                                           (reduce merge {}))))]
+                           (let [board (update-in response [:board/threads]
+                                                  (fn [threads]
+                                                    (->> threads
+                                                         (map (fn [t] {(:db/id t) t}))
+                                                         (reduce merge {}))))]
+                             (if (get-in @app [:boards board-name])
+                               (om/transact! app [:boards board-name :board/threads]
+                                             (fn [threads]
+                                               (merge-with merge (:board/threads board) threads)))
+                               
                                (om/update! app [:boards board-name] board))))}))
 
 (defn fetch-comments [app {:keys [board/name thread/id]}]
@@ -45,7 +47,9 @@
      :board-channel (chan)
      :user {:user/name  (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))
             :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}
-     :called-message nil})
+     :called-message nil
+     :click-outside-fn nil})
+  
   (will-mount [_]
     (routing/init app owner)
     (refresh-board app "default")
@@ -62,12 +66,27 @@
                                    :update-thread (fetch-comments app data)
                                    :join  (om/transact! app [:users] #(conj % data))
                                    :leave (om/transact! app [:users] #(disj % data))
-                                   :call  (js/alert (:message data)))))))
+                                   :call  (js/alert (:message data))))))
+    (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
+      (.removeEventListener js/document "mousedown" on-click-outside)))
+
+  (did-mount [_]
+    (when-not (om/get-state owner :click-outside-fn)
+      (om/set-state! owner :click-outside-fn
+                   (make-click-outside-fn
+                    (.. (om/get-node owner) (querySelector "div.site.menu"))
+                    (fn [_]
+                      (om/update-state! owner #(assoc %
+                                                      :open-profile? false
+                                                      :open-users? false
+                                                      :search-result nil))))))
+    (.addEventListener js/document "mousedown"
+                       (om/get-state owner :click-outside-fn)))
 
   (render-state [_ {:keys [open-profile? open-users? search-result user board-channel]}]
     (html
      [:div
-      [:div.ui.fixed.menu
+      [:div.ui.fixed.site.menu
        [:div.item
         [:a {:href "#/"}
          [:img.ui.logo.image {:src "/img/logo.png" :alt "Back Channeling"}]]]
@@ -80,17 +99,17 @@
              :placeholder "Keyword"
              :on-key-up (fn [_]
                          (if-let [query (.. js/document (getElementById "search") -value)]
-                           (when (> (count query) 2)
-                             (search-threads owner "default" query))))}]
+                           (if (> (count query) 2)
+                             (search-threads owner "default" query)
+                             (om/set-state! owner :search-result nil))))}]
            [:i.search.icon]]
           (when (not-empty search-result)
             [:div.results.transition.visible
              (for [res search-result]
                [:a.result {:on-click
                            (fn [_]
-                             (put! board-channel [:open-tab {:db/id (:db/id res)
-                                                             :thread/title (:thread/title res)}])
-                             (om/set-state! owner :search-result nil))}
+                             (om/set-state! owner :search-result nil)
+                             (set! (.-href js/location) (str "#/board/" (:board/name res) "/" (:db/id res))))}
                 [:div.content
                  [:div.title (:thread/title res)]]])])]]]
        
