@@ -6,6 +6,7 @@
             [back-channeling.routing :as routing]
             [back-channeling.api :as api]
             [back-channeling.socket :as socket]
+            [back-channeling.notification :as notification]
             [back-channeling.components.avatar :refer [avatar]])
   (:use [back-channeling.components.board :only [board-view]]
         [back-channeling.components.curation :only [curation-page]]
@@ -27,12 +28,24 @@
                                
                                (om/update! app [:boards board-name] board))))}))
 
-(defn fetch-comments [app {:keys [board/name thread/id]}]
-  (api/request (str "/api/thread/" id)
-               {:handler (fn [thread]
-                           (om/transact! app [:boards "default" :board/threads]
-                                         (fn [threads]
-                                           (assoc threads id thread))))}))
+(defn fetch-comments
+  ([app thread]
+   (fetch-comments app thread 1))
+  ([app {:keys [board/name db/id]} from]
+   (api/request (str "/api/thread/" id "/comments/" from "-")
+                {:handler (fn [fetched-comments]
+                            (om/transact! app [:boards "default" :board/threads id :thread/comments]
+                                          (fn [comments]
+                                            (vec (concat comments fetched-comments)))))})))
+
+(defn refresh-thread [app thread]
+  (om/transact! app [:boards (:board/name thread) :board/threads (:db/id thread)]
+                #(assoc %
+                        :thread/last-updated (:thread/last-updated thread)
+                        :thread/resnum (:thread/resnum thread)))
+  (when (= (:target-thread @app) (:db/id thread))
+    (fetch-comments app thread
+                    (inc (count (get-in @app [:boards "default" :board/threads (:db/id thread) :thread/comments] [])) ))))
 
 (defn search-threads [owner board-name query]
   (api/request (str "/api/board/" board-name "/threads?q=" (js/encodeURIComponent query))
@@ -62,8 +75,9 @@
                  :on-message (fn [message]
                                (let [[cmd data] (read-string message)]
                                  (case cmd
+                                   :notify (notification/show data)
                                    :update-board (refresh-board app "default")
-                                   :update-thread (fetch-comments app data)
+                                   :update-thread (refresh-thread app (assoc data :board/name "default"))
                                    :join  (om/transact! app [:users] #(conj % data))
                                    :leave (om/transact! app [:users] #(disj % data))
                                    :call  (js/alert (:message data))))))
@@ -142,5 +156,6 @@
                             :state {:target-thread (:target-thread app)
                                     :target-comment (:target-comment app)}
                             :opts {:user user}})
-          :curation (om/build curation-page (get-in board [:board/threads (:target-thread app)])
-                              {:opts {:user user}})))])))
+          :curation (om/build curation-page (:curating-blocks app)
+                              {:init-state {:thread (get-in board [:board/threads (:target-thread app)])}
+                               :opts {:user user}})))])))

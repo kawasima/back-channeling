@@ -22,16 +22,6 @@
                {:handler (fn [response]
                            (on-success response))}))
 
-(defn open-thread [thread-id board ch]
-  (when (> thread-id 0)
-    (api/request (str "/api/thread/" thread-id)
-                 {:handler (fn [response]
-                             (om/transact! board [:board/threads thread-id]
-                                         #(assoc %
-                                                 :thread/comments (:thread/comments response)
-                                                 :thread/resnum (count (:thread/comments response))))
-                           (put! ch [:open-tab response]))})))
-
 (defn save-thread [thread]
   (api/request (str "/api/board/" (:board/name thread) "/threads")
                :POST
@@ -284,29 +274,14 @@
              "comment.format/plain" (format-plain comment)
              "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]]])))
 
-(defn open-tab [owner data]
-  (let [tabs (om/get-state owner :tabs)]
-    (if (->> tabs (filter #(= (:db/id data) (:id %))) empty?)
-      (om/update-state! owner :tabs #(conj % {:id (:db/id data) :name (:thread/title data)})))))
 
 (defcomponent board-view [board owner]
   (init-state [_]
     {:tabs [{:id 0 :name "New"}]})
-  (will-mount [_]
-    (go-loop []
-      (let [[cmd data] (<! (om/get-state owner :channel))]
-        (case cmd
-          :open-tab (open-tab owner data)
-          :open-thread (open-thread data board
-                                    (om/get-state owner :channel)))
-        (recur)))
-    (when-let [target-thread (om/get-state owner :target-thread)]
-      (put! (om/get-state owner :channel) [:open-thread target-thread])))
-
-  (will-update [_ _ {:keys [target-thread] :as next-state}]
-    (put! (om/get-state owner :channel) [:open-thread target-thread]))
   
   (render-state [_ {:keys [tabs target-thread target-comment channel]}]
+    (if (->> tabs (filter #(= target-thread (:id %))) empty?)
+        (om/update-state! owner :tabs #(conj % {:id target-thread :name (get-in board [:board/threads target-thread :thread/title])})))
     (html
      [:div.main.content
       (om/build thread-list-view (:board/threads board)

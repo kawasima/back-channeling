@@ -50,7 +50,8 @@
             [name :string :unique-value]
             [email :string :unique-value]
             [password :string]
-            [salt :bytes]))
+            [salt :bytes]
+            [token :string]))
    (schema article
            (fields
             [name :string]
@@ -65,8 +66,10 @@
             [:format :enum [:plain :markdown]]))
    (schema notification
            (fields
-            [target-user :ref :many]
-            [type :enum [:referred :mentioned]]))])
+            [target-users :ref :many]
+            [type :enum [:referred :mentioned]]
+            [thread :ref]
+            [comment-no :long]))])
 
 (defn generate-enums [& enums]
   (apply concat

@@ -68,7 +68,11 @@
              :cursor "pointer"
              :color "rgba(0,0,0,.87)"
              :padding "9px 25px"
-             :line-height "normal"}]]]]])
+             :line-height "normal"}]]]]
+   [:.account-type {:cursor "pointer"}
+    [:&.on {:fill "#aacf53"}]
+    [:&.off {:fill "#e0e0e0"}
+     [:&:hover {:fill "#aacf53"}]]]])
 
 
 (defn build []

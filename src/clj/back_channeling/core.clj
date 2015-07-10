@@ -8,6 +8,7 @@
 
         [buddy.auth :only [authenticated?]]
         [buddy.auth.backends.session :only [session-backend]]
+        [buddy.auth.backends.token :only [token-backend]]
         [buddy.auth.middleware :only [wrap-authentication wrap-authorization]]
         [buddy.auth.accessrules :only [wrap-access-rules]]
         (back-channeling [resources :only [api-routes]]
@@ -20,10 +21,7 @@
             (back-channeling [server :as server]
                              [style :as style]
                              [model :as model]
-                             [signup :as signup]))
-  (:import [java.util Date]))
-
-
+                             [signup :as signup])))
 
 (defn index-view [req]
   (layout req
@@ -54,14 +52,20 @@
 (defn auth-by-password [username password]
   (when (and (not-empty username) (not-empty password))
     (model/query '{:find [(pull ?s [:*]) .]
-                 :in [$ ?uname ?passwd]
-                 :where [[?s :user/name ?uname]
-                         [?s :user/salt ?salt]
-                         [(concat ?salt ?passwd) ?passwd-seq]
-                         [(into-array Byte/TYPE ?passwd-seq) ?passwd-bytes]
-                         [(buddy.core.hash/sha256 ?passwd-bytes) ?hash]
-                         [(buddy.core.codecs/bytes->hex ?hash) ?hash-hex]
-                         [?s :user/password ?hash-hex]]} username password)))
+                   :in [$ ?uname ?passwd]
+                   :where [[?s :user/name ?uname]
+                           [?s :user/salt ?salt]
+                           [(concat ?salt ?passwd) ?passwd-seq]
+                           [(into-array Byte/TYPE ?passwd-seq) ?passwd-bytes]
+                           [(buddy.core.hash/sha256 ?passwd-bytes) ?hash]
+                           [(buddy.core.codecs/bytes->hex ?hash) ?hash-hex]
+                           [?s :user/password ?hash-hex]]} username password)))
+
+(defn auth-by-token [token]
+  (when token
+    (model/query '{:find [(pull ?s [:*]) .]
+                   :in [$ ?token]
+                   :where [[?s :user/token ?token]]} token)))
 
 (defroutes app-routes
   (GET "/" req (index-view req))
@@ -75,7 +79,7 @@
     (signup/signup-view req))
   (POST "/signup" req
     (signup/signup (select-keys (clojure.walk/keywordize-keys (:params req))
-                                [:user/email :user/name :user/password])))
+                                [:user/email :user/name :user/password :user/token])))
   
   (GET "/logout" []
     (-> (redirect "/")
@@ -87,6 +91,7 @@
   (compojure/context "/api" [] api-routes)
   (GET "/css/back-channeling.css" [] (-> {:body (style/build)}
                                          (content-type "text/css")))
+
   (route/resources "/")
   (route/not-found "Not found."))
 
@@ -107,21 +112,26 @@
   (server/broadcast-message "/ws" [:join  {:user/name (:user/name message)
                                            :user/email (:user/email message)}]))
 
-(def access-rules [{:pattern #"^(/|/api/?)$" :handler authenticated?}])
-(def backend (session-backend
-              {:unauthorized-handler
-               (fn [req meta]
-                 (if (authenticated? req)
-                   (redirect "/login")
-                   (redirect (format "/login?next=%s" (:uri req)))))}))
+(def access-rules [{:pattern #"^(/|/api/?.*)$" :handler authenticated?}])
+(def session-base (session-backend
+                      {:unauthorized-handler
+                       (fn [req meta]
+                         (if (authenticated? req)
+                           (redirect "/login")
+                           (redirect (format "/login?next=%s" (:uri req)))))}))
+
+(def token-base (token-backend
+                {:authfn
+                 (fn [req token]
+                   (auth-by-token token))}))
 
 (defn -main [& {:keys [port] :or {port 3009}}]
   (model/create-schema)
   (server/run-server
    (-> app-routes
        (wrap-access-rules {:rules access-rules :policy :allow})
-       (wrap-authentication backend)
-       (wrap-authorization backend)
+       (wrap-authentication token-base session-base)
+       (wrap-authorization  session-base)
        (wrap-defaults (assoc-in site-defaults [:security :anti-forgery] false))
        (wrap-reload))
    :port port

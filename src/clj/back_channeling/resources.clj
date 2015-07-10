@@ -126,11 +126,16 @@
                                    {:comment/posted-by [:user/name :user/email]}]}] thread-id)
                    (update-in [:thread/comments] (partial map-indexed #(assoc %2  :comment/no (inc %1)))))))
 
-(defresource comments-resource [thread-id]
+(defresource comments-resource [thread-id from to]
   :available-media-types ["application/edn"]
   :allowed-methods [:get :post]
   :malformed? #(parse-edn %)
-  :post! (fn [{comment :edn req :request}]
+  :processable? (fn [ctx]
+                  (let [resnum (model/query '{:find [(count ?comment) .]
+                                              :in [$ ?thread]
+                                              :where [[?thread :thread/comments ?comment]]} thread-id)]
+                    (if (< resnum 1000) {:thread/resnum resnum} false)))
+  :post! (fn [{comment :edn req :request resnum :thread/resnum}]
            (let [user (model/query '{:find [?u .]
                                      :in [$ ?name]
                                      :where [[?u :user/name ?name]]}
@@ -145,8 +150,32 @@
                         :comment/content (:comment/content comment)}]
                       (when-not (:comment/sage? comment)
                         [{:db/id thread-id :thread/last-updated now}])))
-             (server/broadcast-message "/ws" [:update-thread {:thread/id thread-id}])))
-  :handle-ok (fn [_]))
+             (server/broadcast-message
+              "/ws"
+              [:update-thread {:db/id thread-id
+                               :thread/last-updated now
+                               :thread/resnum (inc resnum)}])
+             (when-let [watchers (not-empty (->> (model/pull '[{:thread/watchers [:user/name :user/email]}] thread-id)
+                                                 :thread/watchers
+                                                 (apply hash-set)))]
+               (server/multicast-message
+                "/ws"
+                [:notify {:thread/id thread-id
+                          :board/name (model/query '{:find [?bname .] :in [$ ?t] :where [[?b :board/name ?bname] [?b :board/threads ?t]]} thread-id)
+                          :comment/no (inc resnum)
+                          :comment/posted-at now
+                          :comment/posted-by (model/pull '[:user/name :user/email] user)
+                          :comment/content (:comment/content comment)
+                          :comment/format (get :comment/format comment :comment.format/plain)}]
+                watchers))))
+  :handle-ok (fn [_]
+               (->> (model/pull '[{:thread/comments
+                                   [:*
+                                    {:comment/format [:db/ident]}
+                                    {:comment/posted-by [:user/name :user/email]}]}] thread-id)
+                    :thread/comments
+                    (map-indexed #(assoc %2 :comment/no (inc %1)))
+                    (drop (dec from)))))
 
 (defresource users-resource [path]
   :available-media-types ["application/edn"]
@@ -163,6 +192,11 @@
   (ANY "/thread/:thread-id" [thread-id]
     (thread-resource (Long/parseLong thread-id)))
   (ANY "/thread/:thread-id/comments" [thread-id]
-    (comments-resource (Long/parseLong thread-id)))
+    (comments-resource (Long/parseLong thread-id) 1 nil))
+  (ANY ["/thread/:thread-id/comments/:comment-range" :comment-range #"\d+\-(\d+)?"] [thread-id comment-range]
+    (let [[_ from to] (re-matches #"(\d+)\-(\d+)?" comment-range)]
+      (comments-resource (Long/parseLong thread-id)
+                         (when from (Long/parseLong from))
+                         (when to (Long/parseLong to)))))
   (ANY "/users" [] (users-resource "/ws")))
 

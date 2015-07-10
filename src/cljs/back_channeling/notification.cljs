@@ -1,19 +1,22 @@
 (ns back-channeling.notification
-  )
+  (:use [back-channeling.components.avatar :only [avatar-url]]))
+
+(def initialize? (atom false))
 
 (defn initialize []
-  (.requestPermission
-   js/Notification
-   (fn [status]
-     (if (not= (.-premission js/Notification) status)
-       (set! (.-premission js/Notification) status)))))
+  (.requestPermission js/Notification)
+  (reset! initialize? true))
 
-(defn notify [notification]
-  (let [notifiation (js/Notification. "")]
+(defn show [message]
+  (when @initialize? (initialize))
+  (let [notification (js/Notification. (str "From " (get-in message [:comment/posted-by :user/name]) " @BackChanneling") 
+                                       (clj->js {:iconUrl (avatar-url (:comment/posted-by message))
+                                                 :icon (avatar-url (:comment/posted-by message))
+                                                 :body (:comment/content message)}))]
     (set! (.-onclick notification)
           (fn []
             (set! (.-href js/location)
-                  (str "#/board/" (:board-name notifiaction) "/"
-                       (:thread-id notification) "/"
-                       (:comment-no notification)))
+                  (str "#/board/" (:board/name message) "/"
+                       (:thread/id message) "/"
+                       (:comment/no message)))
             (.close notification)))))

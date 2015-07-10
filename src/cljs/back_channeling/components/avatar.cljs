@@ -14,6 +14,9 @@
     (.update text))
   (crypt/byteArrayToHex (.digest md5digester)))
 
+(defn avatar-url [user]
+  (str "https://www.gravatar.com/avatar/" (md5 (:user/email user)) "?d=mm"))
+
 (defcomponent avatar [email owner]
   (render [_]
     (html
