@@ -69,6 +69,8 @@
              :color "rgba(0,0,0,.87)"
              :padding "9px 25px"
              :line-height "normal"}]]]]
+   [:div.curating-block
+    [:div.buttons {:margin-top (px -23)}]]
    [:.account-type {:cursor "pointer"}
     [:&.on {:fill "#aacf53"}]
     [:&.off {:fill "#e0e0e0"}

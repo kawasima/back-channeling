@@ -115,10 +115,14 @@
   (let [comment-no (or (om/get-state owner :target-comment) (count (:thread/comments thread))) 
         comment-dom (.. (om/get-node owner)
                         (querySelector (str "[data-comment-no='" comment-no "']")))
+        offset (.. (om/get-node owner)
+                   (querySelector "[data-comment-no='1']")
+                   getBoundingClientRect
+                   -top)
         scroll-pane (.. (om/get-node owner)
                            (querySelector "div.scroll-pane"))]
       (when comment-dom
-        (set! (.-scrollTop scroll-pane) (some->> (.getBoundingClientRect comment-dom) (.-top))))))
+        (set! (.-scrollTop scroll-pane) (- (some->> (.getBoundingClientRect comment-dom) (.-top)) offset)))))
 
 (defcomponent thread-view [thread owner {:keys [board-name]}]
   (did-mount [_]

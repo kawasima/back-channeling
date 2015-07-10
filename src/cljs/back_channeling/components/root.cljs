@@ -16,17 +16,18 @@
 (defn refresh-board [app board-name]
   (api/request (str "/api/board/" board-name)
                {:handler (fn [response]
-                           (let [board (update-in response [:board/threads]
-                                                  (fn [threads]
-                                                    (->> threads
-                                                         (map (fn [t] {(:db/id t) t}))
-                                                         (reduce merge {}))))]
+                           (let [new-board (update-in response [:board/threads]
+                                                      (fn [threads]
+                                                        (->> threads
+                                                             (map (fn [t] {(:db/id t) t}))
+                                                             (reduce merge {}))))]
                              (if (get-in @app [:boards board-name])
-                               (om/transact! app [:boards board-name :board/threads]
-                                             (fn [threads]
-                                               (merge-with merge (:board/threads board) threads)))
+                               (om/transact! app [:boards board-name]
+                                             (fn [board]
+                                               (update-in new-board [:board/threads]
+                                                          #(merge-with merge % (:board/threads board)))))
                                
-                               (om/update! app [:boards board-name] board))))}))
+                               (om/update! app [:boards board-name] new-board))))}))
 
 (defn fetch-comments
   ([app thread]
