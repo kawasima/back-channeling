@@ -65,96 +65,98 @@
   
   (render-state [_ {:keys [selected-thread-comments editorial-space thread]}]
     (html
-     [:div.curation.content
-      [:div.ui.grid
-      [:div.row
-       [:div.seven.wide.column
-        [:div.ui.thread.comments
-         [:h3.ui.dividing.header (:thread/title thread)]
-         [:div.comment {:on-click (fn [_]
-                                    (om/update-state! owner :selected-thread-comments
-                                                      #(if ((om/get-state owner :selected-thread-comments) 0)
-                                                         (disj % 0) (conj % 0))))
-                        :class (if (selected-thread-comments 0) "selected" "")}
-          [:div.content
-           [:div.ui.message "Editorial space"]]]
-         (for [comment (:thread/comments thread)]
+     [:div.curation.full.height.content
+      [:div.ui.full.height.grid
+       [:div.full.height.row
+        [:div.seven.wide.full.height.column
+         [:div.scroll-pane
+          [:div.ui.thread.comments
+           [:h3.ui.dividing.header (:thread/title thread)]
            [:div.comment {:on-click (fn [_]
-                                      (if ((om/get-state owner :selected-thread-comments) (:db/id comment))
-                                        (om/update-state! owner :selected-thread-comments #(disj % (:db/id comment)))
-                                        (om/update-state! owner :selected-thread-comments #(conj % (:db/id comment)))))
-                          :class (if (selected-thread-comments (:db/id comment)) "selected" "")}
-            (om/build avatar (get-in comment [:comment/posted-by :user/email]))
+                                      (om/update-state! owner :selected-thread-comments
+                                                        #(if ((om/get-state owner :selected-thread-comments) 0)
+                                                           (disj % 0) (conj % 0))))
+                          :class (if (selected-thread-comments 0) "selected" "")}
             [:div.content
-             [:a.number (:comment/no comment)] ": "
-             [:a.author (get-in comment [:comment/posted-by :user/name])]
-             [:div.metadata
-              [:span.date (.format date-format-m (get-in comment [:comment/posted-at]))]]
-             [:div.text (case (get-in comment [:comment/format :db/ident])
-                          :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
-                          (:comment/content comment))]]])]]
-       
-       [:div.column
-        (when (not-empty selected-thread-comments)
-          [:i.citation.huge.arrow.circle.outline.right.icon
-           {:on-click (fn [_]
-                        (om/transact! curating-blocks
-                                      (fn [curating-blocks]
-                                        (into curating-blocks
-                                              (->> (om/get-state owner :selected-thread-comments)
-                                                   (map (fn [comment-id]
-                                                          (->> (conj (:thread/comments thread) editorial-space)
-                                                               (filter #(= (:db/id %) comment-id))
-                                                               first)))))))
-                        (om/set-state! owner :selected-thread-comments #{}))}])]
-       
-       [:div.eight.wide.column
-        [:div.ui.input (when (= (count curating-blocks) 0)
-                         {:style {:visibility "hidden"}})
-         [:input {:type "text" :placeholder "Curation name"}]
-         [:button.ui.olive.basic.markdown.button
-          [:i.paste.icon]
-          "Markdown"]
-         [:button.ui.primary.button
-          {:on-click (fn [_])}
-          [:i.save.icon] "Save"]]
-        [:div.ui.comments
-         (map-indexed
-          (fn [index curating-block]
-            (list
-             [:div.ui.divider]
-             [:div.comment.curating-block
-              [:div.ui.mini.basic.icon.buttons
-               [:button.ui.button
-                {:on-click (fn [_]
-                             (when (> index 0)
+             [:div.ui.message "Editorial space"]]]
+           (for [comment (:thread/comments thread)]
+             [:div.comment {:on-click (fn [_]
+                                        (if ((om/get-state owner :selected-thread-comments) (:db/id comment))
+                                          (om/update-state! owner :selected-thread-comments #(disj % (:db/id comment)))
+                                          (om/update-state! owner :selected-thread-comments #(conj % (:db/id comment)))))
+                            :class (if (selected-thread-comments (:db/id comment)) "selected" "")}
+              (om/build avatar (get-in comment [:comment/posted-by :user/email]))
+              [:div.content
+               [:a.number (:comment/no comment)] ": "
+               [:a.author (get-in comment [:comment/posted-by :user/name])]
+               [:div.metadata
+                [:span.date (.format date-format-m (get-in comment [:comment/posted-at]))]]
+               [:div.text (case (get-in comment [:comment/format :db/ident])
+                            :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
+                            (:comment/content comment))]]])]]]
+        
+        [:div.column
+         (when (not-empty selected-thread-comments)
+           [:i.citation.huge.arrow.circle.outline.right.icon
+            {:on-click (fn [_]
+                         (om/transact! curating-blocks
+                                       (fn [curating-blocks]
+                                         (into curating-blocks
+                                               (->> (om/get-state owner :selected-thread-comments)
+                                                    (map (fn [comment-id]
+                                                           (->> (conj (:thread/comments thread) editorial-space)
+                                                                (filter #(= (:db/id %) comment-id))
+                                                                first)))))))
+                         (om/set-state! owner :selected-thread-comments #{}))}])]
+        
+        [:div.eight.wide.full.height.column
+         [:div.ui.input (when (= (count curating-blocks) 0)
+                          {:style {:visibility "hidden"}})
+          [:input {:type "text" :placeholder "Curation name"}]
+          [:button.ui.olive.basic.markdown.button
+           [:i.paste.icon]
+           "Markdown"]
+          [:button.ui.primary.button
+           {:on-click (fn [_])}
+           [:i.save.icon] "Save"]]
+         [:div.scroll-pane
+          [:div.ui.comments
+           (map-indexed
+            (fn [index curating-block]
+              (list
+               [:div.ui.divider]
+               [:div.comment.curating-block
+                [:div.ui.mini.basic.icon.buttons
+                 [:button.ui.button
+                  {:on-click (fn [_]
+                               (when (> index 0)
+                                 (om/transact! curating-blocks
+                                               (fn [curating-blocks]
+                                                 (assoc curating-blocks
+                                                        (dec index) (get curating-blocks index)
+                                                        index (get curating-blocks (dec index)))))))}
+                  [:i.caret.up.icon]]
+                 [:button.ui.button
+                  {:on-click (fn [_]
+                               (when (< index (dec (count (om/get-state owner :curating-blocks))))
+                                 (om/transact! curating-blocks
+                                               (fn [curating-blocks]
+                                                 (assoc curating-blocks
+                                                        (inc index) (get curating-blocks index)
+                                                        index (get curating-blocks (inc index)))))))}
+                  [:i.caret.down.icon]]
+                 [:button.ui.button
+                  {:on-click (fn [_]
                                (om/transact! curating-blocks
                                              (fn [curating-blocks]
-                                               (assoc curating-blocks
-                                                      (dec index) (get curating-blocks index)
-                                                      index (get curating-blocks (dec index)))))))}
-                [:i.caret.up.icon]]
-               [:button.ui.button
-                {:on-click (fn [_]
-                             (when (< index (dec (count (om/get-state owner :curating-blocks))))
-                               (om/transact! curating-blocks
-                                             (fn [curating-blocks]
-                                               (assoc curating-blocks
-                                                      (inc index) (get curating-blocks index)
-                                                      index (get curating-blocks (inc index)))))))}
-                [:i.caret.down.icon]]
-               [:button.ui.button
-                {:on-click (fn [_]
-                             (om/transact! curating-blocks
-                                           (fn [curating-blocks]
-                                             (remove #(= (:db/id %) (:db/id curating-block)) curating-blocks))))}
-                [:i.close.icon]]]
-              [:div.metadata
-               [:span (get-in curating-block [:comment/posted-by :user/name]) "(" (.format date-format-m (get-in curating-block [:comment/posted-at] (js/Date.))) ")"]]
-              [:div.text
-               (if (= (:db/id curating-block) 0)
-                 (om/build editorial-space-view curating-block)
-                 (case (get-in curating-block [:comment/format :db/ident])
-                   :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content curating-block))}}
-                   (:comment/content curating-block)))]]))
-          curating-blocks)]]]]])))
+                                               (remove #(= (:db/id %) (:db/id curating-block)) curating-blocks))))}
+                  [:i.close.icon]]]
+                [:div.metadata
+                 [:span (get-in curating-block [:comment/posted-by :user/name]) "(" (.format date-format-m (get-in curating-block [:comment/posted-at] (js/Date.))) ")"]]
+                [:div.text
+                 (if (= (:db/id curating-block) 0)
+                   (om/build editorial-space-view curating-block)
+                   (case (get-in curating-block [:comment/format :db/ident])
+                     :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content curating-block))}}
+                     (:comment/content curating-block)))]]))
+            curating-blocks)]]]]]])))

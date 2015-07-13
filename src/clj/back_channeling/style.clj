@@ -4,6 +4,7 @@
 
 (def styles
   [[:body :html {:height "100%"}]
+   [:.full.height {:height "100%"}]
    [:body
     [:.login.grid {:height "100%"}
      [:.column {:max-width (px 450)}]]]
@@ -49,9 +50,7 @@
                  :z-index "30"
                  :margin-left (px -20)
                  :margin-top (px 100)}]
-   [:.scroll-pane {:min-height "100%"
-                   :max-height "500px"
-                   :height "100%"
+   [:.scroll-pane {:height "100%"
                    :overflow-y "auto"}]
    [:div.table.container {:position "relative"
                           :padding-top (px 37)

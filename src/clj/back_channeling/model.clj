@@ -63,7 +63,7 @@
             [posted-at :instant]
             [posted-by :ref]
             [content :string]
-            [:format :enum [:plain :markdown]]))
+            [format :enum [:plain :markdown]]))
    (schema notification
            (fields
             [target-users :ref :many]

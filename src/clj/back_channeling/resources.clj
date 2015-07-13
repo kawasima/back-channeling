@@ -183,6 +183,29 @@
   :handle-ok (fn [_]
                (vec (server/find-users path))))
 
+(defresource curations-resource []
+  :available-media-types ["application/edn"]
+  :allowed-methods [:get :post]
+  :malformed? #(parse-edn %)
+  :post! (fn [{curation :edn req :request}]
+           (model/transact [{:db/id #db/id[:db.part/user -1]
+                             :article/name (:article/name curation)
+                             :article/curator (:article/curator curation)}
+                            [:db/add #db/id[:db.part/user -2] :article/blocks #db/id[:db.part/user -1]]
+                            {:db/id #db/id[:db.part/user -2]}])))
+
+(defresource curation-resource [curation-id]
+  :available-media-types ["application/edn"]
+  :allowed-methods [:get :put :delete]
+  :malformed? #(parse-edn %)
+  :handle-ok (fn [_]
+               (model/pull '[:*
+                             {:article/curator [:user/name :user/email]}
+                             {:article/blocks [:curating-block/posted-at
+                                               :curating-block/content
+                                               {:curating-block/format [:db/ident]}
+                                               {:curating-block/posted-by [:user/name :user/email]}]}])))
+
 (defroutes api-routes
   (ANY "/boards" [] boards-resource)
   (ANY "/board/:board-name" [board-name]

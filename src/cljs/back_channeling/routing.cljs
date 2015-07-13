@@ -31,10 +31,10 @@
     (fetch-thread (js/parseInt thread-id) nil board-name app))
   (sec/defroute "/board/:board-name/:thread-id/:comment-no" [board-name thread-id comment-no]
     (fetch-thread (js/parseInt thread-id) comment-no board-name app))
-  (sec/defroute "/curation/:board-name/:thread-id" [board-name thread-id]
+  (sec/defroute "/curation/new" [query-params]
     (om/transact! app #(assoc %
                               :page :curation
-                              :target-thread (js/parseInt thread-id)
+                              :target-thread (js/parseInt (:thread-id query-params))
                               :curating-blocks []))))
   
 (defn- setup-history [owner]

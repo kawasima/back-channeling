@@ -1,0 +1,37 @@
+var ZeroClipboard = {
+    "version": {},
+    "config": function () {},
+    "state": function () {},
+    "isFlashUnusable": function () {},
+    "on": function () {},
+    "off": function () {},
+    "handlers": function () {},
+    "emit": function () {},
+    "create": function () {},
+    "destroy": function () {},
+    "setData": function () {},
+    "clearData": function () {},
+    "getData": function () {},
+    "activate": function () {},
+    "focus": function () {},
+    "deactivate": function () {},
+    "blur": function () {},
+    "activeElement": function () {},
+    "_createClient": function () {}
+};
+ZeroClipboard.prototype = {
+    "on": function () {},
+    "off": function () {},
+    "handlers": function () {},
+    "emit": function () {},
+    "clip": function () {},
+    "unclip": function () {},
+    "elements": function () {},
+    "destroy": function () {},
+    "setText": function () {},
+    "setHtml": function () {},
+    "setRichText": function () {},
+    "setData": function () {},
+    "clearData": function () {},
+    "getData": function () {}
+};

@@ -43,7 +43,7 @@
                {:handler (fn [response]
                            (om/set-state! owner :watching? false))}))
 
-(defcomponent comment-new-view [thread owner]
+(defcomponent comment-new-view [thread owner {:keys [board-name]}]
   (init-state [_] {:comment ""
                    :comment-format "comment.format/plain"
                    :focus? false
@@ -103,7 +103,7 @@
             [:div.ui.top.right.attached.label "Preview"]
             [:div.attached
              (case comment-format
-               "comment.format/plain" (format-plain comment) 
+               "comment.format/plain" (format-plain comment :board-name board-name :thread-id (:db/id thread))
                "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]
          [:div.row
           [:div.column
@@ -124,16 +124,16 @@
       (when comment-dom
         (set! (.-scrollTop scroll-pane) (- (some->> (.getBoundingClientRect comment-dom) (.-top)) offset)))))
 
-(defcomponent thread-view [thread owner {:keys [board-name]}]
+(defcomponent thread-view [thread owner {:keys [board-name] :as opts}]
   (did-mount [_]
     (scroll-to-comment owner thread))
   (did-update [_ _ _]
     (scroll-to-comment owner thread))
   (render [_]
     (html
-     [:div.ui.thread.comments
+     [:div.ui.full.height.thread.comments
       [:h3.ui.dividing.header (:thread/title thread)]
-      [:a.curation.link {:href (str "#/curation/" board-name "/" (:db/id thread))}
+      [:a.curation.link {:href (str "#/curation/new?thread-id=" (:db/id thread))}
        [:i.external.share.big.icon]]
       [:div.scroll-pane
        (for [comment (:thread/comments thread)]
@@ -146,11 +146,11 @@
            [:span.date (.format date-format-m (get-in comment [:comment/posted-at]))]]
           [:div.text (case (get-in comment [:comment/format :db/ident])
                        :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
-                       (format-plain (:comment/content comment)))]]])]
+                       (format-plain (:comment/content comment) :thread-id (:db/id thread) :board-name board-name))]]])]
       (if (> (count (:thread/comments thread)) 1000)
         [:div.ui.error.message
          [:div.header "Over 1000 comments. You can't add any comment to this thread."]]
-        (om/build comment-new-view thread))])))
+        (om/build comment-new-view thread {:opts opts}))])))
 
 (defn toggle-sort-key [owner sort-key]
   (let [[col direction] (om/get-state owner :sort-key)]
@@ -287,7 +287,7 @@
     (if (->> tabs (filter #(= target-thread (:id %))) empty?)
         (om/update-state! owner :tabs #(conj % {:id target-thread :name (get-in board [:board/threads target-thread :thread/title])})))
     (html
-     [:div.main.content
+     [:div.main.content.full.height
       (om/build thread-list-view (:board/threads board)
                 {:init-state {:board-channel channel}
                  :opts {:board-name (:board/name board)}})
@@ -311,7 +311,7 @@
                                             (set! (.. js/location -href) "#/"))
                                           (.stopPropagation e))}]])])]
        (for [tab tabs]
-         [:div.ui.bottom.attached.tab.segment
+         [:div.ui.bottom.attached.tab.full.height.segment
           (when (= target-thread (:id tab)) {:class "active"})
           (if (= target-thread 0)
             (om/build thread-new-view board)

@@ -100,7 +100,7 @@
 
   (render-state [_ {:keys [open-profile? open-users? search-result user board-channel]}]
     (html
-     [:div
+     [:div.full.height
       [:div.ui.fixed.site.menu
        [:div.item
         [:a {:href "#/"}

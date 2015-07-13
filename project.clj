@@ -26,7 +26,7 @@
                  [ring "1.4.0-RC2" :exclusions [ring/ring-jetty-adapter]]]
 
     :plugins [[lein-ring "0.9.3"]
-              [lein-cljsbuild "1.0.5"]
+              [lein-cljsbuild "1.0.6"]
               [lein-environ "1.0.0"]]
     
     :main back-channeling.core
@@ -35,13 +35,12 @@
     :cljsbuild {:builds
               [{:id "dev"
                 :source-paths ["src/cljs"]
-                :compiler {:output-to "resources/public/js/extern/back-channeling.js"
+                :compiler {:output-to "resources/public/js/back-channeling.js"
                            :pretty-print true
                            :optimizations :simple}}
                {:id "production"
                 :source-paths ["src/cljs"]
-                :compiler {:output-to "resources/public/js/extern/back-channeling.min.js"
-                           :output-dir "resources/public/js/extern"
-                           :pretty-print true
-                           :optimizations :advanced
-                           :source-map "resources/public/js/extern/back-channeling.min.js.map"}}]})
+                :compiler {:output-to "resources/public/js/back-channeling.min.js"
+                           :pretty-print false
+                           :externs ["highlight.ext.js"]
+                           :optimizations :advanced}}]})

@@ -16,9 +16,17 @@ Start datomic.
 ```
 
 ```
-% lein cljsbuild once dev
-% lein run
+% lein with-profile production run
 ```
 
 A default port is 3009.
 
+## Features
+
+Back channeling is a realtime bbs.
+
+### Create a thread
+
+### Comment to a thread
+
+#### Thread

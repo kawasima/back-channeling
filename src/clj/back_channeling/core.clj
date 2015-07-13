@@ -25,8 +25,8 @@
 
 (defn index-view [req]
   (layout req
-   [:div#app.ui.page]
-   (include-js (str "/js/extern/back-channeling"
+   [:div#app.ui.page.full.height]
+   (include-js (str "/js/back-channeling"
                     (when-not (:dev env) ".min") ".js"))))
 (defn login-view [req]
   (layout req
