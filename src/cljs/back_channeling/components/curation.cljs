@@ -16,10 +16,14 @@
                {:handler (fn [response]
                            (om/set-state! owner [:thread :thread/comments] (:thread/comments response)))}))
 
+(defn save-article [article]
+  )
+
 (defcomponent editorial-space-view [curating-block owner]
   (init-state [_]
     {:editing? true})
   (render-state [_ {:keys [editing?]}]
+    (println editing?)
     (html
      (if editing?
        [:div.ui.form
@@ -45,6 +49,7 @@
 (defcomponent curation-page [curating-blocks owner {:keys [user]}]
   (init-state [_]
     {:selected-thread-comments #{}
+     :article {}
      :editorial-space {:db/id 0
                        :comment/format :comment.format/markdown
                        :comment/content ""
@@ -63,7 +68,7 @@
                       (.. e -clipboardData (setData "text/plain"
                                                     (generate-markdown @curating-blocks))))))))))
   
-  (render-state [_ {:keys [selected-thread-comments editorial-space thread]}]
+  (render-state [_ {:keys [selected-thread-comments editorial-space thread article]}]
     (html
      [:div.curation.full.height.content
       [:div.ui.full.height.grid
@@ -75,10 +80,9 @@
            [:div.comment {:on-click (fn [_]
                                       (om/update-state! owner :selected-thread-comments
                                                         #(if ((om/get-state owner :selected-thread-comments) 0)
-                                                           (disj % 0) (conj % 0))))
-                          :class (if (selected-thread-comments 0) "selected" "")}
+                                                           (disj % 0) (conj % 0))))}
             [:div.content
-             [:div.ui.message "Editorial space"]]]
+             [:div.ui.message (when (selected-thread-comments 0) {:class "red"}) "Editorial space"]]]
            (for [comment (:thread/comments thread)]
              [:div.comment {:on-click (fn [_]
                                         (if ((om/get-state owner :selected-thread-comments) (:db/id comment))
@@ -112,12 +116,23 @@
         [:div.eight.wide.full.height.column
          [:div.ui.input (when (= (count curating-blocks) 0)
                           {:style {:visibility "hidden"}})
-          [:input {:type "text" :placeholder "Curation name"}]
+          [:input {:type "text" :name "article-name"
+                   :placeholder "Curation name"
+                   :value (:article/name article)
+                   :on-change (fn [e]
+                                (om/set-state! owner [:article :article/name]
+                                               (.. (om/get-node owner) (querySelector "[name='article-name']") -value)))}]
           [:button.ui.olive.basic.markdown.button
            [:i.paste.icon]
            "Markdown"]
           [:button.ui.primary.button
-           {:on-click (fn [_])}
+           {:on-click (fn [_]
+                        (api/request (str "/api/curations") :POST
+                                     (-> (om/get-state owner :article)
+                                         (assoc :article/blocks @curating-blocks
+                                                :article/curator user))
+                                     {:handler (fn [response]
+                                                 (om/set-state! owner [:article :db/id] (:db/id response)))}))}
            [:i.save.icon] "Save"]]
          [:div.scroll-pane
           [:div.ui.comments
@@ -138,7 +153,7 @@
                   [:i.caret.up.icon]]
                  [:button.ui.button
                   {:on-click (fn [_]
-                               (when (< index (dec (count (om/get-state owner :curating-blocks))))
+                               (when (< index (dec (count @curating-blocks)))
                                  (om/transact! curating-blocks
                                                (fn [curating-blocks]
                                                  (assoc curating-blocks
@@ -149,7 +164,8 @@
                   {:on-click (fn [_]
                                (om/transact! curating-blocks
                                              (fn [curating-blocks]
-                                               (remove #(= (:db/id %) (:db/id curating-block)) curating-blocks))))}
+                                               (vec (concat (take index curating-blocks)
+                                                            (drop (inc index) curating-blocks))))))}
                   [:i.close.icon]]]
                 [:div.metadata
                  [:span (get-in curating-block [:comment/posted-by :user/name]) "(" (.format date-format-m (get-in curating-block [:comment/posted-at] (js/Date.))) ")"]]

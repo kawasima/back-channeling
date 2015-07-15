@@ -188,11 +188,13 @@
   :allowed-methods [:get :post]
   :malformed? #(parse-edn %)
   :post! (fn [{curation :edn req :request}]
-           (model/transact [{:db/id #db/id[:db.part/user -1]
-                             :article/name (:article/name curation)
-                             :article/curator (:article/curator curation)}
-                            [:db/add #db/id[:db.part/user -2] :article/blocks #db/id[:db.part/user -1]]
-                            {:db/id #db/id[:db.part/user -2]}])))
+           (model/transact (concat [{:db/id #db/id[:db.part/user -1]
+                                     :article/name (:article/name curation)
+                                     :article/curator [:user/name (get-in [:article/curator :user/name])]}]
+                                   (for [block (:article/blocks curation)]
+                                     (let [tempid (d/tempid :db.part/user)]
+                                       [[:db/add tempid :article/blocks #db/id[:db.part/user -1]]
+                                        (merge block {:db/id tempid})]))))))
 
 (defresource curation-resource [curation-id]
   :available-media-types ["application/edn"]
@@ -221,5 +223,8 @@
       (comments-resource (Long/parseLong thread-id)
                          (when from (Long/parseLong from))
                          (when to (Long/parseLong to)))))
+  (ANY "/curations" [] curations-resource)
+  (ANY "/curation/:curation-id" [curation-id]
+    (curtion-resource curation-id))
   (ANY "/users" [] (users-resource "/ws")))
 

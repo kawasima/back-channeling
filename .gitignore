@@ -3,6 +3,7 @@
 /*.iml
 /.idea
 .lein-*
+pom.xml
 
 *~
 \#*\#

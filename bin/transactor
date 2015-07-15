@@ -1,0 +1,15 @@
+#!/bin/transactor
+
+transactor_version=0.9.5198
+transactor_jar=datomic-transactor-free-${transactor_version}.jar
+
+function get_transactor () {
+  curl --progress-bar --location --url "https://my.datomic.com/downloads/free/${transactor_version}" --output datomic.zip
+ 
+  unzip -p datomic.zip datomic-free-${transactor_version}/${transactor_jar} > ${transactor_jar}
+}
+
+if []; then
+fi
+
+

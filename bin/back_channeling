@@ -1,0 +1,5 @@
+#!/bin/sh
+
+version=$(cat `dirname $0`/../VERSION)
+
+java -cp dist/back-channeling-${version}.jar:"lib/*" clojure.main -m back-channeling.core
