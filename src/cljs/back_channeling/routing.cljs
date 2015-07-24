@@ -21,6 +21,20 @@
                                                              (fn [comments new-comments]
                                                                (vec (concat comments new-comments))) response)
                                                   (assoc :page :board :target-thread thread-id :target-comment comment-no))))}))))
+
+(defn fetch-articles [app]
+  (api/request (str "/api/articles")
+               {:handler (fn [response]
+                           (om/transact! app
+                                         #(-> %
+                                              (assoc :page :article :articles response))))}))
+(defn fetch-article [id app]
+  (api/request (str "/api/article/" id)
+               {:handler (fn [response]
+                           (om/transact! app
+                                         #(-> %
+                                              (assoc :page :article :article response))))}))
+
 (defn- setup-routing [app]
   (sec/set-config! :prefix "#")
   (sec/defroute "/" []
@@ -31,11 +45,15 @@
     (fetch-thread (js/parseInt thread-id) nil board-name app))
   (sec/defroute "/board/:board-name/:thread-id/:comment-no" [board-name thread-id comment-no]
     (fetch-thread (js/parseInt thread-id) comment-no board-name app))
-  (sec/defroute "/curation/new" [query-params]
+  (sec/defroute "/articles/new" [query-params]
     (om/transact! app #(assoc %
-                              :page :curation
+                              :page :article
                               :target-thread (js/parseInt (:thread-id query-params))
-                              :curating-blocks []))))
+                              :article {:article/name nil :article/blocks []})))
+  (sec/defroute "/articles" []
+    (fetch-articles app))
+  (sec/defroute #"/article/(\d+)" [id]
+    (fetch-article id app)))
   
 (defn- setup-history [owner]
   (let [history (goog.History.)

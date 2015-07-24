@@ -29,13 +29,20 @@
    (include-js (str "/js/back-channeling"
                     (when-not (:dev env) ".min") ".js"))))
 (defn login-view [req]
-  (layout req
+  (layout
+   req
    [:div.ui.middle.aligned.center.aligned.login.grid
     [:div.column
      [:h2.ui.header
-      [:div.content "Back channeling"]]
-     [:form.ui.large.login.form {:method "post"}
+      [:div.content
+       [:img.ui.image {:src "/img/logo.png"}]]]
+     [:form.ui.large.login.form
+      (merge {:method "post"}
+             (when (= (:request-method req) :post)
+               {:class "error"}))
       [:div.ui.stacked.segment
+       [:div.ui.error.message
+        [:p "User name or password is wrong."]]
        [:div.field
         [:div.ui.left.icon.input
          [:i.user.icon]
@@ -44,10 +51,9 @@
         [:div.ui.left.icon.input
          [:i.lock.icon]
          [:input {:type "password" :name "password" :placeholder "Password"}]]]
-       [:button.ui.fluid.large.teal.submit.button {:type "submit"} "Login"]]
-      [:div.ui.error.message]]
+       [:button.ui.fluid.large.teal.submit.button {:type "submit"} "Login"]]]
      [:div.ui.message
-      "New to us?" [:a {:href "/signup"} "Sign up"]]]]))
+      "New to us? " [:a {:href "/signup"} "Sign up"]]]]))
 
 (defn auth-by-password [username password]
   (when (and (not-empty username) (not-empty password))

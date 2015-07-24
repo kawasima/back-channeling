@@ -54,7 +54,7 @@
             [token :string]))
    (schema article
            (fields
-            [name :string]
+            [name :string :unique-value]
             [blocks :ref :many]
             [thread :ref]
             [curator :ref]))

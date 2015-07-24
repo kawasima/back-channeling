@@ -131,10 +131,12 @@
   :allowed-methods [:get :post]
   :malformed? #(parse-edn %)
   :processable? (fn [ctx]
-                  (let [resnum (model/query '{:find [(count ?comment) .]
+                  (if (#{:put :post} (get-in ctx [:request :request-method]))
+                    (let [resnum (model/query '{:find [(count ?comment) .]
                                               :in [$ ?thread]
-                                              :where [[?thread :thread/comments ?comment]]} thread-id)]
-                    (if (< resnum 1000) {:thread/resnum resnum} false)))
+                                                :where [[?thread :thread/comments ?comment]]} thread-id)]
+                      (if (< resnum 1000) {:thread/resnum resnum} false))
+                    true))
   :post! (fn [{comment :edn req :request resnum :thread/resnum}]
            (let [user (model/query '{:find [?u .]
                                      :in [$ ?name]
@@ -183,30 +185,61 @@
   :handle-ok (fn [_]
                (vec (server/find-users path))))
 
-(defresource curations-resource []
+(defresource articles-resource
   :available-media-types ["application/edn"]
   :allowed-methods [:get :post]
   :malformed? #(parse-edn %)
-  :post! (fn [{curation :edn req :request}]
-           (model/transact (concat [{:db/id #db/id[:db.part/user -1]
-                                     :article/name (:article/name curation)
-                                     :article/curator [:user/name (get-in [:article/curator :user/name])]}]
-                                   (for [block (:article/blocks curation)]
-                                     (let [tempid (d/tempid :db.part/user)]
-                                       [[:db/add tempid :article/blocks #db/id[:db.part/user -1]]
-                                        (merge block {:db/id tempid})]))))))
+  :post! (fn [{article :edn req :request}]
+           (let [article-id (d/tempid :db.part/user)
+                 tempids (-> (model/transact
+                              (apply concat [{:db/id article-id
+                                              :article/name (:article/name article)
+                                              :article/curator [:user/name (get-in article [:article/curator :user/name])]}]
+                                     (for [block (:article/blocks article)]
+                                       (let [tempid (d/tempid :db.part/user)]
+                                         [[:db/add article-id :article/blocks tempid]
+                                          {:db/id tempid
+                                           :curating-block/content (:curating-block/content block)
+                                           :curating-block/format  (:curating-block/format  block)
+                                           :curating-block/posted-at (:curating-block/posted-at block)
+                                           :curating-block/posted-by [:user/name (get-in block [:curating-block/posted-by :user/name])]}]))))
+                             :tempids)]
+             {:db/id (model/resolve-tempid tempids article-id)}))
+  :handle-created (fn [ctx]
+                    {:db/id (:db/id ctx)})
+  :handle-ok (fn [_]
+               (model/query '{:find [[(pull ?a [:*]) ...]]
+                              :where [[?a :article/name]]})))
 
-(defresource curation-resource [curation-id]
+(defresource article-resource [article-id]
   :available-media-types ["application/edn"]
   :allowed-methods [:get :put :delete]
   :malformed? #(parse-edn %)
+  :put! (fn [{article :edn req :request}]
+          (let [retract-transaction (->> (:article/blocks (model/pull '[:article/blocks] article-id))
+                                         (map (fn [{id :db/id}]
+                                                [:db/retract article-id :article/blocks id])))]
+            (model/transact (apply
+                             concat retract-transaction
+                             [{:db/id article-id
+                               :article/name (:article/name article)
+                               :article/curator [:user/name (get-in article [:article/curator :user/name])]}]
+                             (for [block (:article/blocks article)]
+                               (let [tempid (d/tempid :db.part/user)]
+                                 [[:db/add article-id :article/blocks tempid]
+                                  {:db/id tempid
+                                   :curating-block/content (:curating-block/content block)
+                                   :curating-block/format  (:curating-block/format  block)
+                                   :curating-block/posted-at (:curating-block/posted-at block)
+                                   :curating-block/posted-by [:user/name (get-in block [:curating-block/posted-by :user/name])]}]))))))
   :handle-ok (fn [_]
                (model/pull '[:*
                              {:article/curator [:user/name :user/email]}
                              {:article/blocks [:curating-block/posted-at
                                                :curating-block/content
                                                {:curating-block/format [:db/ident]}
-                                               {:curating-block/posted-by [:user/name :user/email]}]}])))
+                                               {:curating-block/posted-by [:user/name :user/email]}]}]
+                           article-id)))
 
 (defroutes api-routes
   (ANY "/boards" [] boards-resource)
@@ -223,8 +256,8 @@
       (comments-resource (Long/parseLong thread-id)
                          (when from (Long/parseLong from))
                          (when to (Long/parseLong to)))))
-  (ANY "/curations" [] curations-resource)
-  (ANY "/curation/:curation-id" [curation-id]
-    (curtion-resource curation-id))
+  (ANY "/articles" [] articles-resource)
+  (ANY "/article/:article-id" [article-id]
+    (article-resource (Long/parseLong article-id)))
   (ANY "/users" [] (users-resource "/ws")))
 

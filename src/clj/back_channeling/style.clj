@@ -6,7 +6,8 @@
   [[:body :html {:height "100%"}]
    [:.full.height {:height "100%"}]
    [:body
-    [:.login.grid {:height "100%"}
+    [:.login.grid {:height "100%"
+                   :background {:color "#F8FBF8"}}
      [:.column {:max-width (px 450)}]]]
    [:img.ui.logo.image {:width (px 240)}]
 
@@ -54,7 +55,9 @@
                    :overflow-y "auto"}]
    [:div.table.container {:position "relative"
                           :padding-top (px 37)
-                          :background-color "#f9fafb"}]
+                          :background-color "#f9fafb"
+                          :box-shadow "inset 0 0 20px rgba(0,0,0,0.05), inset 0 38px #dfeda2"
+                          :border "1px solid #e5e5e5"}]
    [:div.tbody.container {:overflow-y "auto"
                           :height (px 200)}
     [:table.ui.table {:width "100%"}
@@ -67,7 +70,7 @@
              :cursor "pointer"
              :color "rgba(0,0,0,.87)"
              :padding "9px 25px"
-             :line-height "normal"}]]]]
+             :line-height "1em"}]]]]
    [:div.curating-block
     [:div.buttons {:margin-top (px -23)}]]
    [:.account-type {:cursor "pointer"}

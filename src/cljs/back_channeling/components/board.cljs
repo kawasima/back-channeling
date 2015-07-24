@@ -4,6 +4,8 @@
             [om-tools.core :refer-macros [defcomponent]]
             [sablono.core :as html :refer-macros [html]]
             [cljs.core.async :refer [put! <! chan timeout]]
+            [bouncer.core :as b]
+            [bouncer.validators :as v]
             [back-channeling.api :as api]
             [back-channeling.components.avatar :refer [avatar]])
   (:use [back-channeling.comment-helper :only [format-plain]]
@@ -44,10 +46,12 @@
                            (om/set-state! owner :watching? false))}))
 
 (defcomponent comment-new-view [thread owner {:keys [board-name]}]
-  (init-state [_] {:comment ""
-                   :comment-format "comment.format/plain"
-                   :focus? false
-                   :click-outside-fn nil})
+  (init-state [_]
+    {:comment {:comment/content nil
+               :comment/format "comment.format/plain"
+               :thread/id (:db/id @thread)}
+     :focus? false
+     :click-outside-fn nil})
 
   (will-mount [_]
     (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
@@ -63,19 +67,20 @@
   (did-update [_ _ _]
     (if (om/get-state owner :focus?)
       (.. (om/get-node owner) (querySelector "textarea") focus)))
-  (render-state [_ {:keys [comment comment-format focus?]}]
+  (render-state [_ {:keys [comment focus? error-map]}]
     (html
      [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
       [:div.ui.equal.width.grid
        (if focus?
          [:div.row
           [:div.column
-           [:div.field
-            [:textarea#comment
+           [:div.field (when (:comment/content error-map)
+                         {:class "error"})
+            [:textarea
              {:name "comment"
-              :value comment
+              :value (:comment/content comment)
               :on-change (fn [e]
-                           (om/set-state! owner :comment (.. e -target -value)))
+                           (om/set-state! owner [:comment :comment/content] (.. e -target -value)))
               :on-key-up (fn [e]
                            (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
                              (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
@@ -84,32 +89,35 @@
             [:div.two.fields
              [:div.field
               [:select {:name "format"
+                        :value (:comment/format comment)
                         :on-change (fn [e]
-                                     (om/set-state! owner :comment-format (.. e -target -value)))}
+                                     (om/set-state! owner [:comment :comment/format] (.. e -target -value)))}
                [:option {:value "comment.format/plain"} "Plain"]
                [:option {:value "comment.format/markdown"} "Markdown"]]]
              [:div.field
               [:button.ui.blue.labeled.submit.icon.button
                {:on-click (fn [e]
-                            (let [dom (om/get-node owner)]
-                              (save-comment {:thread/id  (:db/id thread)
-                                             :comment/content (.. dom (querySelector "[name=comment]") -value)
-                                             :comment/format (keyword (.. dom (querySelector "[name=format]") -value))}
-                                            
-                                            (fn [_] (om/set-state! owner :comment "")))))}
+                            (let [comment (om/get-state owner :comment)
+                                  [result map] (b/validate comment
+                                                           :comment/content v/required)]
+                              (if result
+                                (om/set-state! owner :error-map (:bouncer.core/errors map))
+                                (save-comment (update-in comment [:comment/format] keyword)
+                                              (fn [_]
+                                                (om/set-state! owner [:comment :comment/content] nil))))))}
                [:i.icon.edit] "New comment"]]]]]
           [:div.column
            [:div.preview
             [:div.ui.top.right.attached.label "Preview"]
             [:div.attached
-             (case comment-format
-               "comment.format/plain" (format-plain comment :board-name board-name :thread-id (:db/id thread))
-               "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]
+             (case (:comment/format comment)
+               "comment.format/plain" (format-plain (:comment/content comment) :board-name board-name :thread-id (:db/id thread))
+               "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}})]]]]
          [:div.row
           [:div.column
            [:div.ui.left.icon.input.field
             [:i.edit.icon]
-            [:input {:type "text" :value comment :on-focus (fn [_] (om/set-state! owner :focus? true))}]]]])]])))
+            [:input {:type "text" :value (:comment/content comment) :on-focus (fn [_] (om/set-state! owner :focus? true))}]]]])]])))
 
 (defn scroll-to-comment [owner thread]
   (let [comment-no (or (om/get-state owner :target-comment) (count (:thread/comments thread))) 
@@ -133,12 +141,12 @@
     (html
      [:div.ui.full.height.thread.comments
       [:h3.ui.dividing.header (:thread/title thread)]
-      [:a.curation.link {:href (str "#/curation/new?thread-id=" (:db/id thread))}
+      [:a.curation.link {:href (str "#/articles/new?thread-id=" (:db/id thread))}
        [:i.external.share.big.icon]]
       [:div.scroll-pane
        (for [comment (:thread/comments thread)]
         [:div.comment {:data-comment-no (:comment/no comment)}
-         (om/build avatar (get-in comment [:comment/posted-by :user/email]))
+         (om/build avatar (get-in comment [:comment/posted-by]))
          [:div.content
           [:a.number (:comment/no comment)] ": "
           [:a.author (get-in comment [:comment/posted-by :user/name])]
@@ -147,7 +155,7 @@
           [:div.text (case (get-in comment [:comment/format :db/ident])
                        :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
                        (format-plain (:comment/content comment) :thread-id (:db/id thread) :board-name board-name))]]])]
-      (if (> (count (:thread/comments thread)) 1000)
+      (if (>= (count (:thread/comments thread)) 1000)
         [:div.ui.error.message
          [:div.header "Over 1000 comments. You can't add any comment to this thread."]]
         (om/build comment-new-view thread {:opts opts}))])))
@@ -187,7 +195,7 @@
     (html
      [:div.table.container
       [:div.tbody.container
-       [:table.ui.table
+       [:table.ui.compact.table
         [:thead
          [:tr
           [:th ""]
@@ -228,24 +236,25 @@
             [:td (.format date-format-m (:thread/since thread))]])]]]])))
 
 (defcomponent thread-new-view [board owner]
-  (init-state [_] {:comment ""
-                   :title ""
-                   :comment-format "comment.format/plain"})
-  (render-state [_ {:keys [comment comment-format title]}]
+  (init-state [_] {:thread {:board/name (:board/name @board)
+                            :thread/title nil
+                            :comment/content nil
+                            :comment/format "comment.format/plain"}})
+  (render-state [_ {:keys [thread error-map]}]
     (html
      [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
       [:div.ui.equal.width.grid
        [:div.row
         [:div.column
-         [:div.field
+         [:div.field (when (:thread/title error-map) {:class "error"})
           [:label "Title"]
-          [:input {:type "text" :name "title" :value title
-                   :on-change (fn [e] (om/set-state! owner :title (.. e -target -value)))}]]
-         [:div.field
+          [:input {:type "text" :name "title" :value (:thread/title thread)
+                   :on-change (fn [e] (om/set-state! owner [:thread :thread/title] (.. e -target -value)))}]]
+         [:div.field (when (:comment/content error-map) {:class "error"})
           [:textarea {:name "comment"
-                      :value comment
+                      :value (:comment/content thread)
                       :on-change (fn [e]
-                                   (om/set-state! owner :comment (.. e -target -value)))
+                                   (om/set-state! owner [:thread :comment/content] (.. e -target -value)))
                       :on-key-up (fn [e]
                                    (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
                                      (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
@@ -255,28 +264,31 @@
            [:div.field
             [:select {:name "format"
                       :on-change (fn [e]
-                                   (om/set-state! owner :comment-format (.. e -target -value)))}
+                                   (om/set-state! owner [:thread :comment/format] (.. e -target -value)))}
              [:option {:value "comment.format/plain"} "Plain"]
              [:option {:value "comment.format/markdown"} "Markdown"]]]
            [:div.field
             [:button.ui.blue.labeled.submit.icon.button
              {:on-click (fn [_]
-                          (let [dom (om/get-node owner)
-                                title (.. dom (querySelector "[name=title]") -value)]
-                            (if (->> [title comment] (keep not-empty) not-empty)
-                              (do (save-thread {:board/name (:board/name @board)
-                                                :thread/title title
-                                                :comment/content comment})
-                                  (om/update-state! owner #(assoc % :comment "" :title "")))
-                              (js/alert "title and content are required."))))}
+                          (let [thread (om/get-state owner :thread)
+                                [result map] (b/validate thread
+                                                         :thread/title v/required
+                                                         :comment/content v/required)]
+                            (if result
+                              (om/set-state! owner :error-map (:bouncer.core/errors map))
+                              (do (save-thread thread)
+                                  (om/update-state! owner [:thread]
+                                                    #(assoc %
+                                                            :comment/content nil
+                                                            :thread/title nil))))))}
              [:i.icon.edit] "Create thread"]]]]]
         [:div.column
          [:div.preview
           [:div.ui.top.right.attached.label "Preview"]
           [:div
-           (case comment-format
-             "comment.format/plain" (format-plain comment)
-             "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked comment)}})]]]]]])))
+           (case (:comment/format thread)
+             "comment.format/plain" (format-plain (:comment/content thread))
+             "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content thread))}})]]]]]])))
 
 
 (defcomponent board-view [board owner]

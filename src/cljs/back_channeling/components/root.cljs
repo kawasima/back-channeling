@@ -9,7 +9,7 @@
             [back-channeling.notification :as notification]
             [back-channeling.components.avatar :refer [avatar]])
   (:use [back-channeling.components.board :only [board-view]]
-        [back-channeling.components.curation :only [curation-page]]
+        [back-channeling.components.curation :only [article-page]]
         [back-channeling.component-helper :only [make-click-outside-fn]]
         [cljs.reader :only [read-string]]))
 
@@ -135,18 +135,18 @@
           [:i.users.icon]
           [:floating.ui.label (count (:users app))]]
          (when open-users?
-           [:div.ui.flowing.popup.left.bottom.transition.visible {:style {:top "60px"}}
-            [:ui.grid
+           [:div.ui.flowing.popup.left.bottom.transition.visible {:style {:top "60px" :width "200px"}}
+            [:div.ui.four.column.grid
              (for [member (:users app)]
                [:column {:on-click (fn [_]
                                      (socket/send :call {:from user
                                                          :to #{member}
                                                          :message (str (:user/name user) " is calling!!")}))}
-                (om/build avatar (:user/email member))])]])]
+                (om/build avatar member)])]])]
         [:div.ui.dropdown.item
          [:div {:on-click (fn [_]
                             (om/set-state! owner :open-profile? (not open-profile?)))}
-          (om/build avatar (:user/email user))
+          (om/build avatar user)
           [:span (:user/name user)] ]
          [:div.menu.transition {:class (if open-profile? "visible" "hidden")} 
           [:a.item {:href "/logout"} "Logout"]]]]]
@@ -157,6 +157,6 @@
                             :state {:target-thread (:target-thread app)
                                     :target-comment (:target-comment app)}
                             :opts {:user user}})
-          :curation (om/build curation-page (:curating-blocks app)
+          :article (om/build article-page (:article app)
                               {:init-state {:thread (get-in board [:board/threads (:target-thread app)])}
                                :opts {:user user}})))])))

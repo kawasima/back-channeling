@@ -17,10 +17,10 @@
 (defn avatar-url [user]
   (str "https://www.gravatar.com/avatar/" (md5 (:user/email user)) "?d=mm"))
 
-(defcomponent avatar [email owner]
+(defcomponent avatar [user owner]
   (render [_]
     (html
-     [:a.avatar
+     [:a.avatar {:title (:user/name user)}
       [:img.ui.avatar.image {:src (str "https://www.gravatar.com/avatar/"
-                       (md5 email)
+                       (md5 (:user/email user))
                        "?d=mm")}]])) )
