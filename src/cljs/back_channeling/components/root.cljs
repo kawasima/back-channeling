@@ -135,7 +135,7 @@
           [:i.users.icon]
           [:floating.ui.label (count (:users app))]]
          (when open-users?
-           [:div.ui.flowing.popup.left.bottom.transition.visible {:style {:top "60px" :width "200px"}}
+           [:div.ui.flowing.popup.right.bottom.transition.visible {:style {:top "60px" :width "200px"}}
             [:div.ui.four.column.grid
              (for [member (:users app)]
                [:column {:on-click (fn [_]

@@ -7,6 +7,7 @@
             [bouncer.core :as b]
             [bouncer.validators :as v]
             [back-channeling.api :as api]
+            [back-channeling.notification :as notification]
             [back-channeling.components.avatar :refer [avatar]])
   (:use [back-channeling.comment-helper :only [format-plain]]
         [back-channeling.component-helper :only [make-click-outside-fn]])
@@ -36,7 +37,8 @@
                :PUT
                {:add-watcher user}
                {:handler (fn [response]
-                           (om/set-state! owner :watching? true))}))
+                           (om/set-state! owner :watching? true))})
+  (notification/initialize))
 
 (defn unwatch-thread [thread user owner]
   (api/request (str "/api/thread/" (:db/id thread))
@@ -47,7 +49,7 @@
 
 (defcomponent comment-new-view [thread owner {:keys [board-name]}]
   (init-state [_]
-    {:comment {:comment/content nil
+    {:comment {:comment/content ""
                :comment/format "comment.format/plain"
                :thread/id (:db/id @thread)}
      :focus? false
@@ -104,7 +106,7 @@
                                 (om/set-state! owner :error-map (:bouncer.core/errors map))
                                 (save-comment (update-in comment [:comment/format] keyword)
                                               (fn [_]
-                                                (om/set-state! owner [:comment :comment/content] nil))))))}
+                                                (om/set-state! owner [:comment :comment/content] ""))))))}
                [:i.icon.edit] "New comment"]]]]]
           [:div.column
            [:div.preview
@@ -237,8 +239,8 @@
 
 (defcomponent thread-new-view [board owner]
   (init-state [_] {:thread {:board/name (:board/name @board)
-                            :thread/title nil
-                            :comment/content nil
+                            :thread/title ""
+                            :comment/content ""
                             :comment/format "comment.format/plain"}})
   (render-state [_ {:keys [thread error-map]}]
     (html
@@ -279,8 +281,8 @@
                               (do (save-thread thread)
                                   (om/update-state! owner [:thread]
                                                     #(assoc %
-                                                            :comment/content nil
-                                                            :thread/title nil))))))}
+                                                            :comment/content ""
+                                                            :thread/title ""))))))}
              [:i.icon.edit] "Create thread"]]]]]
         [:div.column
          [:div.preview
