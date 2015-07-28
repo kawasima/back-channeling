@@ -25,10 +25,10 @@
                      (on-message (.-message e)))))
   (events/listen ws EventType.CLOSED
                  (fn [e]
-                   (.log js/console "Websocket closed.")))
+                   #_(.log js/console "Websocket closed.")))
   (events/listen ws EventType.ERROR
                  (fn [e]
-                   (.log js/console (str "Websocket error" e))))
+                   #_(.log js/console (str "Websocket error" e))))
   (.open ws url))
 
 (defn send [command message]

@@ -6,7 +6,7 @@
 (defn initialize []
   (when-not @initialized?
     (.requestPermission js/Notification)
-    (reset! initialize? true)))
+    (reset! initialized? true)))
 
 (defn show [message]
   (let [notification (js/Notification. (str "From " (get-in message [:comment/posted-by :user/name]) " @BackChanneling") 

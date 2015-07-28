@@ -14,9 +14,10 @@
                                      (aget goog.i18n (str "DateTimeSymbols_" (.-language js/navigator)))))
 
 (defn open-thread [thread owner]
-  (api/request (str "/api/thread/" (:db/id thread))
-               {:handler (fn [response]
-                           (om/set-state! owner [:thread :thread/comments] (:thread/comments response)))}))
+  (when-let [thread-id (:db/id thread)] 
+    (api/request (str "/api/thread/" thread-id)
+                 {:handler (fn [response]
+                           (om/set-state! owner [:thread :thread/comments] (:thread/comments response)))})))
 
 (defcomponent editorial-space-view [curating-block owner {save-fn :save-fn}]
   (init-state [_]
@@ -160,7 +161,8 @@
                                      (-> (om/get-state owner :editing-article)
                                          (assoc :article/curator user))
                                      {:handler (fn [response]
-                                                 (om/set-state! owner [:editing-article :db/id] (:db/id response)))})))))}
+                                                 (set! (.-href js/location) (str "#/article/" (:db/id response)))
+                                                 (.reload js/location))})))))}
            [:i.save.icon] "Save"]]
          [:div.scroll-pane
           [:div.ui.comments

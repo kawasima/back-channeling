@@ -51,8 +51,9 @@
   (init-state [_]
     {:comment {:comment/content ""
                :comment/format "comment.format/plain"
-               :thread/id (:db/id @thread)}
+               :thread/id (when thread (:db/id @thread)) }
      :focus? false
+     :saving? false
      :click-outside-fn nil})
 
   (will-mount [_]
@@ -69,7 +70,7 @@
   (did-update [_ _ _]
     (if (om/get-state owner :focus?)
       (.. (om/get-node owner) (querySelector "textarea") focus)))
-  (render-state [_ {:keys [comment focus? error-map]}]
+  (render-state [_ {:keys [comment focus? saving? error-map]}]
     (html
      [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
       [:div.ui.equal.width.grid
@@ -98,15 +99,24 @@
                [:option {:value "comment.format/markdown"} "Markdown"]]]
              [:div.field
               [:button.ui.blue.labeled.submit.icon.button
-               {:on-click (fn [e]
+               (merge {:on-click (fn [e]
                             (let [comment (om/get-state owner :comment)
                                   [result map] (b/validate comment
                                                            :comment/content v/required)]
                               (if result
                                 (om/set-state! owner :error-map (:bouncer.core/errors map))
-                                (save-comment (update-in comment [:comment/format] keyword)
+                                (do
+                                  (om/set-state! owner :saving? true)
+                                  (save-comment (update-in comment [:comment/format] keyword)
                                               (fn [_]
-                                                (om/set-state! owner [:comment :comment/content] ""))))))}
+                                                (om/update-state!
+                                                 owner
+                                                 #(-> %
+                                                      (assoc-in [:comment :comment/content] "")
+                                                      (assoc :saving? false)))))))))}
+                      (when saving?
+                        {:class "loading"}))
+               
                [:i.icon.edit] "New comment"]]]]]
           [:div.column
            [:div.preview
@@ -131,14 +141,17 @@
                    -top)
         scroll-pane (.. (om/get-node owner)
                            (querySelector "div.scroll-pane"))]
-      (when comment-dom
-        (set! (.-scrollTop scroll-pane) (- (some->> (.getBoundingClientRect comment-dom) (.-top)) offset)))))
+    (when comment-dom
+      (.scrollTo js/window 0
+                 (- (+ (.. js/document -body -scrollTop) (some->> (.getBoundingClientRect comment-dom) (.-top))) 70)))))
 
 (defcomponent thread-view [thread owner {:keys [board-name] :as opts}]
   (did-mount [_]
-    (scroll-to-comment owner thread))
+    (when thread
+      (scroll-to-comment owner thread)))
   (did-update [_ _ _]
-    (scroll-to-comment owner thread))
+    (when thread
+      (scroll-to-comment owner thread)))
   (render [_]
     (html
      [:div.ui.full.height.thread.comments

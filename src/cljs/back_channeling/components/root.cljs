@@ -133,7 +133,7 @@
          [:div {:on-click (fn [_]
                             (om/set-state! owner :open-users? (not open-users?)))}
           [:i.users.icon]
-          [:floating.ui.label (count (:users app))]]
+          [:div.ui.label (count (:users app))]]
          (when open-users?
            [:div.ui.flowing.popup.right.bottom.transition.visible {:style {:top "60px" :width "200px"}}
             [:div.ui.four.column.grid
