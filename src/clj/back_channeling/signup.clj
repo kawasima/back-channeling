@@ -6,6 +6,8 @@
         [back-channeling [layout :only [layout]]])
   (:require [buddy.core.nonce :as nonce]
             [buddy.core.hash]
+            [bouncer.core :as b]
+            [bouncer.validators :as v :refer [defvalidator]]
             (back-channeling [model :as model])))
 
 (def robot-svg [:svg#robot-svg {:version "1.1" :xmlns "http://www.w3.org/2000/svg" :xmlns/xlink "http://www.w3.org/1999/xlink" :width "64px" :height "64px" :x "0px" :y "0px"}
@@ -49,57 +51,93 @@ c1.53,0,3.096-1.14,3.566-2.596l2.5-7.75v10.466v0.503v29.166c0,2.757,2.243,5,5,5h
 c0,2.757,2.243,5,5,5h0.352c2.757,0,5-2.243,5-5V57.842v-0.503v-10.47l2.502,7.754c0.47,1.456,2.036,2.596,3.566,2.596h2.25
 c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
 
-(defn signup-view [{params :param :as req}]
+(defn signup-view [{params :param error-map :error-map :as req}]
   (layout req
    [:div.ui.middle.aligned.center.aligned.login.grid
     [:div.column
      [:h2.ui.header
-      [:div.content "Back channeling"]]
-     [:form.ui.large.login.form {:method "post"}
+      [:div.content
+       [:img.ui.image {:src "/img/logo.png"}]]]
+     [:form.ui.large.login.form (merge {:method "post"}
+                                       (when error-map {:class "error"})) 
       [:div.ui.stacked.segment
        [:div.field
         [:div.ui.two.column.grid
          [:div.row
           [:div.column.account-type.on  human-svg]
           [:div.column.account-type.off robot-svg]]]]
-       [:div.field
+       (when error-map
+         [:div.ui.error.message
+          [:ul.list
+           (for [msg (concat (vals error-map))]
+             [:li msg])]])
+       [:div.field (when (:user/name error-map)
+                     {:class "error"})
         [:div.ui.left.icon.input
          [:i.user.icon]
          [:input {:type "text" :name "user/name" :placeholder "User name" :value (:user/name params)}]]]
-       [:div#email-field.field
+       [:div#email-field.field (when (:user/email error-map)
+                                 {:class "error"})
         [:div.ui.left.icon.input
          [:i.mail.icon]
-         [:input {:type "text" :name "user/email" :placeholder "Email address"}]]]
-       [:div#password-field.field
+         [:input {:type "text" :name "user/email" :placeholder "Email address" :value (:user/email params)}]]]
+       [:div#password-field.field (when (:user/password error-map)
+                                    {:class "error"})
         [:div.ui.left.icon.input
          [:i.lock.icon]
          [:input {:type "password" :name "user/password" :placeholder "Password"}]]]
-       [:div#token-field.field
+       [:div#token-field.field (when (:user/token error-map)
+                                 {:class "error"})
         [:div.ui.action.input
          [:input {:type "text" :name "user/token" :placeholder "Token" :readonly true}]
          [:button.ui.icon.button {:type "button"}
           [:i.refresh.icon]]]]
-       [:button.ui.fluid.large.teal.submit.button {:type "submit"} "Sign up"]]
-      [:div.ui.error.message]]]]
+       [:button.ui.fluid.large.teal.submit.button {:type "submit"} "Sign up"]]]]]
    (include-js "/js/signup.js")))
 
-(defn signup [user]
-  (let [salt (nonce/random-nonce 16)
-        password (some-> (not-empty (:user/password user))
-                         (.getBytes)
-                         (#(into-array Byte/TYPE (concat salt %)))
-                         buddy.core.hash/sha256
-                         buddy.core.codecs/bytes->hex)]
-    (if-not (or password (:user/token user))
-      (throw (Exception.)))
+(defvalidator unique-email-validator
+  {:default-message-format "%s is used by someone."}
+  [email]
+  (nil? (model/query '{:find [?u .] :in [$ ?email] :where [[?u :user/email ?email]]}
+                     email)))
 
-    (println "password=" password ",token=" (:user/token user))
-    (model/transact [(merge user
-                            {:db/id #db/id[db.part/user -1]}
-                            (when password
-                              {:user/password password
-                               :user/salt salt})
-                            (when-let [token (:user/token user)]
-                              {:user/token token}))])
-    (-> (redirect "/")
-        (flash-response {:flash (str "Create account " (:user/name user))}))))
+(defvalidator unique-name-validator
+  {:default-message-format "%s is used by someone."}
+  [name]
+  (nil? (model/query '{:find [?u .] :in [$ ?name] :where [[?u :user/email ?name]]}
+                     name)))
+
+
+(defn validate-user [user]
+  (b/validate user
+              :user/password [[v/min-count 8 :message "Password must be at least 8 characters long."]]
+              :user/email    [[v/required]
+                              [v/email]
+                              [v/max-count 100 :message "Email is too long."]
+                              unique-email-validator]
+              :user/name     [[v/required]
+                              [v/min-count 3 :message "Username must be at least 3 characters long."]
+                              [v/max-count 20 :message "Username is too long."]
+                              unique-name-validator]))
+
+(defn signup [user]
+  (let [[result map] (validate-user user)]
+    (if-let [error-map (:bouncer.core/errors map)]
+      (signup-view {:error-map error-map :params user})
+      (let [salt (nonce/random-nonce 16)
+            password (some-> (not-empty (:user/password user))
+                             (.getBytes)
+                             (#(into-array Byte/TYPE (concat salt %)))
+                             buddy.core.hash/sha256
+                             buddy.core.codecs/bytes->hex)]
+        (if-not (or password (:user/token user))
+          (throw (Exception.)))
+        (model/transact [(merge user
+                                {:db/id #db/id[db.part/user -1]}
+                                (when password
+                                  {:user/password password
+                                   :user/salt salt})
+                                (when-let [token (:user/token user)]
+                                  {:user/token token}))])
+        (-> (redirect "/")
+            (flash-response {:flash (str "Create account " (:user/name user))}))))))

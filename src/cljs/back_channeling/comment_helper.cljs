@@ -5,7 +5,7 @@
 (defn link-to-url [text _]
   (let [pattern #"(?:https?|ftp)://[^\s/$.?#]\.[^\s]*"]
     (interleave
-     (string/split text pattern)
+     (vec (.split text pattern))
      (concat (->> (re-seq pattern text)
                   (map (fn [url]
                          [:a {:href url} url])))
@@ -15,7 +15,7 @@
   (if (and board-name thread-id)
     (let [pattern #">>\d+"]
       (interleave
-       (string/split text pattern)
+       (vec (.split text pattern))
        (concat (->> (re-seq pattern text)
                     (map (fn [res]
                            [:a {:href (str "#/board/" board-name "/" thread-id "/" (subs res 2))} res])))

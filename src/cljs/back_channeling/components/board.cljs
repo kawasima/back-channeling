@@ -8,7 +8,8 @@
             [bouncer.validators :as v]
             [back-channeling.api :as api]
             [back-channeling.notification :as notification]
-            [back-channeling.components.avatar :refer [avatar]])
+            [back-channeling.components.avatar :refer [avatar]]
+            [goog.i18n.DateTimeSymbols_ja])
   (:use [back-channeling.comment-helper :only [format-plain]]
         [back-channeling.component-helper :only [make-click-outside-fn]])
   (:import [goog.i18n DateTimeFormat]))
@@ -121,10 +122,13 @@
           [:div.column
            [:div.preview
             [:div.ui.top.right.attached.label "Preview"]
-            [:div.attached
-             (case (:comment/format comment)
-               "comment.format/plain" (format-plain (:comment/content comment) :board-name board-name :thread-id (:db/id thread))
-               "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}})]]]]
+            (case (:comment/format comment)
+              "comment.format/plain"
+              [:div.attached (format-plain (:comment/content comment) :board-name board-name :thread-id (:db/id thread))]
+
+              "comment.format/markdown"
+              [:div.attached {:key "preview-markdown"
+                              :dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}])]]]
          [:div.row
           [:div.column
            [:div.ui.left.icon.input.field
