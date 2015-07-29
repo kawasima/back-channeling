@@ -4,8 +4,13 @@
   (:require [datomic.api :as d]
             [datomic-schema.schema :as s]))
 
-(def uri (or (env :datomic-url "datomic:free://localhost:4334/bc")))
-;;(def uri (or (env :datomic-url "datomic:mem://bc")))
+(def default-datomic-uri
+  (if (:dev env)
+    "datomic:free://localhost:4334/bc"
+    "datomic:mem://bc"))
+
+(def uri (or (env :datomic-url)  default-datomic-uri))
+
 (defonce conn (atom nil))
 
 (defn query [q & params]

@@ -1,4 +1,5 @@
 (ns back-channeling.core
+  (:gen-class)
   (:use [hiccup.core :only [html]]
         [hiccup.page :only [include-js]]
         [environ.core :only [env]]
@@ -131,7 +132,7 @@
                  (fn [req token]
                    (auth-by-token token))}))
 
-(defn -main [& {:keys [port] :or {port 3009}}]
+(defn -main [& args]
   (model/create-schema)
   (server/run-server
    (-> app-routes
@@ -140,7 +141,7 @@
        (wrap-authorization  session-base)
        (wrap-defaults (assoc-in site-defaults [:security :anti-forgery] false))
        (wrap-reload))
-   :port port
+   :port (Integer/parseInt (or (:back-channeling-port env) "3009"))
    :websockets [{:path "/ws"
                  :on-message (fn [ch message]
                                (handle-command (edn/read-string message) ch))

@@ -17,7 +17,8 @@
                  [org.omcljs/om "0.9.0"]
                  [io.undertow/undertow-websockets-jsr "1.1.1.Final"]
 
-                 [com.datomic/datomic-free "0.9.5198" :exclusions [org.slf4j/slf4j-api org.slf4j/slf4j-nop joda-time]]
+                 [com.datomic/datomic-free "0.9.5198" :exclusions [org.slf4j/slf4j-api org.slf4j/slf4j-nop joda-time
+                                                                   com.amazonaws/aws-java-sdk]]
                  [ch.qos.logback/logback-classic "1.1.3"]
                  [datomic-schema "1.3.0"]
                  [liberator "0.13"]
