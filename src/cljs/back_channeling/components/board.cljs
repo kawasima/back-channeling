@@ -172,7 +172,8 @@
           [:div.metadata
            [:span.date (.format date-format-m (get-in comment [:comment/posted-at]))]]
           [:div.text (case (get-in comment [:comment/format :db/ident])
-                       :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
+                       :comment.format/markdown {:key (str thread "-" (:comment/no comment))
+                                                 :dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
                        (format-plain (:comment/content comment) :thread-id (:db/id thread) :board-name board-name))]]])]
       (if (>= (count (:thread/comments thread)) 1000)
         [:div.ui.error.message
