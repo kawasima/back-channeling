@@ -6,6 +6,7 @@
 (.setOptions js/marked
              (clj->js {:highlight (fn [code]
                                     (.. js/hljs (highlightAuto code) -value))}))
+
 (def app-state (atom {:boards {}
                       :users #{}
                       :page :board}))

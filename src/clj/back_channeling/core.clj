@@ -22,7 +22,8 @@
             (back-channeling [server :as server]
                              [style :as style]
                              [model :as model]
-                             [signup :as signup])))
+                             [signup :as signup]))
+  (:import [java.io FileInputStream]))
 
 (defn index-view [req]
   (layout req
@@ -98,6 +99,12 @@
   (compojure/context "/api" [] api-routes)
   (GET "/css/back-channeling.css" [] (-> {:body (style/build)}
                                          (content-type "text/css")))
+  (GET ["/voice/:thread-id/:filename" :thread-id #"\d+" :filename #"^([0-9a-z\-])+\.ogg$"] [thread-id filename]
+    (let [content-type (cond (.endsWith filename ".wav") "audio/wav"
+                             (.endsWith filename ".ogg") "audio/ogg"
+                             :else (throw (IllegalArgumentException. filename)))]
+      {:headers {"content-type" content-type}
+       :body (FileInputStream. (str "voices/" thread-id "/" filename))}))
 
   (route/resources "/")
   (route/not-found "Not found."))

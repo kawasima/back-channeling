@@ -7,7 +7,8 @@
             [bouncer.core :as b]
             [bouncer.validators :as v]
             [back-channeling.api :as api]
-            [back-channeling.components.avatar :refer [avatar]])
+            [back-channeling.components.avatar :refer [avatar]]
+            [back-channeling.components.comment :refer [comment-view]])
   (:import [goog.i18n DateTimeFormat]))
 
 (def date-format-m  (DateTimeFormat. goog.i18n.DateTimeFormat.Format.MEDIUM_DATETIME
@@ -46,9 +47,9 @@
 
 (defn generate-markdown [curating-blocks]
   (->> curating-blocks
-       (map #(if (= (:comment/format %) :comment.format/markdown)
-               (:comment/content %)
-               (str "```\n" (:comment/content %) "\n```\n")))
+       (map #(if (= (get-in % [:curating-block/format :db/ident]) :curating-block.format/markdown)
+               (:curating-block/content %)
+               (str "```\n" (:curating-block/content %) "\n```\n")))
        (clojure.string/join "\n\n")))
 
 (defcomponent article-page [article owner {:keys [user]}]
@@ -90,20 +91,15 @@
             [:div.content
              [:div.ui.message (when (selected-thread-comments 0) {:class "red"}) "Editorial space"]]]
            (for [comment (:thread/comments thread)]
-             [:div.comment {:on-click (fn [_]
-                                        (if ((om/get-state owner :selected-thread-comments) (:db/id comment))
-                                          (om/update-state! owner :selected-thread-comments #(disj % (:db/id comment)))
-                                          (om/update-state! owner :selected-thread-comments #(conj % (:db/id comment)))))
-                            :class (if (selected-thread-comments (:db/id comment)) "selected" "")}
-              (om/build avatar (get-in comment [:comment/posted-by]))
-              [:div.content
-               [:a.number (:comment/no comment)] ": "
-               [:a.author (get-in comment [:comment/posted-by :user/name])]
-               [:div.metadata
-                [:span.date (.format date-format-m (get-in comment [:comment/posted-at]))]]
-               [:div.text (case (get-in comment [:comment/format :db/ident])
-                            :comment.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
-                            (:comment/content comment))]]])]]]
+             (om/build comment-view comment
+                       {:state {:selected? (selected-thread-comments (:db/id comment))}
+                        :opts {:thread thread
+                               :comment-attrs
+                               {:on-click (fn [_]
+                                            (if ((om/get-state owner :selected-thread-comments) (:db/id comment))
+                                              (om/update-state! owner :selected-thread-comments #(disj % (:db/id comment)))
+                                              (om/update-state! owner :selected-thread-comments #(conj % (:db/id comment)))))
+                                :class (if (selected-thread-comments (:db/id comment)) "selected" "")}}}))]]]
         
         [:div.column
          (when (not-empty selected-thread-comments)

@@ -49,7 +49,7 @@
             [posted-at :instant]
             [posted-by :ref]
             [content :string :fulltext]
-            [format :enum [:plain :markdown]]))
+            [format :enum [:plain :markdown :voice]]))
    (schema user
            (fields
             [name :string :unique-value]
@@ -68,7 +68,7 @@
             [posted-at :instant]
             [posted-by :ref]
             [content :string]
-            [format :enum [:plain :markdown]]))
+            [format :enum [:plain :markdown :voice]]))
    (schema notification
            (fields
             [target-users :ref :many]

@@ -18,6 +18,7 @@
                  "/css/back-channeling.css")
     (include-js "//cdn.jsdelivr.net/marked/0.3.1/marked.min.js"
                 "//cdn.jsdelivr.net/highlight.js/8.6.0/highlight.min.js"
+                "//cdn.webrtc-experiment.com/MediaStreamRecorder.js"
                 "//cdn.jsdelivr.net/zeroclipboard/2.2.0/ZeroClipboard.min.js")
     (when (:dev env) (include-js "/react/react.js"))]
    [:body body]))

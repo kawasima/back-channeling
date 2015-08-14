@@ -55,5 +55,7 @@
             body
             (case format
               :xml (clj->js {:content-type "application/xml"})
+              :ogg (clj->js {:content-type "audio/ogg"})
+              :wav (clj->js {:content-type "audio/wav"})
               (clj->js {:content-type "application/edn"}))))))
 

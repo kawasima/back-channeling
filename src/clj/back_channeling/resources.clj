@@ -8,7 +8,9 @@
   (:use [compojure.core :only [defroutes ANY]]
         [liberator.representation :only [ring-response]]
         [liberator.core :only [defresource]])
-  (:import [java.util Date]))
+  (:import [java.util Date UUID]
+           [java.nio.file Files Paths CopyOption]
+           [java.nio.file.attribute FileAttribute]))
 
 (defn- body-as-string [ctx]
   (if-let [body (get-in ctx [:request :body])]
@@ -26,7 +28,6 @@
       (catch Exception e
         (log/error e "fail to parse edn.")
         {:message (format "IOException: %s" (.getMessage e))}))))
-
 
 (defresource boards-resource []
   :available-media-types ["application/edn"]
@@ -179,6 +180,31 @@
                     (map-indexed #(assoc %2 :comment/no (inc %1)))
                     (drop (dec from)))))
 
+(defresource voices-resource [thread-id]
+  :available-media-types ["application/edn"]
+  :allowed-methods [:post]
+  :malformed? (fn [ctx]
+                (let [content-type (get-in ctx [:request :headers "content-type"])]
+                  (case content-type
+                    "audio/ogg" [false {::media-type :audio/ogg}]
+                    "audio/wav" [false {::media-type :audio/wav}]
+                    true)))
+  :post! (fn [ctx]
+           (let [body-stream (get-in ctx [:request :body])
+                 filename (str (.toString (UUID/randomUUID))
+                              (case (::media-type ctx)
+                                :audio/ogg ".ogg"
+                                :audio/wav ".wav")) 
+                 path (Paths/get "voices"
+                                 (into-array String [(str thread-id) filename]))]
+             (Files/createDirectories (.getParent path)
+                                      (make-array FileAttribute 0))
+             (Files/copy body-stream path
+                         (make-array CopyOption 0))
+             {::filename filename}))
+  :handle-created (fn [ctx]
+                    {:comment/content (str thread-id "/" (::filename ctx))}))
+
 (defresource users-resource [path]
   :available-media-types ["application/edn"]
   :allowed-methods [:get]
@@ -256,6 +282,7 @@
       (comments-resource (Long/parseLong thread-id)
                          (when from (Long/parseLong from))
                          (when to (Long/parseLong to)))))
+  (ANY "/thread/:thread-id/voices" [thread-id] (voices-resource (Long/parseLong thread-id)))
   (ANY "/articles" [] articles-resource)
   (ANY "/article/:article-id" [article-id]
     (article-resource (Long/parseLong article-id)))

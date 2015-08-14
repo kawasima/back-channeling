@@ -8,7 +8,9 @@
             [bouncer.validators :as v]
             [back-channeling.api :as api]
             [back-channeling.notification :as notification]
+            [back-channeling.audio :as audio]
             [back-channeling.components.avatar :refer [avatar]]
+            [back-channeling.components.comment :refer [comment-view]]
             [goog.i18n.DateTimeSymbols_ja])
   (:use [back-channeling.comment-helper :only [format-plain]]
         [back-channeling.component-helper :only [make-click-outside-fn]])
@@ -20,11 +22,24 @@
                                      (aget goog.i18n (str "DateTimeSymbols_" (.-language js/navigator)))))
 
 (defn save-comment [comment on-success]
-  (api/request (str "/api/thread/" (:thread/id comment) "/comments")
+  (if (= (:comment/format comment) :comment.format/voice)
+    (let [blob (:comment/content comment)]
+      (api/request (str "/api/thread/" (:thread/id comment) "/voices")
+                   :POST
+                   blob
+                   {:format (case (.-type blob)
+                              "audio/ogg" :ogg
+                              "audio/wav" :wav) 
+                    :handler (fn [response]
+                               (api/request (str "/api/thread/" (:thread/id comment) "/comments")
+                                            :POST
+                                            (merge comment response) 
+                                            {:handler #(on-success %)}))}))
+    (api/request (str "/api/thread/" (:thread/id comment) "/comments")
                :POST
                comment
                {:handler (fn [response]
-                           (on-success response))}))
+                           (on-success response))})))
 
 (defn save-thread [thread]
   (api/request (str "/api/board/" (:board/name thread) "/threads")
@@ -55,6 +70,7 @@
                :thread/id (when thread (:db/id @thread)) }
      :focus? false
      :saving? false
+     :recording? false
      :click-outside-fn nil})
 
   (will-mount [_]
@@ -68,10 +84,13 @@
                     #(om/set-state! owner :focus? false))))
     (.addEventListener js/document "mousedown"
                        (om/get-state owner :click-outside-fn)))
+
   (did-update [_ _ _]
-    (if (om/get-state owner :focus?)
-      (.. (om/get-node owner) (querySelector "textarea") focus)))
-  (render-state [_ {:keys [comment focus? saving? error-map]}]
+    (when-let [textarea (.. (om/get-node owner) (querySelector "textarea"))]
+      (if (om/get-state owner :focus?)
+        (.focus textarea))))
+  
+  (render-state [_ {:keys [comment focus? saving? error-map recording? audio-url]}]
     (html
      [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
       [:div.ui.equal.width.grid
@@ -80,15 +99,40 @@
           [:div.column
            [:div.field (when (:comment/content error-map)
                          {:class "error"})
+            (if  (= (:comment/format comment) "comment.format/voice")
+              [:div.ui.vertical.labeled.icon.buttons
+               (if recording?
+                 [:button.ui.button
+                  {:on-click (fn [e]
+                               (letfn [(update-content [blob]
+                                         (om/update-state!
+                                          owner
+                                          #(-> %
+                                               (assoc :recording? false)
+                                               (assoc-in [:comment :comment/content] blob))))]
+                                 (audio/stop-recording
+                                  (fn [blob]
+                                    (if (= (.-type blob) "audio/wav")
+                                      (audio/wav->ogg blob update-content)
+                                      (update-content blob))))))}
+                  [:i.mute.icon] "Stop"]
+                 [:button.ui.button
+                  {:on-click (fn [e]
+                              (audio/start-recording)
+                              (om/set-state! owner :recording? true))}
+                  [:i.unmute.icon] "Record"])])
             [:textarea
-             {:name "comment"
-              :value (:comment/content comment)
-              :on-change (fn [e]
-                           (om/set-state! owner [:comment :comment/content] (.. e -target -value)))
-              :on-key-up (fn [e]
-                           (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
-                             (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
-                               (.click btn))))}]]
+             (merge {:name "comment"
+                     :value (:comment/content comment)
+                     :on-change (fn [e]
+                                  (when-not (= (om/get-state owner [:comment :comment/format]) "comment.format/voice")
+                                    (om/set-state! owner [:comment :comment/content] (.. e -target -value))))
+                     :on-key-up (fn [e]
+                                  (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
+                                    (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
+                                      (.click btn))))}
+                    (when (= (:comment/format comment) "comment.format/voice")
+                      {:style {:display "none"}}))]]
            [:div.actions
             [:div.two.fields
              [:div.field
@@ -97,7 +141,8 @@
                         :on-change (fn [e]
                                      (om/set-state! owner [:comment :comment/format] (.. e -target -value)))}
                [:option {:value "comment.format/plain"} "Plain"]
-               [:option {:value "comment.format/markdown"} "Markdown"]]]
+               [:option {:value "comment.format/markdown"} "Markdown"]
+               [:option {:value "comment.format/voice"} "Voice"]]]
              [:div.field
               [:button.ui.blue.labeled.submit.icon.button
                (merge {:on-click (fn [e]
@@ -128,7 +173,14 @@
 
               "comment.format/markdown"
               [:div.attached {:key "preview-markdown"
-                              :dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}])]]]
+                              :dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}]
+
+              "comment.format/voice"
+              [:div.attached
+               (let [content (:comment/content comment)]
+                 (when (instance? js/Blob content)
+                   [:audio {:controls true
+                            :src (.createObjectURL js/URL content)}]))])]]]
          [:div.row
           [:div.column
            [:div.ui.left.icon.input.field
@@ -152,7 +204,8 @@
 (defcomponent thread-view [thread owner {:keys [board-name] :as opts}]
   (did-mount [_]
     (when thread
-      (scroll-to-comment owner thread)))
+      (scroll-to-comment owner thread))
+    )
   (did-update [_ _ _]
     (when thread
       (scroll-to-comment owner thread)))
@@ -164,17 +217,8 @@
        [:i.external.share.big.icon]]
       [:div.scroll-pane
        (for [comment (:thread/comments thread)]
-        [:div.comment {:data-comment-no (:comment/no comment)}
-         (om/build avatar (get-in comment [:comment/posted-by]))
-         [:div.content
-          [:a.number (:comment/no comment)] ": "
-          [:a.author (get-in comment [:comment/posted-by :user/name])]
-          [:div.metadata
-           [:span.date (.format date-format-m (get-in comment [:comment/posted-at]))]]
-          [:div.text (case (get-in comment [:comment/format :db/ident])
-                       :comment.format/markdown {:key (str thread "-" (:comment/no comment))
-                                                 :dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
-                       (format-plain (:comment/content comment) :thread-id (:db/id thread) :board-name board-name))]]])]
+         (om/build comment-view comment
+                   {:opts {:thread thread :board-name board-name}}))]
       (if (>= (count (:thread/comments thread)) 1000)
         [:div.ui.error.message
          [:div.header "Over 1000 comments. You can't add any comment to this thread."]]
@@ -311,11 +355,23 @@
              "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content thread))}})]]]]]])))
 
 
+(defn sticky-thread-content-fn [owner]
+  (let [thread-content (.. (om/get-node owner) (querySelector "div.thread.content"))]
+    (fn [e]
+      (if (< (.. thread-content getBoundingClientRect -top) 70)
+        (om/set-state! owner :sticky-thread-content? true)
+        (om/set-state! owner :sticky-thread-content? false)))))
+
 (defcomponent board-view [board owner]
   (init-state [_]
-    {:tabs [{:id 0 :name "New"}]})
+    {:tabs [{:id 0 :name "New"}]
+     :sticky-thread-content? false})
+
+  (did-mount [_]
+    (.addEventListener js/window "scroll"
+                       (sticky-thread-content-fn owner)))
   
-  (render-state [_ {:keys [tabs target-thread target-comment channel]}]
+  (render-state [_ {:keys [tabs target-thread target-comment channel sticky-thread-content?]}]
     (if (->> tabs (filter #(= target-thread (:id %))) empty?)
         (om/update-state! owner :tabs #(conj % {:id target-thread :name (get-in board [:board/threads target-thread :thread/title])})))
     (html
@@ -323,8 +379,13 @@
       (om/build thread-list-view (:board/threads board)
                 {:init-state {:board-channel channel}
                  :opts {:board-name (:board/name board)}})
-      [:div.ui.top.attached.segment
-       [:div.ui.top.attached.tabular.menu
+      [:div.ui.top.attached.thread.content.segment
+       [:div.ui.top.attached.tabular.sticky.menu
+        (when sticky-thread-content?
+         {:class "fixed"
+          :style {:margin-top "66px"
+                  :width "874px"
+                  :background-color "#ffffff"}})
         (for [tab tabs]
           [:a.item (merge {:on-click (fn [_]
                                (set! (.-href js/location)

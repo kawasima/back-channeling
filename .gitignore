@@ -5,6 +5,8 @@
 .lein-*
 pom.xml
 
+/voices
+.nrepl-*
 *~
 \#*\#
 .#*

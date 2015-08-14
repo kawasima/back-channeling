@@ -1,23 +1,24 @@
 (defproject net.unit8/back-channeling (clojure.string/trim-newline (slurp "VERSION"))
   :source-paths ["src/clj"]
+  :java-source-paths ["src/java"]
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [org.clojure/tools.logging "0.3.1"]
                  [hiccup "1.0.5"]
                  [garden "1.2.5"]
-                 [compojure "1.3.4"]
+                 [compojure "1.4.0"]
                  [environ "1.0.0"]
-                 [buddy "0.6.0"]
+                 [buddy "0.6.1"]
                  
-                 [org.clojure/clojurescript "0.0-3308" :scope "provided"]
+                 [org.clojure/clojurescript "1.7.58" :scope "provided"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
-                 [sablono "0.3.4"]
+                 [sablono "0.3.5"]
                  [prismatic/om-tools "0.3.11"]
                  [bouncer "0.3.3"]
                  [secretary "1.2.3"]
                  [org.omcljs/om "0.9.0"]
                  [io.undertow/undertow-websockets-jsr "1.1.1.Final"]
 
-                 [com.datomic/datomic-free "0.9.5198" :exclusions [org.slf4j/slf4j-api org.slf4j/slf4j-nop joda-time
+                 [com.datomic/datomic-free "0.9.5206" :exclusions [org.slf4j/slf4j-api org.slf4j/slf4j-nop joda-time
                                                                    com.amazonaws/aws-java-sdk]]
                  [ch.qos.logback/logback-classic "1.1.3"]
                  [datomic-schema "1.3.0"]
