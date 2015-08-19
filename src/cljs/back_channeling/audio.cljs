@@ -13,6 +13,9 @@
 (def recorded-ch (chan))
 (def worker (atom nil))
 
+(defn audio-available? []
+  (.-getUserMedia js/navigator))
+
 (defn on-media-success [stream]
   (reset! media-recorder (js/MediaStreamRecorder. stream))
   (set! (.-mimeType @media-recorder) "audio/ogg")

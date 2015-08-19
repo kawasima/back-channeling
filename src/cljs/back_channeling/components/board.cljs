@@ -70,7 +70,7 @@
                :thread/id (when thread (:db/id @thread)) }
      :focus? false
      :saving? false
-     :recording? false
+     :recording-status :none
      :click-outside-fn nil})
 
   (will-mount [_]
@@ -90,7 +90,7 @@
       (if (om/get-state owner :focus?)
         (.focus textarea))))
   
-  (render-state [_ {:keys [comment focus? saving? error-map recording? audio-url]}]
+  (render-state [_ {:keys [comment focus? saving? error-map recording-status audio-url]}]
     (html
      [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
       [:div.ui.equal.width.grid
@@ -100,27 +100,34 @@
            [:div.field (when (:comment/content error-map)
                          {:class "error"})
             (if  (= (:comment/format comment) "comment.format/voice")
-              [:div.ui.vertical.labeled.icon.buttons
-               (if recording?
-                 [:button.ui.button
-                  {:on-click (fn [e]
-                               (letfn [(update-content [blob]
-                                         (om/update-state!
-                                          owner
-                                          #(-> %
-                                               (assoc :recording? false)
-                                               (assoc-in [:comment :comment/content] blob))))]
-                                 (audio/stop-recording
-                                  (fn [blob]
-                                    (if (= (.-type blob) "audio/wav")
-                                      (audio/wav->ogg blob update-content)
-                                      (update-content blob))))))}
-                  [:i.mute.icon] "Stop"]
-                 [:button.ui.button
-                  {:on-click (fn [e]
+              (case recording-status
+                :recording
+                [:button.ui.large.red.circular.button
+                 {:on-click (fn [e]
+                              (letfn [(update-content [blob]
+                                        (om/update-state!
+                                         owner
+                                         #(-> %
+                                              (assoc :recording-status :none)
+                                              (assoc-in [:comment :comment/content] blob))))]
+                                (audio/stop-recording
+                                 (fn [blob]
+                                   (om/set-state! owner :recording-status :encoding)
+                                   (if (= (.-type blob) "audio/wav")
+                                     (audio/wav->ogg blob update-content)
+                                     (update-content blob))))))}
+                 [:i.large.stop.icon] "Stop"]
+
+                :encoding
+                [:button.ui.large.red.circular.disable.button
+                 [:i.large.mute.icon] "Stopping..."]
+                
+                :none
+                [:button.ui.large.basic.circular.red.button
+                 {:on-click (fn [e]
                               (audio/start-recording)
-                              (om/set-state! owner :recording? true))}
-                  [:i.unmute.icon] "Record"])])
+                              (om/set-state! owner :recording-status :recording))}
+                 [:i.large.unmute.icon] "Record"]))
             [:textarea
              (merge {:name "comment"
                      :value (:comment/content comment)
@@ -142,7 +149,8 @@
                                      (om/set-state! owner [:comment :comment/format] (.. e -target -value)))}
                [:option {:value "comment.format/plain"} "Plain"]
                [:option {:value "comment.format/markdown"} "Markdown"]
-               [:option {:value "comment.format/voice"} "Voice"]]]
+               (when (audio/audio-available?)
+                [:option {:value "comment.format/voice"} "Voice"])]]
              [:div.field
               [:button.ui.blue.labeled.submit.icon.button
                (merge {:on-click (fn [e]

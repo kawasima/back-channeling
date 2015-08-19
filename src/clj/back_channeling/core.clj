@@ -99,7 +99,7 @@
   (compojure/context "/api" [] api-routes)
   (GET "/css/back-channeling.css" [] (-> {:body (style/build)}
                                          (content-type "text/css")))
-  (GET ["/voice/:thread-id/:filename" :thread-id #"\d+" :filename #"^([0-9a-z\-])+\.ogg$"] [thread-id filename]
+  (GET ["/voice/:thread-id/:filename" :thread-id #"\d+" :filename #"[0-9a-f\-]+\.ogg"] [thread-id filename]
     (let [content-type (cond (.endsWith filename ".wav") "audio/wav"
                              (.endsWith filename ".ogg") "audio/ogg"
                              :else (throw (IllegalArgumentException. filename)))]
