@@ -13,12 +13,10 @@ It has the features as follows:
 
 ## Get started
 
-Currently, we support a development mode only.
-
 Start a datomic transactor.
 
 ```
-% bin/transactor config/transactor.properties
+% bin/transactor
 ```
 
 Start a back channeling.
