@@ -1,32 +1,31 @@
 # Back channeling
 
-![Back Channeling](./resources/public/img/logo.png)
+![Back channeling](./resources/public/img/logo.png)
 
-よくあるChatにありがちなチャネルによる分類ではなく、板>スレッド型の掲示板をリアルタイム化したようなものです。
-あとJVM上で動くいい感じのWebチャットがないので、車輪の再発明したい。
+Back channeling is a real-time BBS tool.
 
-## Setup
+It has the features as follows:
+
+- Setup easily
+- Supports markdown format
+- Supports voice chat
+- Curating of comments
+
+## Get started
 
 Currently, we support a development mode only.
 
-Start datomic.
+Start a datomic transactor.
 
 ```
-% bin/transactor config/xxx.properties
+% bin/transactor config/transactor.properties
 ```
 
+Start a back channeling.
+
 ```
-% lein with-profile production run
+% DATOMIC_URL=datomic:free://localhost:4334/bc bin/back_channeling
 ```
 
-A default port is 3009.
+The default port is 3009.
 
-## Features
-
-Back channeling is a realtime bbs.
-
-### Create a thread
-
-### Comment to a thread
-
-#### Thread

@@ -1,15 +1,16 @@
-#!/bin/transactor
+#!/bin/bash
 
-transactor_version=0.9.5198
-transactor_jar=datomic-transactor-free-${transactor_version}.jar
+datomic_version=0.9.5206
+datomic_dir=datomic-free-${datomic_version}
 
-function get_transactor () {
-  curl --progress-bar --location --url "https://my.datomic.com/downloads/free/${transactor_version}" --output datomic.zip
- 
-  unzip -p datomic.zip datomic-free-${transactor_version}/${transactor_jar} > ${transactor_jar}
+function get_datomic () {
+  curl --progress-bar --location --url "https://my.datomic.com/downloads/free/${datomic_version}" --output datomic.zip
+  unzip -x datomic.zip
 }
 
-if []; then
+if [ ! -e "datomic-free-${datomic_version}" ]; then
+   get_datomic
 fi
 
+exec java -server -cp ${datomic_dir}/datomic-transactor-free-${datomic_version}.jar:"${datomic_dir}/lib/*" clojure.main -m datomic.launcher ${datomic_dir}/config/samples/free-transactor-template.properties
 

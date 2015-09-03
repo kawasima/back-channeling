@@ -15,6 +15,10 @@
       <outputDirectory>bin</outputDirectory>
     </file>
     <file>
+      <source>bin/transactor</source>
+      <outputDirectory>bin</outputDirectory>
+    </file>
+    <file>
       <source>VERSION</source>
     </file>
     <file>

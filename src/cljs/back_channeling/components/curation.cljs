@@ -47,8 +47,13 @@
 
 (defn generate-markdown [curating-blocks]
   (->> curating-blocks
-       (map #(if (= (get-in % [:curating-block/format :db/ident]) :curating-block.format/markdown)
+       (map #(case (get-in % [:curating-block/format :db/ident])
+               :curating-block.format/markdown
                (:curating-block/content %)
+
+               :curating-block.format/voice
+               (str "\n[" (get-in % [:curating-block/posted-by :user/name]) " said](" (:curating-block/content %) ")\n")
+               
                (str "```\n" (:curating-block/content %) "\n```\n")))
        (clojure.string/join "\n\n")))
 
@@ -207,5 +212,9 @@
                                                                            :curating-block/posted-at (js/Date.)))))}})
                    (case (get-in curating-block [:curating-block/format :db/ident])
                      :curating-block.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:curating-block/content curating-block))}}
+                     :curating-block.format/voice [:audio {:controls true
+                                                           :src (str "/voice/" (:curating-block/content comment))}]
                      (:curating-block/content curating-block)))]]))
             (:article/blocks editing-article))]]]]]])))
+
+

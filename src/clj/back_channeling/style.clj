@@ -21,6 +21,11 @@
                     :background {:color "#fff"}
                     :border {:left "1px solid #ddd"
                              :right "1px solid #ddd"}}]
+   [:.ui.tabular
+    [:span.tab-name {:max-width (px 150)
+                     :text-overflow "ellipsis"
+                     :white-space "nowrap"
+                     :overflow "hidden"}]]
    [:.curation.content {:min-height "100%"
                        :max-width "90%"
                        :margin {:left "auto" :right "auto"}

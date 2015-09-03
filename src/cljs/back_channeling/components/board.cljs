@@ -401,7 +401,7 @@
                                        "#/"
                                        (str "#/board/" (:board/name board) "/" (:id tab)))))}
                           (when (= target-thread (:id tab)) {:class "active"})) 
-           [:span (:name tab)] 
+           [:span.tab-name (:name tab)] 
            (when (not= (:id tab) 0)
              [:span
               [:i.close.icon {:on-click (fn [e]
