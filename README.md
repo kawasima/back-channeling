@@ -27,6 +27,8 @@ Start a back channeling.
 
 The default port is 3009.
 
+![screenshot](http://i.imgur.com/6n1Yj8D.png)
+
 ## API
 
 When you signup, select a type of bot account.
