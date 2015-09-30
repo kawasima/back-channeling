@@ -16,20 +16,25 @@
                          [layout :only [layout]]))
   (:require [clojure.edn :as edn]
             [clojure.tools.logging :as log]
+            [liberator.dev]
             [hiccup.middleware :refer [wrap-base-url]]
             [compojure.core :refer [defroutes GET POST routing] :as compojure]
             [compojure.route :as route]
+            [buddy.auth.http :as http]
             (back-channeling [server :as server]
                              [style :as style]
                              [model :as model]
-                             [signup :as signup]))
-  (:import [java.io FileInputStream]))
+                             [signup :as signup]
+                             [token :as token]))
+  (:import [java.io FileInputStream]
+           [java.util UUID]))
 
 (defn index-view [req]
   (layout req
    [:div#app.ui.page.full.height]
    (include-js (str "/js/back-channeling"
                     (when-not (:dev env) ".min") ".js"))))
+
 (defn login-view [req]
   (layout
    req
@@ -68,12 +73,6 @@
                            [(buddy.core.hash/sha256 ?passwd-bytes) ?hash]
                            [(buddy.core.codecs/bytes->hex ?hash) ?hash-hex]
                            [?s :user/password ?hash-hex]]} username password)))
-
-(defn auth-by-token [token]
-  (when token
-    (model/query '{:find [(pull ?s [:*]) .]
-                   :in [$ ?token]
-                   :where [[?s :user/token ?token]]} token)))
 
 (defroutes app-routes
   (GET "/" req (index-view req))
@@ -120,32 +119,38 @@
   (server/multicast-message "/ws" [:call message]
                             (:to message)))
 
-(defmethod handle-command :join [[_ message] ch]
-  (log/info "bind user " ch message)
-  (server/bind-user "/ws" ch message)
-  (server/broadcast-message "/ws" [:join  {:user/name (:user/name message)
-                                           :user/email (:user/email message)}]))
+(defn api-access? [req]
+  (if-let [accept (get-in req [:headers "accept"])]
+    (or (.contains accept "application/json")
+        (.contains accept "application/edn"))))
 
-(def access-rules [{:pattern #"^(/|/api/?.*)$" :handler authenticated?}])
+(def access-rules [{:pattern #"^(/|/api/(?!token).*)$" :handler authenticated?}])
+
 (def session-base (session-backend
                       {:unauthorized-handler
                        (fn [req meta]
-                         (if (authenticated? req)
-                           (redirect "/login")
-                           (redirect (format "/login?next=%s" (:uri req)))))}))
+                         (if (api-access? req)
+                           (if (authenticated? req)
+                             (http/response "Permission denied" 403)
+                             (http/response "Unauthorized" 401))
+                           (if (authenticated? req)
+                             (redirect "/login")
+                             (redirect (format "/login?next=%s" (:uri req))))))}))
 
 (def token-base (token-backend
                 {:authfn
                  (fn [req token]
-                   (auth-by-token token))}))
+                   (try
+                     (token/auth-by (UUID/fromString token))
+                     (catch Exception e)))}))
 
 (defn -main [& args]
   (model/create-schema)
   (server/run-server
    (-> app-routes
        (wrap-access-rules {:rules access-rules :policy :allow})
-       (wrap-authentication token-base session-base)
        (wrap-authorization  session-base)
+       (wrap-authentication token-base session-base)
        (wrap-defaults (assoc-in site-defaults [:security :anti-forgery] false))
        (wrap-reload))
    :port (Integer/parseInt (or (:back-channeling-port env) "3009"))
@@ -154,4 +159,4 @@
                                (handle-command (edn/read-string message) ch))
                  :on-close (fn [ch close-reason]
                              (log/info "disconnect" ch "for" close-reason)
-                             (handle-command [:leave nil] ch))}]))
+                             (handle-command [:leave (server/find-user-by-channel "/ws" ch)] ch))}]))

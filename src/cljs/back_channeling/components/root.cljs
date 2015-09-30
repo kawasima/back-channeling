@@ -37,7 +37,9 @@
                 {:handler (fn [fetched-comments]
                             (om/transact! app [:boards "default" :board/threads id :thread/comments]
                                           (fn [comments]
-                                            (vec (concat comments fetched-comments)))))})))
+                                            (let [last-comment-no (get (last comments) :comment/no 0)]
+                                              (vec (concat comments
+                                                           (drop-while #(<= (:comment/no %) last-comment-no) fetched-comments)))))))})))
 
 (defn refresh-thread [app thread]
   (om/transact! app [:boards (:board/name thread) :board/threads (:db/id thread)]
@@ -52,6 +54,18 @@
   (api/request (str "/api/board/" board-name "/threads?q=" (js/encodeURIComponent query))
                {:handler (fn [results]
                            (om/set-state! owner :search-result results))}))
+
+(defn connect-socket [app token]
+  (socket/open (str "ws://" (.-host js/location) "/ws?token=" token)
+                 :on-message (fn [message]
+                               (let [[cmd data] (read-string message)]
+                                 (case cmd
+                                   :notify (notification/show data)
+                                   :update-board (refresh-board app "default")
+                                   :update-thread (refresh-thread app (assoc data :board/name "default"))
+                                   :join  (om/transact! app [:users] #(conj % data))
+                                   :leave (om/transact! app [:users] #(disj % data))
+                                   :call  (js/alert (:message data)))))))
 
 (defcomponent root-view [app owner]
   (init-state [_]
@@ -70,18 +84,10 @@
     (api/request "/api/users"
                  {:handler (fn [response]
                              (om/update! app :users (apply hash-set response)))})
-    (socket/open (str "ws://" (.-host js/location) "/ws")
-                 :on-open (fn []
-                            (socket/send :join (om/get-state owner :user)))
-                 :on-message (fn [message]
-                               (let [[cmd data] (read-string message)]
-                                 (case cmd
-                                   :notify (notification/show data)
-                                   :update-board (refresh-board app "default")
-                                   :update-thread (refresh-thread app (assoc data :board/name "default"))
-                                   :join  (om/transact! app [:users] #(conj % data))
-                                   :leave (om/transact! app [:users] #(disj % data))
-                                   :call  (js/alert (:message data))))))
+    (api/request "/api/token" :POST
+                 {:handler (fn [response]
+                             (connect-socket app (:access-token response)))})
+    
     (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
       (.removeEventListener js/document "mousedown" on-click-outside)))
 

@@ -1,16 +1,32 @@
 (ns back-channeling.resources
   (:require [clojure.edn :as edn]
+            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log]
+            [clj-time.format :as time-fmt]
+            [clj-time.coerce :refer [from-date to-date]]
+            [compojure.core :refer [defroutes ANY]]
+            [liberator.representation :refer [ring-response]]
+            [liberator.core :refer [defresource]]
             [datomic.api :as d]
+            [bouncer.core :as b]
+            [bouncer.validators :as v]
             (back-channeling [model :as model]
-                             [server :as server]))
-  (:use [compojure.core :only [defroutes ANY]]
-        [liberator.representation :only [ring-response]]
-        [liberator.core :only [defresource]])
+                             [server :as server]
+                             [token :as token]))
   (:import [java.util Date UUID]
            [java.nio.file Files Paths CopyOption]
            [java.nio.file.attribute FileAttribute]))
+
+(def iso8601-formatter (time-fmt/formatters :basic-date-time))
+(extend-type java.util.Date
+  json/JSONWriter
+  (-write [date out]
+    (json/-write (time-fmt/unparse iso8601-formatter (from-date date)) out)))
+(extend-type java.util.UUID
+  json/JSONWriter
+  (-write [uuid out]
+    (json/-write (.toString uuid) out)))
 
 (defn- body-as-string [ctx]
   (if-let [body (get-in ctx [:request :body])]
@@ -18,26 +34,39 @@
       java.lang.String body
       (slurp (io/reader body)))))
 
-(defn- parse-edn [context]
-  (when (#{:put :post} (get-in context [:request :request-method]))
-    (try
-      (if-let [body (body-as-string context)]
-        (let [data (edn/read-string body)]
-          [false {:edn data}])
-        false)
-      (catch Exception e
-        (log/error e "fail to parse edn.")
-        {:message (format "IOException: %s" (.getMessage e))}))))
+(defn- validate [model validation-spec]
+  (if validation-spec
+    (let [[result map] (b/validate model validation-spec)]
+      (if result
+        {:message (pr-str (:bouncer.core/errors map))}
+        [false {:edn model}]))
+    [false {:edn model}]))
 
-(defresource boards-resource []
-  :available-media-types ["application/edn"]
+(defn- parse-request
+  ([context]
+   (parse-request context nil))
+  ([context validation-spec]
+   (when (#{:put :post} (get-in context [:request :request-method]))
+     (try
+       (if-let [body (body-as-string context)]
+         (case (get-in context [:request :content-type])
+           "application/edn"  (validate (edn/read-string body) validation-spec)
+           "application/json" (validate (json/read-str body :key-fn keyword) validation-spec)
+           {:message "Unknown format."})
+         false)
+       (catch Exception e
+         (log/error e "fail to parse edn.")
+         {:message (format "IOException: %s" (.getMessage e))})))))
+
+(defresource boards-resource
+  :available-media-types ["application/edn" "application/json"]
   :allowed-methods [:get]
   :handle-ok (fn [_]
-               (model/query '{:find [(pull ?board [:*]) ...]
+               (model/query '{:find [[(pull ?board [:*]) ...]]
                               :where [[?board :board/name]]})))
 
 (defresource board-resource [board-name]
-  :available-media-types ["application/edn"]
+  :available-media-types ["application/edn" "application/json"]
   :allowed-methods [:get]
   :handle-ok (fn [ctx]
                (let [board (model/query '{:find [(pull ?board [:*]) .]
@@ -60,9 +89,12 @@
                       ((fn [threads] (assoc board :board/threads threads)))))))
 
 (defresource threads-resource [board-name]
-  :available-media-types ["application/edn"]
+  :available-media-types ["application/edn" "application/json"]
   :allowed-methods [:get :post]
-  :malformed? #(parse-edn %)
+  :malformed? #(parse-request % {:thread/title [[v/required]
+                                                [v/max-count 255]]
+                                 :comment/content [[v/required]
+                                                   [v/max-count 4000]]})
   :handle-created (fn [ctx]
              {:db/id (:db/id ctx)})
   :post! (fn [{th :edn req :request}]
@@ -72,7 +104,7 @@
                                    (get-in req [:identity :user/name]))
                  now (Date.)
                  thread-id (d/tempid :db.part/user)
-                 tempids (-> (model/transact [[:db/add [:board/name (:board/name th)] :board/threads thread-id]
+                 tempids (-> (model/transact [[:db/add [:board/name board-name] :board/threads thread-id]
                                               {:db/id thread-id
                                                :thread/title (:thread/title th)
                                                :thread/since now
@@ -109,9 +141,9 @@
                     vec))))
 
 (defresource thread-resource [thread-id]
-  :available-media-types ["application/edn"]
+  :available-media-types ["application/edn" "application/json"]
   :allowed-methods [:get :put]
-  :malformed? #(parse-edn %)
+  :malformed? #(parse-request %)
   :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
           (when-let [user (model/query '{:find [?u .] :in [$ ?name] :where [[?u :user/name ?name]]}
                                        (get-in req [:identity :user/name]))]
@@ -119,6 +151,8 @@
               (model/transact [[:db/add thread-id :thread/watchers user]]))
             (when remove-watcher
               (model/transact [[:db/retract thread-id :thread/watchers user]]))))
+  :handle-created (fn [_]
+                    {:status "ok"})
   :handle-ok (fn [_]
                (-> (model/pull '[:*
                                  {:thread/comments
@@ -128,9 +162,10 @@
                    (update-in [:thread/comments] (partial map-indexed #(assoc %2  :comment/no (inc %1)))))))
 
 (defresource comments-resource [thread-id from to]
-  :available-media-types ["application/edn"]
+  :available-media-types ["application/edn" "application/json"]
   :allowed-methods [:get :post]
-  :malformed? #(parse-edn %)
+  :malformed? #(parse-request % {:comment/content [[v/required]
+                                                   [v/max-count 4000]]})
   :processable? (fn [ctx]
                   (if (#{:put :post} (get-in ctx [:request :request-method]))
                     (let [resnum (model/query '{:find [(count ?comment) .]
@@ -181,7 +216,7 @@
                     (drop (dec from)))))
 
 (defresource voices-resource [thread-id]
-  :available-media-types ["application/edn"]
+  :available-media-types ["application/edn" "application-json"]
   :allowed-methods [:post]
   :malformed? (fn [ctx]
                 (let [content-type (get-in ctx [:request :headers "content-type"])]
@@ -206,15 +241,15 @@
                     {:comment/content (str thread-id "/" (::filename ctx))}))
 
 (defresource users-resource [path]
-  :available-media-types ["application/edn"]
+  :available-media-types ["application/edn" "application/json"]
   :allowed-methods [:get]
   :handle-ok (fn [_]
                (vec (server/find-users path))))
 
 (defresource articles-resource
-  :available-media-types ["application/edn"]
+  :available-media-types ["application/edn" "application/json"]
   :allowed-methods [:get :post]
-  :malformed? #(parse-edn %)
+  :malformed? #(parse-request %)
   :post! (fn [{article :edn req :request}]
            (let [article-id (d/tempid :db.part/user)
                  tempids (-> (model/transact
@@ -238,9 +273,9 @@
                               :where [[?a :article/name]]})))
 
 (defresource article-resource [article-id]
-  :available-media-types ["application/edn"]
+  :available-media-types ["application/edn" "application/json"]
   :allowed-methods [:get :put :delete]
-  :malformed? #(parse-edn %)
+  :malformed? #(parse-request %)
   :put! (fn [{article :edn req :request}]
           (let [retract-transaction (->> (:article/blocks (model/pull '[:article/blocks] article-id))
                                          (map (fn [{id :db/id}]
@@ -261,13 +296,36 @@
   :handle-ok (fn [_]
                (model/pull '[:*
                              {:article/curator [:user/name :user/email]}
-                             {:article/blocks [:curating-block/posted-at
+                             {:artpicle/blocks [:curating-block/posted-at
                                                :curating-block/content
                                                {:curating-block/format [:db/ident]}
                                                {:curating-block/posted-by [:user/name :user/email]}]}]
                            article-id)))
 
+(defresource token-resource
+  :available-media-types ["application/edn" "application/json"]
+  :allowed-methods [:post]
+  :malformed? (fn [ctx]
+                (if-let [identity (get-in ctx [:request :identity])]
+                  [false {::identity identity}]
+                  (if-let [code (get-in ctx [:request :params :code])]
+                    (if-let [identity (model/query '{:find [(pull ?s [:user/name :user/email]) .]
+                                                     :in [$ ?token]
+                                                     :where [[?s :user/token ?token]]} code)]
+                      [false {::identity identity}] 
+                      {:message "code is invalid."})
+                    {:message "code is required."})))
+
+  :post! (fn [{identity ::identity}]
+           (let [token (token/new-token identity)]
+             {::post-response (merge identity
+                                     {:token-type "bearer"
+                                      :access-token token})}))
+  :handle-created (fn [ctx]
+                    (::post-response ctx)))
+
 (defroutes api-routes
+  (ANY "/token" [] token-resource)
   (ANY "/boards" [] boards-resource)
   (ANY "/board/:board-name" [board-name]
     (board-resource board-name))

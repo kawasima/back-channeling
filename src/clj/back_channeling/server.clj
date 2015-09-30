@@ -1,7 +1,9 @@
 (ns back-channeling.server
   (:require [ring.util.servlet :as servlet]
-            [clojure.tools.logging :as log])
-  (:import [org.xnio ByteBufferSlicePool]
+            [clojure.tools.logging :as log]
+            [back-channeling.token :as token])
+  (:import [java.util UUID]
+           [org.xnio ByteBufferSlicePool]
            [io.undertow Undertow Handlers]
            [io.undertow.servlet Servlets]
            [io.undertow.servlet.api DeploymentInfo]
@@ -27,15 +29,31 @@
                              (complete [channel context])
                              (onError [channel context throwable]))))))
 
-(defn bind-user [path ch user]
-  (log/info "bind user" user ch)
-  (swap! channels assoc-in [path ch] user))
-
 (defn find-users [path]
   (->> (get @channels path)
        vals
        (keep identity)
        (apply hash-set)))
+
+(defn find-user-by-channel [path ch]
+  (println @channels)
+  (println path ch (get-in @channels [path ch]))
+  (get-in @channels [path ch]))
+
+(defn find-user-by-name [path user-name]
+  (->> (get @channels path)
+       vals
+       (keep identity)
+       (filter #(= (:user/name %) user-name))
+       first))
+
+(defn- token-from-request [exchange]
+  (if-let [token-str (-> (.getRequestParameters exchange)
+                         (.get "token")
+                         first)]
+    (try
+      (UUID/fromString token-str)
+      (catch Exception e))))
 
 (defn websocket-callback [path {:keys [on-close on-message]}]
   (proxy [WebSocketConnectionCallback] []
@@ -46,23 +64,27 @@
                  (onFullTextMessage
                    [channel message]
                    (when on-message (on-message channel (.getData message))))
-                 (onCloseMessage
+                 #_(onCloseMessage
                    [message channel]
                    (when on-close (on-close channel message))))))
       (.resumeReceives channel)
       (.addCloseTask channel
                      (proxy [org.xnio.ChannelListener] []
                        (handleEvent [channel]
-                         (swap! channels update-in [path] dissoc channel)
-                         (when on-close (on-close channel nil)))))
-      (swap! channels assoc-in [path channel] nil))))
+                         (when on-close (on-close channel nil))
+                         (swap! channels update-in [path] dissoc channel))))
+      (if-let [user (token/auth-by (token-from-request exchange))]
+        (do
+          (swap! channels assoc-in [path channel] user)
+          (broadcast-message "/ws" [:join  {:user/name (:user/name user)
+                                            :user/email (:user/email user)}]))))))
 
 (defn run-server [ring-handler & {port :port websockets :websockets}]
   (let [ring-servlet (servlet/servlet ring-handler)
         servlet-builder (.. (Servlets/deployment)
                             (setClassLoader (.getContextClassLoader (Thread/currentThread)))
                             (setContextPath "")
-                            (setDeploymentName "control-bus")
+                            (setDeploymentName "back-channeling")
                             (addServlets
                              (into-array
                               [(.. (Servlets/servlet "Ring handler"

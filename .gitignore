@@ -4,7 +4,8 @@
 /.idea
 .lein-*
 pom.xml
-
+/datomic*
+/data
 /voices
 .nrepl-*
 *~

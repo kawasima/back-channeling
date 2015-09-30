@@ -213,7 +213,7 @@
                    (case (get-in curating-block [:curating-block/format :db/ident])
                      :curating-block.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:curating-block/content curating-block))}}
                      :curating-block.format/voice [:audio {:controls true
-                                                           :src (str "/voice/" (:curating-block/content comment))}]
+                                                           :src (str "/voice/" (:curating-block/content curating-block))}]
                      (:curating-block/content curating-block)))]]))
             (:article/blocks editing-article))]]]]]])))
 
