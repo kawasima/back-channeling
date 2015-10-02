@@ -1,6 +1,7 @@
 (defproject net.unit8/back-channeling (clojure.string/trim-newline (slurp "VERSION"))
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
+  :min-lein-version "2.0.0"
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [org.clojure/tools.logging "0.3.1"]
                  [org.clojure/data.json "0.2.6"]
