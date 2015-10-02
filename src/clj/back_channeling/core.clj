@@ -153,7 +153,9 @@
        (wrap-authentication token-base session-base)
        (wrap-defaults (assoc-in site-defaults [:security :anti-forgery] false))
        (wrap-reload))
-   :port (Integer/parseInt (or (:back-channeling-port env) "3009"))
+   :port (Integer/parseInt (or (:back-channeling-port env)
+                               (:port env)
+                               "3009"))
    :websockets [{:path "/ws"
                  :on-message (fn [ch message]
                                (handle-command (edn/read-string message) ch))
