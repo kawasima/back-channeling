@@ -104,7 +104,7 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
 (defvalidator unique-name-validator
   {:default-message-format "%s is used by someone."}
   [name]
-  (nil? (model/query '{:find [?u .] :in [$ ?name] :where [[?u :user/email ?name]]}
+  (nil? (model/query '{:find [?u .] :in [$ ?name] :where [[?u :user/name ?name]]}
                      name)))
 
 
