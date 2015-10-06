@@ -1,0 +1,7 @@
+{
+  "name": "back-channeling",
+  "description": "Back channeling is a real-time BBS tool.",
+  "repository": "https://github.com/kawasima/back-channeling",
+  "logo": "https://raw.githubusercontent.com/kawasima/back-channeling/master/resources/public/img/logo.png",
+  "keywords": ["chat", "bbs", "clojure"]
+}
