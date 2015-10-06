@@ -33,6 +33,10 @@ The default port is 3009.
 
 ### Heroku
 
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/kawasima/back-channeling)
+
+or
+
 1. Git clone.
 ```
 % git clone https://github.com/kawasima/back-channeling.git
