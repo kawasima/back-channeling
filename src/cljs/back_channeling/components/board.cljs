@@ -394,7 +394,7 @@
           :style {:margin-top "66px"
                   :width "874px"
                   :background-color "#ffffff"
-                  :z-index 1}})
+                  :z-index "1"}})
         (for [tab tabs]
           [:a.item (merge {:on-click (fn [_]
                                (set! (.-href js/location)
