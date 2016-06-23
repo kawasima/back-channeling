@@ -13,11 +13,11 @@
       (list
        [:meta {:property "bc:user:name" :content (:user/name user)}]
        [:meta {:property "bc:user:email" :content (:user/email user)}]))
-    (include-css "//cdn.jsdelivr.net/semantic-ui/2.0.7/semantic.min.css"
-                 "//cdn.jsdelivr.net/highlight.js/8.6.0/styles/github.min.css"
+    (include-css "//cdn.jsdelivr.net/semantic-ui/2.1.8/semantic.min.css"
+                 "//cdn.jsdelivr.net/highlight.js/9.4.0/styles/github.min.css"
                  "/css/back-channeling.css")
-    (include-js "//cdn.jsdelivr.net/marked/0.3.1/marked.min.js"
-                "//cdn.jsdelivr.net/highlight.js/8.6.0/highlight.min.js"
+    (include-js "//cdn.jsdelivr.net/marked/0.3.5/marked.min.js"
+                "//cdn.jsdelivr.net/highlight.js/9.4.0/highlight.min.js"
                 "//cdn.webrtc-experiment.com/MediaStreamRecorder.js"
                 "//cdn.jsdelivr.net/zeroclipboard/2.2.0/ZeroClipboard.min.js")
     (when (:dev env) (include-js "/react/react.js"))]

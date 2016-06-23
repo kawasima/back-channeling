@@ -1,14 +1,14 @@
 (ns back-channeling.signup
-  (:use [hiccup.core :only [html]]
-        [hiccup.page :only [include-js]]
-        [ring.util.response :only [resource-response content-type header redirect]]
-        [ring.middleware.flash :only [flash-response]]
-        [back-channeling [layout :only [layout]]])
-  (:require [buddy.core.nonce :as nonce]
+  (:require [hiccup.core :refer [html]]
+            [hiccup.page :refer [include-js]]
+            [ring.util.response :refer [resource-response content-type header redirect]]
+            [ring.middleware.flash :refer [flash-response]]
+            [buddy.core.nonce :as nonce]
             [buddy.core.hash]
             [bouncer.core :as b]
             [bouncer.validators :as v :refer [defvalidator]]
-            (back-channeling [model :as model])))
+            [back-channeling [layout :refer [layout]]]
+            [back-channeling.component [datomic :as d]]))
 
 (def robot-svg [:svg#robot-svg {:version "1.1" :xmlns "http://www.w3.org/2000/svg" :xmlns/xlink "http://www.w3.org/1999/xlink" :width "64px" :height "64px" :x "0px" :y "0px"}
                 [:g {:transform "scale(2.5)"}
@@ -97,34 +97,39 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
 
 (defvalidator unique-email-validator
   {:default-message-format "%s is used by someone."}
-  [email]
-  (nil? (model/query '{:find [?u .] :in [$ ?email] :where [[?u :user/email ?email]]}
-                     email)))
+  [email datomic]
+  (nil? (d/query datomic
+                 '{:find [?u .]
+                   :in [$ ?email]
+                   :where [[?u :user/email ?email]]}
+                 email)))
 
 (defvalidator unique-name-validator
   {:default-message-format "%s is used by someone."}
-  [name]
-  (nil? (model/query '{:find [?u .] :in [$ ?name] :where [[?u :user/email ?name]]}
-                     name)))
+  [name datomic]
+  (nil? (d/query datomic
+                 '{:find [?u .]
+                   :in [$ ?name]
+                   :where [[?u :user/name ?name]]}
+                 name)))
 
-
-(defn validate-user [user]
+(defn validate-user [datomic user]
   (b/validate user
               :user/password [[v/required :pre (comp nil? :user/token)]
                               [v/min-count 8 :message "Password must be at least 8 characters long." :pre (comp nil? :user/token)]]
               :user/email    [[v/required]
                               [v/email]
                               [v/max-count 100 :message "Email is too long."]
-                              unique-email-validator]
+                              [unique-email-validator datomic]]
               :user/token    [[v/required :pre (comp nil? :user/password)]
                               [v/matches #"[0-9a-z]{16}" :pre (comp nil? :user/password)]]
               :user/name     [[v/required]
                               [v/min-count 3 :message "Username must be at least 3 characters long."]
                               [v/max-count 20 :message "Username is too long."]
-                              unique-name-validator]))
+                              [unique-name-validator datomic]]))
 
-(defn signup [user]
-  (let [[result map] (validate-user user)]
+(defn signup [datomic user]
+  (let [[result map] (validate-user datomic user)]
     (if-let [error-map (:bouncer.core/errors map)]
       (signup-view {:error-map error-map :params user})
       (let [salt (nonce/random-nonce 16)
@@ -135,12 +140,13 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
                              buddy.core.codecs/bytes->hex)]
         (if-not (or password (:user/token user))
           (throw (Exception.)))
-        (model/transact [(merge user
-                                {:db/id #db/id[db.part/user -1]}
-                                (when password
-                                  {:user/password password
-                                   :user/salt salt})
-                                (when-let [token (:user/token user)]
-                                  {:user/token token}))])
+        (d/transact datomic
+                    [(merge user
+                            {:db/id #db/id[db.part/user -1]}
+                            (when password
+                              {:user/password password
+                               :user/salt salt})
+                            (when-let [token (:user/token user)]
+                              {:user/token token}))])
         (-> (redirect "/")
             (flash-response {:flash (str "Create account " (:user/name user))}))))))

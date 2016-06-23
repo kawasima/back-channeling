@@ -1,35 +1,8 @@
-(ns back-channeling.model
-  (:use [datomic-schema.schema :only [fields part schema]]
-        [environ.core :only [env]])
-  (:require [datomic.api :as d]
+(ns back-channeling.component.migration
+  (:require [com.stuartsierra.component :as component]
+            [datomic-schema.schema :refer [fields part schema]]
+            [datomic.api :as d]
             [datomic-schema.schema :as s]))
-
-(def default-datomic-uri
-  (if (:dev env)
-    "datomic:free://localhost:4334/bc"
-    "datomic:mem://bc"))
-
-(def uri (or (env :datomic-url)  default-datomic-uri))
-
-(defonce conn (atom nil))
-
-(defn query [q & params]
-  (let [db (d/db @conn)]
-    (apply d/q q db params)))
-
-(defn pull [pattern eid]
-  (let [db (d/db @conn)]
-    (d/pull db pattern eid)))
-
-(defn transact [transaction]
-  @(d/transact @conn transaction))
-
-(defn resolve-tempid [tempids tempid]
-  (let [db (d/db @conn)]
-    (d/resolve-tempid db tempids tempid)))
-
-(defn dbparts []
-  [(part "message")])
 
 (defn dbschema []
   [(schema board
@@ -80,14 +53,28 @@
   (apply concat
          (map #(s/get-enums (name (first %)) :db.part/user (second %)) enums)))
 
-(defn create-schema []
-  (d/create-database uri)
-  (reset! conn (d/connect uri))
+(defn dbparts []
+  [(part "message")])
+
+(defn create-schema [conn]
   (let [schema (concat
                 (s/generate-parts (dbparts))
                 #_(generate-enums [])
                 (s/generate-schema (dbschema)))]
-    (transact schema)
-    (when-not (query '{:find [?e .] :where [[?e :board/name "default"]]})
-      (transact [{:db/id #db/id[:db.part/user] :board/name "default" :board/description "Default board"}]))))
+    @(d/transact conn schema)
+    (when-not (d/q '{:find [?e .] :where [[?e :board/name "default"]]} (d/db conn))
+      @(d/transact conn
+                   [{:db/id #db/id[:db.part/user]
+                     :board/name "default"
+                     :board/description "Default board"}]))))
 
+(defrecord ModelMigration []
+  component/Lifecycle
+  (start [component]
+    (create-schema (get-in component [:datomic :connection]))
+    component)
+  (stop [component]
+    component))
+
+(defn migration-model []
+  (ModelMigration.))
