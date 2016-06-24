@@ -1,5 +1,6 @@
 (ns back-channeling.system
   (:require [com.stuartsierra.component :as component]
+            [clojure.tools.logging :as log]
             [duct.component.endpoint :refer [endpoint-component]]
             [duct.component.handler :refer [handler-component]]
             [duct.middleware.not-found :refer [wrap-not-found]]
@@ -7,7 +8,7 @@
             [meta-merge.core :refer [meta-merge]]
             [ring.middleware.defaults :refer [wrap-defaults site-defaults]]
             [ring.util.response :refer [resource-response content-type header redirect]]
-            
+
             [buddy.auth :refer [authenticated?]]
             [buddy.auth.backends.session :refer [session-backend]]
             [buddy.auth.backends.token :refer [token-backend]]
@@ -36,14 +37,21 @@
    {:authfn
     (fn [req token]
       (try
-        (token/auth-by token-provider token)
-        (catch Exception e)))}))
+        (let [user (token/auth-by token-provider token)]
+          (log/info "token authentication token=" token ", user=" user)
+          user)
+        (catch Exception e
+          (log/error "auth-by error" e))))}))
+
+(defn wrap-authn [handler token-provider & backends]
+  (println token-provider)
+  (apply wrap-authentication handler (conj backends (token-base token-provider))))
 
 (def base-config
   {:app {:middleware [[wrap-not-found      :not-found]
                       [wrap-access-rules   :access-rules]
                       [wrap-authorization  :authorization]
-                      [wrap-authentication :token-base :session-base]
+                      [wrap-authn          :token :session-base]
                       [wrap-defaults       :defaults]]
          :access-rules {:rules access-rules :policy :allow}
          :not-found    "Resource Not Found"
@@ -62,23 +70,19 @@
    :datomic {:uri "datomic:mem://bc"}})
 
 (defn new-system [config]
-  (let [config (meta-merge base-config config)
-        token-provider (token-provider-component (:token config))
-        config (-> config
-                   (update-in [:app]
-                              assoc :token-base (token-base token-provider)))]
+  (let [config (meta-merge base-config config)]
     (-> (component/system-map
          :app       (handler-component   (:app config))
          :socketapp (socketapp-component (:socketapp config))
          :http      (undertow-server     (:http config))
-         :token     token-provider
+         :token     (token-provider-component (:token config))
          :datomic   (datomic-connection (get-in config [:datomic :uri]))
          :migration (migration-model)
          :chat      (endpoint-component chat-app-endpoint)
          :api       (endpoint-component api-endpoint))
         (component/system-using
          {:http      [:app :socketapp]
-          :app       [:chat :api]
+          :app       [:chat :api :token]
           :socketapp [:token]
           :migration [:datomic]
           :chat      [:datomic]

@@ -13,8 +13,8 @@
                  [garden "1.3.2"]
                  [compojure "1.5.1"]
                  [environ "1.0.3"]
-                 [buddy "0.13.0"]
-                 
+                 [buddy "1.0.0"]
+
                  [org.clojure/clojurescript "1.9.76" :scope "provided"]
                  [org.clojure/core.async "0.2.374"]
                  [sablono "0.7.2"]
@@ -41,7 +41,7 @@
             [lein-environ "1.0.3"]]
   :pom-plugins [[org.apache.maven.plugins/maven-assembly-plugin "2.5.5"
                  {:configuration [:descriptors [:descriptor "src/assembly/dist.xml"]]}]]
-  
+
   :main ^:skip-aot back-channeling.main
   :target-path "target/%s"
   :resource-paths ["resources" "target/cljsbuild"]
@@ -61,7 +61,7 @@
      :compiler {:output-to "resources/public/js/back-channeling.min.js"
                 :pretty-print false
                 :optimizations :advanced}}]}
-  
+
   :profiles
   {:dev  [:project/dev  :profiles/dev]
    :test [:project/test :profiles/test]
@@ -84,5 +84,5 @@
                     :source-paths ["dev"]
                     :repl-options {:init-ns user
                                    :nrepl-middleware [cemerick.piggieback/wrap-cljs-repl]}
-                    :env {:port "3009"}}
+                    :env {:port "3009" :dev true}}
    :project/test   {}})

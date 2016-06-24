@@ -1,5 +1,7 @@
+
 (ns back-channeling.component.token
   (:require [com.stuartsierra.component :as component]
+            [clojure.tools.logging :as log]
             [clojure.core.cache :as cache])
   (:import [java.util UUID]))
 
@@ -25,4 +27,3 @@
 
 (defn token-provider-component [options]
   (map->TokenProvider options))
-

@@ -128,12 +128,12 @@
                                                 :comment/content (:comment/content th)}])
                               :tempids)]
               (broadcast-message socketapp [:update-board {:board/name board-name}])
-              
+
               {:db/id (d/resolve-tempid datomic tempids thread-id)}))
    :handle-ok (fn [{{{:keys [q]} :params} :request}]
                 (when q
                   (->> (d/query datomic
-                                '{:find [?board-name ?thread ?comment ?score] 
+                                '{:find [?board-name ?thread ?comment ?score]
                                   :in [$ ?board-name ?search]
                                   :where [[?board :board/name ?board-name]
                                           [?board :board/threads ?thread]
@@ -185,21 +185,28 @@
                             thread-id)
                     (update-in [:thread/comments]
                                (partial map-indexed #(assoc %2  :comment/no (inc %1))))))))
-  
+
 (defn comments-resource [{:keys [datomic socketapp]} thread-id from to]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
    :allowed-methods [:get :post]
    :malformed? #(parse-request % {:comment/content [[v/required]
-                                                    [v/max-count 4000]]})
+                                                    [v/max-count 4000]]
+                                  :comment/format  [[v/member [:comment.format/plain
+                                                               :comment.format/markdown
+                                                               :comment.format/voice
+                                                               "comment.format/plain"
+                                                               "comment.format/markdown"
+                                                               "comment.format/voice"]]]})
    :processable? (fn [ctx]
                    (if (#{:put :post} (get-in ctx [:request :request-method]))
-                     (let [resnum (d/query datomic
+                     (if-let [resnum (d/query datomic
                                            '{:find [(count ?comment) .]
                                              :in [$ ?thread]
                                              :where [[?thread :thread/comments ?comment]]}
                                            thread-id)]
-                       (if (< resnum 1000) {:thread/resnum resnum} false))
+                       (if (< resnum 1000) {:thread/resnum resnum} false)
+                       false)
                      true))
    :post! (fn [{comment :edn req :request resnum :thread/resnum}]
             (let [user (d/query datomic
@@ -214,7 +221,9 @@
                         {:db/id #db/id[:db.part/user -1]
                          :comment/posted-at now
                          :comment/posted-by user
-                         :comment/format (get comment :comment/format :comment.format/plain)
+                         :comment/format (-> comment
+                                             (get :comment/format :comment.format/plain)
+                                             keyword)
                          :comment/content (:comment/content comment)}]
                        (when-not (:comment/sage? comment)
                          [{:db/id thread-id :thread/last-updated now}])))
@@ -270,7 +279,7 @@
                   filename (str (.toString (UUID/randomUUID))
                                 (case (::media-type ctx)
                                   :audio/ogg ".ogg"
-                                  :audio/wav ".wav")) 
+                                  :audio/wav ".wav"))
                   path (Paths/get "voices"
                                   (into-array String [(str thread-id) filename]))]
               (Files/createDirectories (.getParent path)
@@ -309,7 +318,7 @@
                                                        :curating-block/posted-by [:user/name (get-in block [:curating-block/posted-by :user/name])]}]))))
                               :tempids)]
               {:db/id (d/resolve-tempid datomic tempids article-id)}))
-   
+
    :handle-created (fn [ctx]
                      {:db/id (:db/id ctx)})
    :handle-ok (fn [_]
@@ -341,7 +350,7 @@
                                 :curating-block/format  (:curating-block/format  block)
                                 :curating-block/posted-at (:curating-block/posted-at block)
                                 :curating-block/posted-by [:user/name (get-in block [:curating-block/posted-by :user/name])]}]))))))
-   
+
    :handle-ok (fn [_]
                 (d/pull datomic
                         '[:*
@@ -364,7 +373,7 @@
                                                 '{:find [(pull ?s [:user/name :user/email]) .]
                                                   :in [$ ?token]
                                                   :where [[?s :user/token ?token]]} code)]
-                       [false {::identity identity}] 
+                       [false {::identity identity}]
                        {:message "code is invalid."})
                      {:message "code is required."})))
 

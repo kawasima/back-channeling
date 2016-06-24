@@ -13,6 +13,8 @@ It has the features as follows:
 
 ## Get started
 
+### On-premise
+
 Start a datomic transactor.
 
 ```
@@ -26,6 +28,30 @@ Start a back channeling.
 ```
 
 The default port is 3009.
+
+![screenshot](http://i.imgur.com/6n1Yj8D.png)
+
+### Heroku
+
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/kawasima/back-channeling)
+
+or
+
+1. Git clone.
+```
+% git clone https://github.com/kawasima/back-channeling.git
+```
+1. Create a heroku application.
+```
+% cd back-channeling
+% heroku create
+```
+1. Deploy the back-channeling.
+```
+% git push heroku master
+```
+
+It takes only 3 minutes!!
 
 ## API
 

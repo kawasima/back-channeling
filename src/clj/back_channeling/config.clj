@@ -3,8 +3,9 @@
 
 (def defaults
   {:http      {:port 3009}
-   :socketapp {:path "/ws"}})
+   :socketapp {:path "/ws"}
+   :datomic   {:uri  "datomic:mem://bc"}})
 
 (def environ {:http {:port (some-> env :port Integer.)}
-              :datomic {:uri "datomic:mem://bc"}})
+              :datomic {:uri (some-> env :datomic-url) }})
 

@@ -23,8 +23,8 @@
                 {:optimizations :none
                  :main "cljs.user"
                  :asset-path "/js"
-                 :output-to  "target/figwheel/back_channeling/public/js/main.js"
-                 :output-dir "target/figwheel/back_channeling/public/js"
+                 :output-to  "target/figwheel/public/js/back-channeling.js"
+                 :output-dir "target/figwheel/public/js"
                  :source-map true
                  :source-map-path "/js"}}]}})
 
@@ -43,4 +43,3 @@
 (gen/set-ns-prefix 'back-channeling)
 
 (reloaded.repl/set-init! new-system)
-
