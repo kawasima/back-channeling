@@ -11,9 +11,9 @@
             [back-channeling.audio :as audio]
             [back-channeling.components.avatar :refer [avatar]]
             [back-channeling.components.comment :refer [comment-view]]
+            [back-channeling.comment-helper :refer [format-plain]]
+            [back-channeling.component-helper :refer [make-click-outside-fn]]
             [goog.i18n.DateTimeSymbols_ja])
-  (:use [back-channeling.comment-helper :only [format-plain]]
-        [back-channeling.component-helper :only [make-click-outside-fn]])
   (:import [goog.i18n DateTimeFormat]))
 
 (enable-console-print!)
@@ -29,11 +29,11 @@
                    blob
                    {:format (case (.-type blob)
                               "audio/ogg" :ogg
-                              "audio/wav" :wav) 
+                              "audio/wav" :wav)
                     :handler (fn [response]
                                (api/request (str "/api/thread/" (:thread/id comment) "/comments")
                                             :POST
-                                            (merge comment response) 
+                                            (merge comment response)
                                             {:handler #(on-success %)}))}))
     (api/request (str "/api/thread/" (:thread/id comment) "/comments")
                :POST
@@ -81,7 +81,9 @@
       (om/set-state! owner :click-outside-fn
                    (make-click-outside-fn
                     (om/get-node owner)
-                    #(om/set-state! owner :focus? false))))
+                    (fn [_]
+                      (om/set-state! owner :focus? false)))))
+
     (.addEventListener js/document "mousedown"
                        (om/get-state owner :click-outside-fn)))
 
@@ -89,7 +91,7 @@
     (when-let [textarea (.. (om/get-node owner) (querySelector "textarea"))]
       (if (om/get-state owner :focus?)
         (.focus textarea))))
-  
+
   (render-state [_ {:keys [comment focus? saving? error-map recording-status audio-url]}]
     (html
      [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
@@ -121,7 +123,7 @@
                 :encoding
                 [:button.ui.large.red.circular.disable.button
                  [:i.large.mute.icon] "Stopping..."]
-                
+
                 :none
                 [:button.ui.large.basic.circular.red.button
                  {:on-click (fn [e]
@@ -170,7 +172,7 @@
                                                       (assoc :saving? false)))))))))}
                       (when saving?
                         {:class "loading"}))
-               
+
                [:i.icon.edit] "New comment"]]]]]
           [:div.column
            [:div.preview
@@ -181,7 +183,7 @@
 
               "comment.format/markdown"
               [:div.attached {:key "preview-markdown"
-                              :dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}]
+                              :dangerouslySetInnerHTML {:__html (.render js/md (:comment/content comment))}}]
 
               "comment.format/voice"
               [:div.attached
@@ -196,7 +198,7 @@
             [:input {:type "text" :value (:comment/content comment) :on-focus (fn [_] (om/set-state! owner :focus? true))}]]]])]])))
 
 (defn scroll-to-comment [owner thread]
-  (let [comment-no (or (om/get-state owner :target-comment) (count (:thread/comments thread))) 
+  (let [comment-no (or (om/get-state owner :target-comment) (count (:thread/comments thread)))
         comment-dom (.. (om/get-node owner)
                         (querySelector (str "[data-comment-no='" comment-no "']")))
         offset (.. (om/get-node owner)
@@ -209,24 +211,81 @@
       (.scrollTo js/window 0
                  (- (+ (.. js/document -body -scrollTop) (some->> (.getBoundingClientRect comment-dom) (.-top))) 70)))))
 
-(defcomponent thread-view [thread owner {:keys [board-name] :as opts}]
+(defn- find-element [orig-el attr-name]
+  (loop [el orig-el]
+    (if (.hasAttribute el attr-name)
+      el
+      (when-let [parent (.-parentNode el)]
+        (recur parent)))))
+
+(defcomponent thread-view [thread owner {:keys [board-name reactions] :as opts}]
+  (init-state [_]
+    {:reaction-top 0
+     :open-reactions? false
+     :selected 0})
+
+  (will-mount [_]
+    (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
+      (.removeEventListener js/document "mousedown" on-click-outside)))
+
   (did-mount [_]
     (when thread
       (scroll-to-comment owner thread))
-    )
-  (did-update [_ _ _]
-    (when thread
-      (scroll-to-comment owner thread)))
-  (render [_]
+    (when-not (om/get-state owner :click-outside-fn)
+      (om/set-state! owner :click-outside-fn
+                   (make-click-outside-fn
+                    (.. (om/get-node owner) (querySelector "div.reactions.segment"))
+                    (fn [_]
+                      (om/set-state! owner :open-reactions? false)))))
+    (.addEventListener js/document "mousedown"
+                       (om/get-state owner :click-outside-fn)))
+
+   (render-state [_ {:keys [reaction-top selected open-reactions?]}]
     (html
      [:div.ui.full.height.thread.comments
       [:h3.ui.dividing.header (:thread/title thread)]
       [:a.curation.link {:href (str "#/articles/new?thread-id=" (:db/id thread))}
        [:i.external.share.big.icon]]
       [:div.scroll-pane
+       [:div.ui.icon.reaction.buttons {:style {:top reaction-top}}
+        [:button.ui.button {:on-click (fn [e]
+                                        (om/set-state! owner :open-reactions? true))}
+         [:i.smile.icon]]]
+       [:div.ui.reactions.raised.segment
+        {:style (if open-reactions?
+                  {:visibility 'visible
+                   :top reaction-top}
+                  {:visibility 'hidden})}
+
+        [:div.ui.grid.container
+        (for [reaction reactions]
+            [:.four.wide.column
+             [:button.ui.tiny.basic.button
+              {:on-click (fn [e]
+                           (api/request (str "/api/thread/" (:db/id thread)
+                                             "/comment/" selected)
+                                        :POST
+                                        (select-keys reaction [:reaction/name])
+                                        {:handler (fn [e]
+                                                    (om/set-state! owner :open-reactions? false))}))}
+              (:reaction/label reaction)]])]]
+
        (for [comment (:thread/comments thread)]
          (om/build comment-view comment
-                   {:opts {:thread thread :board-name board-name}}))]
+                   {:opts {:thread thread
+                           :board-name board-name
+                           :comment-attrs
+                           {:on-mouse-enter
+                            (fn [e]
+                              (let [el (find-element (.-target e) "data-comment-no")
+                                    btn (.querySelector (om/get-node owner) ".ui.reaction.buttons")]
+                                (when-not (om/get-state owner :open-reactions?)
+                                  (om/set-state! owner
+                                               {:reaction-top
+                                                (.-offsetTop el)
+                                                :selected (:comment/no comment)}))))}
+                           :show-reactions? true}
+                    :react-key (str "comment-" (:comment/no comment))}))]
       (if (>= (count (:thread/comments thread)) 1000)
         [:div.ui.error.message
          [:div.header "Over 1000 comments. You can't add any comment to this thread."]]
@@ -263,7 +322,7 @@
     {:sort-key [:thread/last-updated :desc]
      :user {:user/name  (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))
             :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}})
-  (render-state [_ {:keys [board-channel sort-key user]}]
+  (render-state [_ {:keys [sort-key user]}]
     (html
      [:div.table.container
       [:div.tbody.container
@@ -359,8 +418,11 @@
           [:div.ui.top.right.attached.label "Preview"]
           [:div
            (case (:comment/format thread)
-             "comment.format/plain" (format-plain (:comment/content thread))
-             "comment.format/markdown" {:dangerouslySetInnerHTML {:__html (js/marked (:comment/content thread))}})]]]]]])))
+             "comment.format/plain"
+             (format-plain (:comment/content thread))
+
+             "comment.format/markdown"
+             {:dangerouslySetInnerHTML {:__html (.render js/md (:comment/content thread))}})]]]]]])))
 
 
 (defn sticky-thread-content-fn [owner]
@@ -370,7 +432,7 @@
         (om/set-state! owner :sticky-thread-content? true)
         (om/set-state! owner :sticky-thread-content? false)))))
 
-(defcomponent board-view [board owner]
+(defcomponent board-view [board owner {:keys [reactions]}]
   (init-state [_]
     {:tabs [{:id 0 :name "New"}]
      :sticky-thread-content? false})
@@ -378,15 +440,14 @@
   (did-mount [_]
     (.addEventListener js/window "scroll"
                        (sticky-thread-content-fn owner)))
-  
+
   (render-state [_ {:keys [tabs target-thread target-comment channel sticky-thread-content?]}]
     (if (->> tabs (filter #(= target-thread (:id %))) empty?)
         (om/update-state! owner :tabs #(conj % {:id target-thread :name (get-in board [:board/threads target-thread :thread/title])})))
     (html
      [:div.main.content.full.height
       (om/build thread-list-view (:board/threads board)
-                {:init-state {:board-channel channel}
-                 :opts {:board-name (:board/name board)}})
+                {:opts {:board-name (:board/name board)}})
       [:div.ui.top.attached.thread.content.segment
        [:div.ui.top.attached.tabular.sticky.menu
         (when sticky-thread-content?
@@ -400,8 +461,8 @@
                                      (if (= (:id tab) 0)
                                        "#/"
                                        (str "#/board/" (:board/name board) "/" (:id tab)))))}
-                          (when (= target-thread (:id tab)) {:class "active"})) 
-           [:span.tab-name (:name tab)] 
+                          (when (= target-thread (:id tab)) {:class "active"}))
+           [:span.tab-name (:name tab)]
            (when (not= (:id tab) 0)
              [:span
               [:i.close.icon {:on-click (fn [e]
@@ -414,10 +475,9 @@
        (for [tab tabs]
          [:div.ui.bottom.attached.tab.full.height.segment
           (when (= target-thread (:id tab)) {:class "active"})
-          (if (= target-thread 0)
+          (if (= (:id tab) 0)
             (om/build thread-new-view board)
-            (om/build thread-view (get-in board [:board/threads target-thread])
+            (om/build thread-view (get-in board [:board/threads (:id tab)])
                       {:state {:target-comment target-comment}
-                       :opts {:board-name (:board/name board)}}))])]])))
-
-
+                       :opts {:board-name (:board/name board)
+                              :reactions reactions}}))])]])))

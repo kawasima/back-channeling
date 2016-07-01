@@ -12,6 +12,21 @@
 
 (figwheel/start {:websocket-url "ws://localhost:3449/figwheel-ws"})
 
+(set! js/md (-> (js/markdownit
+                 #js {:highlight (fn [s lang]
+                                   (when (and lang (.getLanguage js/hljs lang))
+                                     (try
+                                       (str "<pre class=\"hljs\"><code>"
+                                            (-> js/hljs
+                                                (.highlight lang s true)
+                                                (.-value))
+                                            "</code></pre>"))))})
+                (.use js/markdownitEmoji)))
+
+(set! (.. js/md -renderer -rules -emoji)
+      (fn [token idx]
+        (.parse js/twemoji (.-content (aget token idx)))))
+
 (def app-state (atom {:boards {}
                       :users #{}
                       :page :board}))

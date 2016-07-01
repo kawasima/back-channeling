@@ -26,20 +26,27 @@
                                              (fn [board]
                                                (update-in new-board [:board/threads]
                                                           #(merge-with merge % (:board/threads board)))))
-                               
+
                                (om/update! app [:boards board-name] new-board))))}))
 
 (defn fetch-comments
   ([app thread]
-   (fetch-comments app thread 1))
-  ([app {:keys [board/name db/id]} from]
-   (api/request (str "/api/thread/" id "/comments/" from "-")
-                {:handler (fn [fetched-comments]
-                            (om/transact! app [:boards "default" :board/threads id :thread/comments]
-                                          (fn [comments]
-                                            (let [last-comment-no (get (last comments) :comment/no 0)]
-                                              (vec (concat comments
-                                                           (drop-while #(<= (:comment/no %) last-comment-no) fetched-comments)))))))})))
+   (fetch-comments app thread 1 nil))
+  ([app thread from]
+   (fetch-comments app thread from nil))
+  ([app {:keys [board/name db/id]} from to]
+   (api/request
+    (str "/api/thread/" id "/comments/" from "-" to)
+    {:handler (fn [fetched-comments]
+                (om/transact! app [:boards "default" :board/threads id :thread/comments]
+                              (fn [comments]
+                                (loop [new-comments fetched-comments comments comments]
+                                  (if (empty? new-comments)
+                                    comments
+                                    (recur (rest new-comments)
+                                           (let [c (first new-comments)
+                                                 num (dec (:comment/no c 1))]
+                                             (assoc comments num c))))))))})))
 
 (defn refresh-thread [app thread]
   (om/transact! app [:boards (:board/name thread) :board/threads (:db/id thread)]
@@ -48,7 +55,9 @@
                         :thread/resnum (:thread/resnum thread)))
   (when (= (:target-thread @app) (:db/id thread))
     (fetch-comments app thread
-                    (inc (count (get-in @app [:boards "default" :board/threads (:db/id thread) :thread/comments] [])) ))))
+                    (or (:comments/from thread)
+                        (inc (count (get-in @app [:boards "default" :board/threads (:db/id thread) :thread/comments] []))))
+                    (:comments/to thread))))
 
 (defn search-threads [owner board-name query]
   (api/request (str "/api/board/" board-name "/threads?q=" (js/encodeURIComponent query))
@@ -77,17 +86,28 @@
             :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}
      :called-message nil
      :click-outside-fn nil})
-  
+
   (will-mount [_]
     (routing/init app owner)
     (refresh-board app "default")
+    (api/request "/api/reactions"
+                 {:handler
+                  (fn [response]
+                    (om/update! app :reactions response))})
+
     (api/request "/api/users"
-                 {:handler (fn [response]
-                             (om/update! app :users (apply hash-set response)))})
+                 {:handler
+                  (fn [response]
+                    (om/update! app :users (apply hash-set response)))})
+
     (api/request "/api/token" :POST
-                 {:handler (fn [response]
-                             (connect-socket app (:access-token response)))})
-    
+                 {:handler
+                  (fn [response]
+                    (connect-socket app (:access-token response)))
+                  :error-handler
+                  (fn [response error-code]
+                    (set! (.. js/document -location -href) "/"))})
+
     (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
       (.removeEventListener js/document "mousedown" on-click-outside)))
 
@@ -133,7 +153,7 @@
                              (set! (.-href js/location) (str "#/board/" (:board/name res) "/" (:db/id res))))}
                 [:div.content
                  [:div.title (:thread/title res)]]])])]]]
-       
+
        [:div.right.menu
         [:a.item
          [:div {:on-click (fn [_]
@@ -154,7 +174,7 @@
                             (om/set-state! owner :open-profile? (not open-profile?)))}
           (om/build avatar user)
           [:span (:user/name user)] ]
-         [:div.menu.transition {:class (if open-profile? "visible" "hidden")} 
+         [:div.menu.transition {:class (if open-profile? "visible" "hidden")}
           [:a.item {:href "/logout"} "Logout"]]]]]
       (when-let [board (get-in app [:boards "default"])]
         (case (:page app)
@@ -162,7 +182,8 @@
                            {:init-state {:channel board-channel}
                             :state {:target-thread (:target-thread app)
                                     :target-comment (:target-comment app)}
-                            :opts {:user user}})
+                            :opts {:user user
+                                   :reactions (:reactions app)}})
           :article (om/build article-page (:article app)
                               {:init-state {:thread (get-in board [:board/threads (:target-thread app)])}
                                :opts {:user user}})))])))

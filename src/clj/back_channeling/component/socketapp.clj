@@ -5,20 +5,10 @@
             (back-channeling.component [token :as token]))
   (:import [io.undertow.websockets.core WebSockets WebSocketCallback]))
 
-(defn broadcast-message [{:keys [channels path]} message]
-  (doseq [[channel user] (get @channels path)]
-    (WebSockets/sendText (pr-str message) channel
-                         (proxy [WebSocketCallback] []
-                           (complete [channel context])
-                           (onError [channel context throwable])))))
 
-(defn multicast-message [{:keys [channels path]} message users]
-  (doseq [[channel user] (get @channels path)]
-    (when (users user)
-      (WebSockets/sendText (pr-str message) channel
-                           (proxy [WebSocketCallback] []
-                             (complete [channel context])
-                             (onError [channel context throwable]))))))
+(defprotocol ISendMessage
+  (broadcast-message [this message])
+  (multicast-message [this message users]))
 
 (defn find-users [{:keys [channels path]}]
   (->> (get @channels path)
@@ -74,7 +64,7 @@
                (log/debug "message=" message)
                (handle-command component
                                (edn/read-string message) ch))
-             
+
              :on-close
              (fn [ch close-reason]
                (log/info "disconnect" ch "for" close-reason)
@@ -83,7 +73,25 @@
                                [:leave (find-user-by-channel component ch)] ch)))))
 
   (stop [component]
-    (dissoc component :path :on-message :on-close :channels)))
+    (dissoc component :path :on-message :on-close :channels))
+
+  ISendMessage
+  (broadcast-message [{:keys [channels path]} message]
+    (doseq [[channel user] (get @channels path)]
+      (WebSockets/sendText (pr-str message) channel
+                           (proxy [WebSocketCallback] []
+                             (complete [channel context])
+                             (onError [channel context throwable])))))
+
+  (multicast-message [{:keys [channels path]} message users]
+    (doseq [[channel user] (get @channels path)]
+      (when (users user)
+        (WebSockets/sendText (pr-str message) channel
+                             (proxy [WebSocketCallback] []
+                               (complete [channel context])
+                               (onError [channel context throwable]))))))
+
+)
 
 (defn socketapp-component [options]
   (map->SocketApp options))

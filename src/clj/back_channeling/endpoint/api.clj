@@ -6,6 +6,7 @@
             [clj-time.format :as time-fmt]
             [clj-time.coerce :refer [from-date to-date]]
             [compojure.core :refer [context ANY]]
+            [compojure.coercions  :refer :all]
             [liberator.representation :refer [ring-response]]
             [liberator.core :as liberator]
             [bouncer.core :as b]
@@ -29,13 +30,17 @@
   (-write [uuid out]
     (json/-write (.toString uuid) out)))
 
-(defn- body-as-string [ctx]
+(defn- body-as-string
+  "Returns a request body as String."
+  [ctx]
   (if-let [body (get-in ctx [:request :body])]
     (condp instance? body
       java.lang.String body
       (slurp (io/reader body)))))
 
-(defn- validate [model validation-spec]
+(defn- validate
+  "Validate the given model with the given spec of validation."
+  [model validation-spec]
   (if validation-spec
     (let [[result map] (b/validate model validation-spec)]
       (if result
@@ -71,12 +76,22 @@
 (defn board-resource [{:keys [datomic]} board-name]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
-   :allowed-methods [:get]
+   :allowed-methods [:get :post]
+   :exists? (fn [ctx]
+              (if-let [board (d/query datomic
+                                       '{:find [(pull ?board [:*]) .]
+                                         :in [$ ?b-name]
+                                         :where [[?board :board/name ?b-name]]}
+                                       board-name)]
+                {::board board}
+                false))
+   :post! (fn [ctx]
+            (d/transact datomic
+                        [{:db/id #db/id[:db.part/message]
+                          :board/name board-name
+                          :board/description board-name}]))
    :handle-ok (fn [ctx]
-                (let [board (d/query datomic
-                                     '{:find [(pull ?board [:*]) .]
-                                       :in [$ ?b-name]
-                                       :where [[?board :board/name ?b-name]]} board-name)]
+                (let [board (::board ctx)]
                   (->> (d/query datomic
                                 '{:find [?thread (count ?comment)]
                                   :in [$ ?board]
@@ -95,6 +110,25 @@
                                                    (apply hash-set))))))
                        ((fn [threads] (assoc board :board/threads threads))))))))
 
+(defn save-thread [datomic board-name th user]
+  (let [now (Date.)
+        thread-id (d/tempid :db.part/user)
+        tempids (-> (d/transact datomic
+                                [[:db/add [:board/name board-name]
+                                  :board/threads thread-id]
+                                 {:db/id thread-id
+                                  :thread/title (:thread/title th)
+                                  :thread/since now
+                                  :thread/last-updated now}
+                                 [:db/add thread-id :thread/comments #db/id[:db.part/user -2]]
+                                 {:db/id #db/id[:db.part/user -2]
+                                  :comment/posted-at now
+                                  :comment/posted-by user
+                                  :comment/format (get th :comment/format :comment.format/plain)
+                                  :comment/content (:comment/content th)}])
+                    :tempids)]
+    [tempids thread-id]))
+
 (defn threads-resource [{:keys [datomic socketapp]} board-name]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
@@ -103,33 +137,24 @@
                                                  [v/max-count 255]]
                                   :comment/content [[v/required]
                                                     [v/max-count 4000]]})
+   :authorized? (fn [ctx]
+                  (if-let [identity (get-in ctx [:request :identity])]
+                    {::identity identity}
+                    false))
+
    :handle-created (fn [ctx]
                      {:db/id (:db/id ctx)})
-   :post! (fn [{th :edn req :request}]
+
+   :post! (fn [{th :edn req :request identity ::identity}]
             (let [user (d/query datomic
                                 '{:find [?u .]
                                   :in [$ ?name]
                                   :where [[?u :user/name ?name]]}
-                                (get-in req [:identity :user/name]))
-                  now (Date.)
-                  thread-id (d/tempid :db.part/user)
-                  tempids (-> (d/transact datomic
-                                          [[:db/add [:board/name board-name]
-                                            :board/threads thread-id]
-                                           {:db/id thread-id
-                                                :thread/title (:thread/title th)
-                                                :thread/since now
-                                                :thread/last-updated now}
-                                               [:db/add thread-id :thread/comments #db/id[:db.part/user -2]]
-                                               {:db/id #db/id[:db.part/user -2]
-                                                :comment/posted-at now
-                                                :comment/posted-by user
-                                                :comment/format (get th :comment/format :comment.format/plain)
-                                                :comment/content (:comment/content th)}])
-                              :tempids)]
+                                (:user/name identity))
+                  [tempids thread-id] (save-thread datomic board-name th user)]
               (broadcast-message socketapp [:update-board {:board/name board-name}])
-
               {:db/id (d/resolve-tempid datomic tempids thread-id)}))
+
    :handle-ok (fn [{{{:keys [q]} :params} :request}]
                 (when q
                   (->> (d/query datomic
@@ -257,12 +282,66 @@
                 (->> (d/pull datomic
                              '[{:thread/comments
                                 [:*
-                                 {:comment/format [:db/ident]}
-                                 {:comment/posted-by [:user/name :user/email]}]}]
+                                 {:comment/format [:db/ident]
+                                  :comment/posted-by [:user/name :user/email]
+                                  :comment/reactions
+                                  [{:comment-reaction/reaction [:reaction/label]
+                                    :comment-reaction/reaction-by [:user/name :user/email]}]}]}]
                              thread-id)
                      :thread/comments
                      (map-indexed #(assoc %2 :comment/no (inc %1)))
-                     (drop (dec from))))))
+                     (drop (dec from))
+                     vec))))
+
+(defn comment-resource
+  "Returns a resource that react to a comment"
+  [{:keys [datomic socketapp]} thread-id comment-no]
+  {:pre [(integer? thread-id) (integer? comment-no)]}
+  (liberator/resource
+   :available-media-types ["application/edn" "application-json"]
+   :allowed-methods [:post]
+   :authorized? (fn [ctx]
+                  (if-let [identity (get-in ctx [:request :identity])]
+                    {::identity identity}
+                    false))
+   :malformed? #(parse-request % {:reaction/name [[v/required]]})
+
+   :post! (fn [{comment-reaction :edn identity ::identity}]
+            (let [user (d/query datomic
+                                '{:find [?u .]
+                                  :in [$ ?name]
+                                  :where [[?u :user/name ?name]]}
+                                (:user/name identity))
+                  reaction (d/query datomic
+                                    '{:find [?r .]
+                                      :in [$ ?r-name]
+                                      :where [[?r :reaction/name ?r-name]]}
+                                    (:reaction/name comment-reaction))
+                  comments (->> (d/pull datomic
+                                        '[{:thread/comments [:db/id]}]
+                                        thread-id)
+                                :thread/comments)
+                  comment-id (->> comments
+                                  (drop (dec comment-no))
+                                  (take 1)
+                                  first
+                                  :db/id)
+                  now (Date.)
+                  tempid (d/tempid :db.part/user)]
+              (d/transact datomic
+                          [{:db/id tempid
+                            :comment-reaction/reaction-at now
+                            :comment-reaction/reaction-by user
+                            :comment-reaction/reaction reaction}
+                           [:db/add comment-id
+                            :comment/reactions tempid]])
+              (broadcast-message
+               socketapp
+               [:update-thread {:db/id thread-id
+                                :thread/last-updated now
+                                :thread/resnum (count comments)
+                                :comments/from comment-no
+                                :comments/to   comment-no}])))))
 
 (defn voices-resource [{:keys [datomic]} thread-id]
   (liberator/resource
@@ -355,7 +434,7 @@
                 (d/pull datomic
                         '[:*
                           {:article/curator [:user/name :user/email]}
-                          {:artpicle/blocks [:curating-block/posted-at
+                          {:article/blocks [:curating-block/posted-at
                                              :curating-block/content
                                              {:curating-block/format [:db/ident]}
                                              {:curating-block/posted-by [:user/name :user/email]}]}]
@@ -385,6 +464,16 @@
    :handle-created (fn [ctx]
                      (::post-response ctx))))
 
+(defn reactions-resource [{:keys [datomic]}]
+  (liberator/resource
+   :available-media-types ["application/edn" "application/json"]
+   :allowed-methods [:get]
+   :handle-ok (fn [_]
+                (d/query datomic
+                         '{:find [[(pull ?r [:*]) ...]]
+                           :in [$]
+                           :where [[?r :reaction/name]]}))))
+
 (defn api-endpoint [config]
   (context "/api" []
    (ANY "/token" []  (token-resource config))
@@ -406,8 +495,13 @@
                           (when to (Long/parseLong to)))))
    (ANY "/thread/:thread-id/voices" [thread-id]
      (voices-resource config (Long/parseLong thread-id)))
+   (ANY "/thread/:thread-id/comment/:comment-no"
+       [thread-id :<< as-int comment-no :<< as-int]
+     (comment-resource config thread-id comment-no))
    (ANY "/articles" []
      (articles-resource config))
    (ANY "/article/:article-id" [article-id]
      (article-resource config (Long/parseLong article-id)))
-   (ANY "/users" [] (users-resource config "/ws"))))
+   (ANY "/users" [] (users-resource config "/ws"))
+
+   (ANY "/reactions" [] (reactions-resource config))))

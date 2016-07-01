@@ -23,17 +23,18 @@
 (defn dbparts []
   [(d/part "message")])
 
-(defrecord DatomicConnection [uri]
+(defrecord DatomicConnection [uri recreate?]
   component/Lifecycle
   (start [component]
     (if (:connection component)
       component
-      (let [create? (d/create-database uri)]
-        (assoc component
-               :connection (d/connect uri)))))
+      (do (when recreate?
+            (d/delete-database uri))
+          (let [create? (d/create-database uri)]
+            (assoc component
+                   :connection (d/connect uri))))))
   (stop [component]
     (dissoc component :connection)))
 
-(defn datomic-connection
-  [uri]
-  (DatomicConnection. uri))
+(defn datomic-connection [options]
+  (map->DatomicConnection options))

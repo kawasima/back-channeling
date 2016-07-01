@@ -1,6 +1,7 @@
 (defproject net.unit8/back-channeling (clojure.string/trim-newline (slurp "VERSION"))
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
+  :test-paths ["test/clj"]
   :min-lein-version "2.0.0"
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.clojure/tools.logging "0.3.1"]
@@ -22,9 +23,9 @@
                  [bouncer "1.0.0"]
                  [secretary "1.2.3"]
                  [org.omcljs/om "1.0.0-alpha36"]
-                 [io.undertow/undertow-websockets-jsr "1.1.1.Final"]
+                 [io.undertow/undertow-websockets-jsr "1.3.23.Final"]
                  [com.google.guava/guava "19.0"]
-                 [com.datomic/datomic-free "0.9.5359"
+                 [com.datomic/datomic-free "0.9.5385"
                   :exclusions [org.slf4j/slf4j-api
                                org.slf4j/slf4j-nop
                                joda-time
@@ -34,8 +35,8 @@
                  [datomic-schema "1.3.0"]
                  [liberator "0.14.1"]
 
-                 [ring/ring-defaults "0.2.0" :exclusions [[javax.servlet/servlet-api]]]
-                 [ring "1.4.0" :exclusions [ring/ring-jetty-adapter]]]
+                 [ring/ring-defaults "0.2.1" :exclusions [[javax.servlet/servlet-api]]]
+                 [ring "1.5.0" :exclusions [ring/ring-jetty-adapter]]]
 
   :plugins [[lein-cljsbuild "1.1.3"]
             [lein-environ "1.0.3"]]
@@ -76,11 +77,11 @@
                                    [org.clojure/tools.nrepl "0.2.12"]
                                    [eftest "0.1.1"]
                                    [com.gearswithingears/shrubbery "0.3.1"]
-                                   [kerodon "0.7.0"]
-                                   [binaryage/devtools "0.6.1"]
+                                   [kerodon "0.8.0"]
+                                   [binaryage/devtools "0.7.2"]
                                    [com.cemerick/piggieback "0.2.1"]
                                    [duct/figwheel-component "0.3.2"]
-                                   [figwheel "0.5.0-6"]]
+                                   [figwheel "0.5.4-5"]]
                     :source-paths ["dev"]
                     :repl-options {:init-ns user
                                    :nrepl-middleware [cemerick.piggieback/wrap-cljs-repl]}

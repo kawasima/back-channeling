@@ -44,7 +44,6 @@
           (log/error "auth-by error" e))))}))
 
 (defn wrap-authn [handler token-provider & backends]
-  (println token-provider)
   (apply wrap-authentication handler (conj backends (token-base token-provider))))
 
 (def base-config
@@ -76,7 +75,7 @@
          :socketapp (socketapp-component (:socketapp config))
          :http      (undertow-server     (:http config))
          :token     (token-provider-component (:token config))
-         :datomic   (datomic-connection (get-in config [:datomic :uri]))
+         :datomic   (datomic-connection  (:datomic config))
          :migration (migration-model)
          :chat      (endpoint-component chat-app-endpoint)
          :api       (endpoint-component api-endpoint))
