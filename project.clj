@@ -54,7 +54,7 @@
   {:builds
    [{:id "dev"
      :source-paths ["src/cljs"]
-     :compiler {:output-to "target/cljsbuild/back-channeling/public/js/back-channeling.js"
+     :compiler {:output-to "target/cljsbuild/public/js/back-channeling.js"
                 :pretty-print true
                 :optimizations :simple}}
     {:id "production"

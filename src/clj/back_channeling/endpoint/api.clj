@@ -350,15 +350,17 @@
    :malformed? (fn [ctx]
                  (let [content-type (get-in ctx [:request :headers "content-type"])]
                    (case content-type
-                     "audio/ogg" [false {::media-type :audio/ogg}]
-                     "audio/wav" [false {::media-type :audio/wav}]
+                     "audio/webm" [false {::media-type :audio/webm}]
+                     "audio/ogg"  [false {::media-type :audio/ogg}]
+                     "audio/wav"  [false {::media-type :audio/wav}]
                      true)))
    :post! (fn [ctx]
             (let [body-stream (get-in ctx [:request :body])
                   filename (str (.toString (UUID/randomUUID))
                                 (case (::media-type ctx)
-                                  :audio/ogg ".ogg"
-                                  :audio/wav ".wav"))
+                                  :audio/webm ".webm"
+                                  :audio/ogg  ".ogg"
+                                  :audio/wav  ".wav"))
                   path (Paths/get "voices"
                                   (into-array String [(str thread-id) filename]))]
               (Files/createDirectories (.getParent path)

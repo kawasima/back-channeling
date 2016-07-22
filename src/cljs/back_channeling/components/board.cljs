@@ -1,5 +1,5 @@
 (ns back-channeling.components.board
-  (:require-macros [cljs.core.async.macros :refer [go go-loop]])
+  (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [om.core :as om :include-macros true]
             [om-tools.core :refer-macros [defcomponent]]
             [sablono.core :as html :refer-macros [html]]
@@ -28,8 +28,9 @@
                    :POST
                    blob
                    {:format (case (.-type blob)
-                              "audio/ogg" :ogg
-                              "audio/wav" :wav)
+                              "audio/webm" :webm
+                              "audio/ogg"  :ogg
+                              "audio/wav"  :wav)
                     :handler (fn [response]
                                (api/request (str "/api/thread/" (:thread/id comment) "/comments")
                                             :POST
@@ -115,7 +116,7 @@
                                 (audio/stop-recording
                                  (fn [blob]
                                    (om/set-state! owner :recording-status :encoding)
-                                   (if (= (.-type blob) "audio/wav")
+                                   (if (#{"audio/wav"} (.-type blob))
                                      (audio/wav->ogg blob update-content)
                                      (update-content blob))))))}
                  [:i.large.stop.icon] "Stop"]
