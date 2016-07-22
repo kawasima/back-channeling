@@ -27,7 +27,6 @@
    (request path method nil options))
   ([path method body {:keys [handler error-handler format]}]
    (let [xhrio (net/xhr-connection)]
-
      (when handler
        (events/listen xhrio goog.net.EventType/SUCCESS
                       (fn [e]
@@ -58,4 +57,3 @@
               :ogg (clj->js {:content-type "audio/ogg"})
               :wav (clj->js {:content-type "audio/wav"})
               (clj->js {:content-type "application/edn"}))))))
-

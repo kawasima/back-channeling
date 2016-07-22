@@ -3,9 +3,7 @@
   (:use [back-channeling.components.root :only [root-view]]))
 
 (.initHighlightingOnLoad js/hljs)
-(.setOptions js/marked
-             (clj->js {:highlight (fn [code]
-                                    (.. js/hljs (highlightAuto code) -value))}))
+(set! js/md (js/markdownit))
 
 (def app-state (atom {:boards {}
                       :users #{}
@@ -13,6 +11,3 @@
 
 (om/root root-view app-state
          {:target (.getElementById js/document "app")})
-
-
-

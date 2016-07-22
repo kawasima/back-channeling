@@ -1,5 +1,5 @@
 (ns back-channeling.components.curation
-  (:require-macros [cljs.core.async.macros :refer [go go-loop]])
+  (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [om.core :as om :include-macros true]
             [om-tools.core :refer-macros [defcomponent]]
             [sablono.core :as html :refer-macros [html]]
@@ -15,7 +15,7 @@
                                      (aget goog.i18n (str "DateTimeSymbols_" (.-language js/navigator)))))
 
 (defn open-thread [thread owner]
-  (when-let [thread-id (:db/id thread)] 
+  (when-let [thread-id (:db/id thread)]
     (api/request (str "/api/thread/" thread-id)
                  {:handler (fn [response]
                            (om/set-state! owner [:thread :thread/comments] (:thread/comments response)))})))
@@ -53,7 +53,7 @@
 
                :curating-block.format/voice
                (str "\n[" (get-in % [:curating-block/posted-by :user/name]) " said](" (:curating-block/content %) ")\n")
-               
+
                (str "```\n" (:curating-block/content %) "\n```\n")))
        (clojure.string/join "\n\n")))
 
@@ -65,7 +65,7 @@
                        :comment/format {:db/ident :comment.format/plain}
                        :comment/content ""
                        :comment/posted-by user}})
-  
+
   (will-mount [_]
     (open-thread (om/get-state owner :thread) owner))
 
@@ -79,7 +79,7 @@
                       (let [blocks (om/get-state owner [:editing-article :article/blocks])]
                         (.. e -clipboardData (setData "text/plain"
                                                     (generate-markdown blocks)))))))))))
-  
+
   (render-state [_ {:keys [selected-thread-comments editorial-space thread editing-article error-map]}]
     (html
      [:div.curation.full.height.content
@@ -104,8 +104,9 @@
                                             (if ((om/get-state owner :selected-thread-comments) (:db/id comment))
                                               (om/update-state! owner :selected-thread-comments #(disj % (:db/id comment)))
                                               (om/update-state! owner :selected-thread-comments #(conj % (:db/id comment)))))
-                                :class (if (selected-thread-comments (:db/id comment)) "selected" "")}}}))]]]
-        
+                                :class (if (selected-thread-comments (:db/id comment)) "selected" "")}}
+                        :react-key (str "comment-" (:comment/no comment))}))]]]
+
         [:div.column
          (when (not-empty selected-thread-comments)
            [:i.citation.huge.arrow.circle.outline.right.icon
@@ -125,11 +126,11 @@
                                                                (update-in block [:curating-block/format :db/ident]
                                                                           #(keyword "curating-block.format" (name %)))))))))
                          (om/set-state! owner :selected-thread-comments #{}))}])]
-        
+
         [:div.eight.wide.full.height.column
          [:div.ui.input (merge (when (:article/name error-map) {:class "error"})
                                (when (= (count (:article/blocks editing-article)) 0)
-                                 {:style {:visibility "hidden"}})) 
+                                 {:style {:visibility "hidden"}}))
           [:input {:type "text" :name "article-name"
                    :placeholder "Article name"
                    :value (:article/name editing-article)
@@ -211,10 +212,8 @@
                                                                            :curating-block/content content
                                                                            :curating-block/posted-at (js/Date.)))))}})
                    (case (get-in curating-block [:curating-block/format :db/ident])
-                     :curating-block.format/markdown {:dangerouslySetInnerHTML {:__html (js/marked (:curating-block/content curating-block))}}
+                     :curating-block.format/markdown {:dangerouslySetInnerHTML {:__html (.render js/md (:curating-block/content curating-block))}}
                      :curating-block.format/voice [:audio {:controls true
                                                            :src (str "/voice/" (:curating-block/content curating-block))}]
                      (:curating-block/content curating-block)))]]))
             (:article/blocks editing-article))]]]]]])))
-
-

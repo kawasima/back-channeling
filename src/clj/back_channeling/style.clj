@@ -1,17 +1,18 @@
 (ns back-channeling.style
-  (:use [garden.core :only [css]]
-        [garden.units :only [px em]]))
+  (:require [garden.core :refer [css]]
+            [garden.units :refer [px em]]))
 
 (def styles
   [[:body :html {:height "100%"}]
    [:.full.height {:height "100%"}]
    [:body
+    [:.emoji {:height "1.2em"}]
     [:.login.grid {:height "100%"
                    :background {:color "#F8FBF8"}}
      [:.column {:max-width (px 450)}]]]
    [:img.ui.logo.image {:width (px 240)}]
 
-   [:.preview {:white-space "pre"}]
+   [:.preview {:white-space "pre-wrap"}]
    [:.main.content {:min-height "100%"
                     :max-width (px 960)
                     :margin {:left "auto" :right "auto"}
@@ -36,6 +37,17 @@
                                 :right "1px solid #ddd"}}]
    [:.ui.thread.comments {:max-width "initial"
                           :position "relative"}
+    [:.reaction.buttons {:position "absolute"
+                         :z-index 1
+                         :right 0}]
+    [:.reactions.segment {:position "absolute"
+                          :max-width (px 400)
+                          :z-index 1
+                          :right 0}
+     [:.column {:padding (px 1)}]
+     [:button {:cursor "pointer"
+               :white-space "nowrap"
+               :width "100%"}]]
     [:a.curation.link {:position "absolute"
                        :top 0
                        :right 0}]
@@ -47,7 +59,9 @@
                 :min-height (px 180)
                 :height "100%"}]
     [:.comment
-     [:.text {:white-space "pre"}]]
+     {:padding (px 1)}
+     [:&:hover {:background-color "#efe"}]
+     [:.text {:white-space "pre-wrap"}]]
     [:.comment.selected {:background-color "#f4b3c2"}]]
    [:.comment.curating-block
      [:.ui.basic.buttons {:position "absolute"

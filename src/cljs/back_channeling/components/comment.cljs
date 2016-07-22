@@ -14,7 +14,9 @@
        (take n)
        (reduce str)))
 
-(defcomponent comment-view [comment owner {:keys [thread board-name comment-attrs] :or {comment-attrs {}}}]
+(defcomponent comment-view
+  [comment owner {:keys [thread board-name comment-attrs show-reactions?]
+                  :or   {show-reactions? false}}]
   (render-state [_ {:keys [selected?]}]
     (html
      [:div.comment (merge {:data-comment-no (:comment/no comment)}
@@ -27,8 +29,20 @@
        [:div.metadata
         [:span.date (.format date-format-m (get-in comment [:comment/posted-at]))]]
        [:div.text (case (get-in comment [:comment/format :db/ident])
-                    :comment.format/markdown {:key (str "markdown-" (random-string 16))
-                                              :dangerouslySetInnerHTML {:__html (js/marked (:comment/content comment))}}
-                    :comment.format/voice [:audio {:controls true
-                                                   :src (str "/voice/" (:comment/content comment))}]
-                    (format-plain (:comment/content comment) :thread-id (:db/id thread) :board-name board-name))]]])))
+                    :comment.format/markdown
+                    {:key (str "markdown-" (random-string 16))
+                     :dangerouslySetInnerHTML {:__html (.render js/md (:comment/content comment))}}
+                    :comment.format/voice
+                    [:audio {:controls true
+                             :src (str "/voice/" (:comment/content comment))}]
+
+                    (format-plain (:comment/content comment)
+                                  :thread-id (:db/id thread)
+                                  :board-name board-name))]]
+      (when show-reactions?
+        (when-let [reactions (not-empty (:comment/reactions comment))]
+          [:div.content
+           [:div.text
+            (for [reaction reactions]
+              [:div.ui.tiny.pointing.basic.label
+               (get-in reaction [:comment-reaction/reaction :reaction/label])])]]))])))
