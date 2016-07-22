@@ -48,7 +48,10 @@
   :resource-paths ["resources" "target/cljsbuild"]
   :prep-tasks [["javac"] ["cljsbuild" "once"] ["compile"]]
   :aliases {"run-task" ["with-profile" "+repl" "run" "-m"]
-            "setup"    ["run-task" "dev.tasks/setup"]}
+            "setup"    ["run-task" "dev.tasks/setup"]
+            "deploy"   ["do"
+                        ["vcs" "assert-committed"]
+                        ["vcs" "push" "heroku" "master"]]}
 
   :cljsbuild
   {:builds
