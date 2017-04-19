@@ -1,4 +1,5 @@
 (ns back-channeling.main
+  (:gen-class)
   (:require [com.stuartsierra.component :as component]
             [duct.middleware.errors :refer [wrap-hide-errors]]
             [duct.util.runtime :refer [add-shutdown-hook]]
