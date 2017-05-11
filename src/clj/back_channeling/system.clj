@@ -55,7 +55,8 @@
          :access-rules {:rules access-rules :policy :allow}
          :not-found    "Resource Not Found"
          :defaults     (meta-merge site-defaults
-                                   {:security {:anti-forgery false}})
+                                   {:security {:anti-forgery false}
+                                    :responses {:absolute-redirects false}})
          :session-base (session-backend)
          :authorization (fn [req meta]
                           (if (api-access? req)
