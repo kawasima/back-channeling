@@ -64,10 +64,34 @@
          (log/error e "fail to parse edn.")
          {:message (format "IOException: %s" (.getMessage e))})))))
 
+(defn save-board [datomic board]
+  (let [board-id (d/tempid :db.part/user)
+        tempids (-> (d/transact datomic
+                                [{:db/id board-id
+                                  :board/name (:board/name board)
+                                  :board/description (:board/description board)}])
+                    :tempids)]
+    [tempids board-id]))
+
 (defn boards-resource [{:keys [datomic]}]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
-   :allowed-methods [:get]
+   :allowed-methods [:get :post]
+   :malformed? #(parse-request % {:board/name [[v/required]
+                                               [v/max-count 255]]})
+
+   :authorized? (fn [ctx]
+                  (if-let [identity (get-in ctx [:request :identity])]
+                    {::identity identity}
+                    false))
+
+   :post! (fn [{board :edn req :request}]
+            (let [[tempids board-id] (save-board datomic board)]
+              {:db/id (d/resolve-tempid datomic tempids board-id)}))
+
+   :handle-created (fn [ctx]
+                     {:db/id (:db/id ctx)})
+
    :handle-ok (fn [_]
                 (d/query datomic
                          '{:find [[(pull ?board [:*]) ...]]
@@ -76,7 +100,7 @@
 (defn board-resource [{:keys [datomic]} board-name]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
-   :allowed-methods [:get :post]
+   :allowed-methods [:get]
    :exists? (fn [ctx]
               (if-let [board (d/query datomic
                                        '{:find [(pull ?board [:*]) .]
@@ -85,11 +109,6 @@
                                        board-name)]
                 {::board board}
                 false))
-   :post! (fn [ctx]
-            (d/transact datomic
-                        [{:db/id #db/id[:db.part/message]
-                          :board/name board-name
-                          :board/description board-name}]))
    :handle-ok (fn [ctx]
                 (let [board (::board ctx)]
                   (->> (d/query datomic
