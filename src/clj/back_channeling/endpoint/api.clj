@@ -100,7 +100,8 @@
 (defn board-resource [{:keys [datomic]} board-name]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
-   :allowed-methods [:get]
+   :allowed-methods [:get :put]
+   :malformed? #(parse-request %)
    :exists? (fn [ctx]
               (if-let [board (d/query datomic
                                        '{:find [(pull ?board [:*]) .]
@@ -109,6 +110,13 @@
                                        board-name)]
                 {::board board}
                 false))
+
+   :put! (fn [{old ::board new :edn}]
+           (d/transact datomic
+             {:db/id (:db/id old)
+              :board/name (:board/name new)
+              :board/description (:board/description new)}))
+
    :handle-ok (fn [ctx]
                 (let [board (::board ctx)]
                   (->> (d/query datomic
