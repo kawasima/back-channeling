@@ -266,6 +266,12 @@
                                   :in [$ ?name]
                                   :where [[?u :user/name ?name]]}
                                 (get-in req [:identity :user/name]))
+                  board-name (d/query datomic
+                                       '{:find [?bname .]
+                                         :in [$ ?t]
+                                         :where [[?b :board/name ?bname]
+                                                 [?b :board/threads ?t]]}
+                                       thread-id)
                   now (Date.)]
               (d/transact
                datomic
@@ -283,7 +289,8 @@
                socketapp
                [:update-thread {:db/id thread-id
                                 :thread/last-updated now
-                                :thread/resnum (inc resnum)}])
+                                :thread/resnum (inc resnum)
+                                :board/name board-name}])
               (when-let [watchers (not-empty (->> (d/pull datomic
                                                           '[{:thread/watchers
                                                              [:user/name :user/email]}]
@@ -339,6 +346,12 @@
                                   :in [$ ?name]
                                   :where [[?u :user/name ?name]]}
                                 (:user/name identity))
+                  board-name (d/query datomic
+                                      '{:find [?bname .]
+                                        :in [$ ?t]
+                                        :where [[?b :board/name ?bname]
+                                                [?b :board/threads ?t]]}
+                                      thread-id)
                   reaction (d/query datomic
                                     '{:find [?r .]
                                       :in [$ ?r-name]
@@ -368,7 +381,8 @@
                                 :thread/last-updated now
                                 :thread/resnum (count comments)
                                 :comments/from comment-no
-                                :comments/to   comment-no}])))))
+                                :comments/to   comment-no
+                                :board/name board-name}])))))
 
 (defn voices-resource [{:keys [datomic]} thread-id]
   (liberator/resource

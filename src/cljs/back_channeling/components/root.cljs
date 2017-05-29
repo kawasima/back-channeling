@@ -8,7 +8,7 @@
             [back-channeling.socket :as socket]
             [back-channeling.notification :as notification]
             [back-channeling.components.avatar :refer [avatar]])
-  (:use [back-channeling.components.board :only [board-view]]
+  (:use [back-channeling.components.board :only [board-view boards-view]]
         [back-channeling.components.curation :only [article-page]]
         [back-channeling.component-helper :only [make-click-outside-fn]]
         [cljs.reader :only [read-string]]))
@@ -22,12 +22,12 @@
                                                              (map (fn [t] {(:db/id t) t}))
                                                              (reduce merge {}))))]
                              (if (get-in @app [:boards board-name])
-                               (om/transact! app [:boards board-name]
+                               (om/transact! app [:boards board-name :value]
                                              (fn [board]
                                                (update-in new-board [:board/threads]
                                                           #(merge-with merge % (:board/threads board)))))
 
-                               (om/update! app [:boards board-name] new-board))))}))
+                               (om/update! app [:boards board-name :value] new-board))))}))
 
 (defn fetch-comments
   ([app thread]
@@ -38,7 +38,7 @@
    (api/request
     (str "/api/thread/" id "/comments/" from "-" to)
     {:handler (fn [fetched-comments]
-                (om/transact! app [:boards "default" :board/threads id :thread/comments]
+                (om/transact! app [:boards name :value :board/threads id :thread/comments]
                               (fn [comments]
                                 (loop [new-comments fetched-comments comments comments]
                                   (if (empty? new-comments)
@@ -49,14 +49,14 @@
                                              (assoc comments num c))))))))})))
 
 (defn refresh-thread [app thread]
-  (om/transact! app [:boards (:board/name thread) :board/threads (:db/id thread)]
+  (om/transact! app [:boards (:board/name thread) :value :board/threads (:db/id thread)]
                 #(assoc %
                         :thread/last-updated (:thread/last-updated thread)
                         :thread/resnum (:thread/resnum thread)))
   (when (= (:target-thread @app) (:db/id thread))
     (fetch-comments app thread
                     (or (:comments/from thread)
-                        (inc (count (get-in @app [:boards "default" :board/threads (:db/id thread) :thread/comments] []))))
+                        (inc (count (get-in @app [:boards (:board/name thread) :value :board/threads (:db/id thread) :thread/comments] []))))
                     (:comments/to thread))))
 
 (defn search-threads [owner board-name query]
@@ -70,8 +70,8 @@
                                (let [[cmd data] (read-string message)]
                                  (case cmd
                                    :notify (notification/show data)
-                                   :update-board (refresh-board app "default")
-                                   :update-thread (refresh-thread app (assoc data :board/name "default"))
+                                   :update-board (refresh-board app (:board/name data))
+                                   :update-thread (refresh-thread app data)
                                    :join  (om/transact! app [:users] #(conj % data))
                                    :leave (om/transact! app [:users] #(disj % data))
                                    :call  (js/alert (:message data)))))))
@@ -89,7 +89,7 @@
 
   (will-mount [_]
     (routing/init app owner)
-    (refresh-board app "default")
+    (refresh-board app (:target-board-name @app))
     (api/request "/api/reactions"
                  {:handler
                   (fn [response]
@@ -141,7 +141,7 @@
              :on-key-up (fn [_]
                          (if-let [query (.. js/document (getElementById "search") -value)]
                            (if (> (count query) 2)
-                             (search-threads owner "default" query)
+                             (search-threads owner (:target-board-name app) query)
                              (om/set-state! owner :search-result nil))))}]
            [:i.search.icon]]
           (when (not-empty search-result)
@@ -176,12 +176,11 @@
           [:span (:user/name user)] ]
          [:div.menu.transition {:class (if open-profile? "visible" "hidden")}
           [:a.item {:href "/logout"} "Logout"]]]]]
-      (when-let [board (get-in app [:boards "default"])]
+      (when-let [board (get-in app [:boards (:target-board-name app)])]
         (case (:page app)
+          :boards (om/build boards-view (:boards app))
           :board (om/build board-view board
                            {:init-state {:channel board-channel}
-                            :state {:target-thread (:target-thread app)
-                                    :target-comment (:target-comment app)}
                             :opts {:user user
                                    :reactions (:reactions app)}})
           :article (om/build article-page (:article app)
