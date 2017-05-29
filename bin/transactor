@@ -1,6 +1,6 @@
 #!/bin/bash
 
-datomic_version=0.9.5206
+datomic_version=0.9.5385
 datomic_dir=datomic-free-${datomic_version}
 
 function get_datomic () {
