@@ -65,7 +65,7 @@
                            (om/set-state! owner :search-result results))}))
 
 (defn connect-socket [app token]
-  (socket/open (str "ws://" (.-host js/location) "/ws?token=" token)
+  (socket/open (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://") (.-host js/location) "/ws?token=" token)
                  :on-message (fn [message]
                                (let [[cmd data] (read-string message)]
                                  (case cmd
