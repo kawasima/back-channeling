@@ -489,7 +489,14 @@
 
 (defcomponent boards-view [boards owner]
   (render-state [_ state]
-       (html
+    (html
      [:div.main.content.full.height
-      [:p [:a.link {:href "#/board/default"} "default board"]]
-      ])))
+      [:div.ui.cards
+       (for [[board-name {:keys [value]}] boards]
+         [:div.card.link
+          {:on-click (fn [e]
+                       (set! (.-href js/location) (str "#/board/" board-name)))}
+          [:div.content
+           [:div.header (:board/name value)]
+           [:div.description
+            [:p (:board/description value)]]]])]])))

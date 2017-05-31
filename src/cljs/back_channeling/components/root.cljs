@@ -13,6 +13,12 @@
         [back-channeling.component-helper :only [make-click-outside-fn]]
         [cljs.reader :only [read-string]]))
 
+(defn refresh-boards [app]
+  (api/request "/api/boards"
+               {:handler (fn [response]
+                           (let [boards (reduce #(assoc %1 (:board/name %2) {:value %2}) {} response)]
+                             (om/update! app :boards boards)))}))
+
 (defn refresh-board [app board-name]
   (api/request (str "/api/board/" board-name)
                {:handler (fn [response]
@@ -53,7 +59,7 @@
                 #(assoc %
                         :thread/last-updated (:thread/last-updated thread)
                         :thread/resnum (:thread/resnum thread)))
-  (when (= (:target-thread @app) (:db/id thread))
+  (when (= (get-in @app [:boards (:target-board-name @app) :target :thread]) (:db/id thread))
     (fetch-comments app thread
                     (or (:comments/from thread)
                         (inc (count (get-in @app [:boards (:board/name thread) :value :board/threads (:db/id thread) :thread/comments] []))))
@@ -89,7 +95,8 @@
 
   (will-mount [_]
     (routing/init app owner)
-    (refresh-board app (:target-board-name @app))
+    (refresh-boards app)
+    ; (refresh-board app (:target-board-name @app))
     (api/request "/api/reactions"
                  {:handler
                   (fn [response]
@@ -184,5 +191,5 @@
                             :opts {:user user
                                    :reactions (:reactions app)}})
           :article (om/build article-page (:article app)
-                              {:init-state {:thread (get-in board [:board/threads (:target-thread app)])}
+                              {:init-state {:thread (get-in board [:value :board/threads (:target-thread app)])}
                                :opts {:user user}})))])))
