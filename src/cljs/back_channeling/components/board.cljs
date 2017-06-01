@@ -21,6 +21,14 @@
 (def date-format-m  (DateTimeFormat. goog.i18n.DateTimeFormat.Format.MEDIUM_DATETIME
                                      (aget goog.i18n (str "DateTimeSymbols_" (.-language js/navigator)))))
 
+(defn save-board [board]
+  (api/request "/api/boards"
+               :POST
+               board
+               {:handler (fn [response]
+                           (set! (.-href js/location) (str "#/board/" (:board/name board))))}))
+
+
 (defn save-comment [comment on-success]
   (if (= (:comment/format comment) :comment.format/voice)
     (let [blob (:comment/content comment)]
@@ -488,15 +496,47 @@
                                   :reactions reactions}}))])]]))))
 
 (defcomponent boards-view [boards owner]
-  (render-state [_ state]
+  (init-state [_] {:board {:board/name ""
+                           :board/description ""}})
+  (render-state [_ {:keys [board error-map]}]
     (html
      [:div.main.content.full.height
       [:div.ui.cards
        (for [[board-name {:keys [value]}] boards]
-         [:div.card.link
+         [:a.card.link
           {:on-click (fn [e]
                        (set! (.-href js/location) (str "#/board/" board-name)))}
           [:div.content
            [:div.header (:board/name value)]
            [:div.description
-            [:p (:board/description value)]]]])]])))
+            [:p (:board/description value)]]]])]
+      [:h4.ui.horizontal.divider.headre [:i.icon.edit] "New"]
+      [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
+        [:div.field  (when (:board/name error-map) {:class "error"})
+          [:label "Board Name"]
+          [:input {:type "text" :name "name" :value (:board/name board)
+                   :on-change (fn [e] (om/set-state! owner [:board :board/name] (.. e -target -value)))}]]
+        [:div.field
+          [:label "Description"]
+          [:textarea {:name "description"
+                      :value (:board/description board)
+                      :on-change (fn [e]
+                                   (om/set-state! owner [:board :board/description] (.. e -target -value)))
+                      :on-key-up (fn [e]
+                                   (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
+                                     (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
+                                       (.click btn))))}]]
+          [:div.field
+            [:button.ui.blue.labeled.submit.icon.button
+             {:on-click (fn [_]
+                          (let [board (om/get-state owner :board)
+                                [result map] (b/validate board
+                                                         :board/name v/required)]
+                            (if result
+                              (om/set-state! owner :error-map (:bouncer.core/errors map))
+                              (do (save-board board)
+                                  (om/update-state! owner [:board]
+                                                    #(assoc %
+                                                            :board/name ""
+                                                            :board/description ""))))))}
+             [:i.icon.edit] "Create board"]]]])))

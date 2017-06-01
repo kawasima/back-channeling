@@ -16,24 +16,12 @@
 (defn refresh-boards [app]
   (api/request "/api/boards"
                {:handler (fn [response]
-                           (let [boards (reduce #(assoc %1 (:board/name %2) {:value %2}) {} response)]
+   (println (str "response : " response))
+                           (let [boards (->> response
+                                             (map #(assoc % :board/threads {}))
+                                             (reduce #(assoc %1 (:board/name %2) {:value %2}) {}))]
+                               (println (str "board : " boards))
                              (om/update! app :boards boards)))}))
-
-(defn refresh-board [app board-name]
-  (api/request (str "/api/board/" board-name)
-               {:handler (fn [response]
-                           (let [new-board (update-in response [:board/threads]
-                                                      (fn [threads]
-                                                        (->> threads
-                                                             (map (fn [t] {(:db/id t) t}))
-                                                             (reduce merge {}))))]
-                             (if (get-in @app [:boards board-name])
-                               (om/transact! app [:boards board-name :value]
-                                             (fn [board]
-                                               (update-in new-board [:board/threads]
-                                                          #(merge-with merge % (:board/threads board)))))
-
-                               (om/update! app [:boards board-name :value] new-board))))}))
 
 (defn fetch-comments
   ([app thread]
@@ -96,7 +84,6 @@
   (will-mount [_]
     (routing/init app owner)
     (refresh-boards app)
-    ; (refresh-board app (:target-board-name @app))
     (api/request "/api/reactions"
                  {:handler
                   (fn [response]
@@ -139,6 +126,9 @@
         [:a {:href "#/"}
          [:img.ui.logo.image {:src "/img/logo.png" :alt "Back Channeling"}]]]
        [:div.center.menu
+        (when (= (:page app) :board)
+          [:a.item {:href "#/"}
+           [:h2.ui.header [:i.block.layout.icon] [:div.content (:target-board-name app)]]])
         [:div.item
          [:div.ui.search
           [:div.ui.icon.input
