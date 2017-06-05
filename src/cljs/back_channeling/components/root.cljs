@@ -16,12 +16,26 @@
 (defn refresh-boards [app]
   (api/request "/api/boards"
                {:handler (fn [response]
-   (println (str "response : " response))
                            (let [boards (->> response
                                              (map #(assoc % :board/threads {}))
                                              (reduce #(assoc %1 (:board/name %2) {:value %2}) {}))]
-                               (println (str "board : " boards))
                              (om/update! app :boards boards)))}))
+
+(defn refresh-board [app board-name]
+  (api/request (str "/api/board/" board-name)
+               {:handler (fn [response]
+                           (let [new-board (update-in response [:board/threads]
+                                                      (fn [threads]
+                                                        (->> threads
+                                                             (map (fn [t] {(:db/id t) t}))
+                                                             (reduce merge {}))))]
+                             (if (get-in @app [:boards board-name :value])
+                               (om/transact! app [:boards board-name :value]
+                                             (fn [board]
+                                               (update-in new-board [:board/threads]
+                                                          #(merge-with merge % (:board/threads board)))))
+
+                               (om/update! app [:boards board-name :value] new-board))))}))
 
 (defn fetch-comments
   ([app thread]
