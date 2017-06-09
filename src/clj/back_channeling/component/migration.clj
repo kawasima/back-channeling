@@ -9,6 +9,7 @@
            (fields
             [name :string :indexed :unique-value :fulltext]
             [description :string]
+            [tags :ref :many]
             [threads :ref :many]))
    (schema thread
            (fields
@@ -38,6 +39,7 @@
            (fields
             [name :string :unique-value]
             [email :string :unique-value]
+            [tags :ref :many]
             [password :string]
             [salt :bytes]
             [token :string]))
@@ -58,7 +60,13 @@
             [target-users :ref :many]
             [type :enum [:referred :mentioned]]
             [thread :ref]
-            [comment-no :long]))])
+            [comment-no :long]))
+   (schema tag
+           (fields
+            [name :string :fulltext]
+            [owners :ref :many]
+            [private? :boolean]
+            [description :string]))])
 
 (defn generate-enums [& enums]
   (apply concat

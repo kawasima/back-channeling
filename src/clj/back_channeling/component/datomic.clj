@@ -1,5 +1,6 @@
 (ns back-channeling.component.datomic
   (:require [com.stuartsierra.component :as component]
+            [clojure.tools.logging :as log]
             [datomic.api :as d]))
 
 (defn query [{:keys [connection]} q & params]
