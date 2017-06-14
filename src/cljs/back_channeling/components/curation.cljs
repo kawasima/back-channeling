@@ -161,15 +161,21 @@
                             (if-let [id (:db/id article)]
                               (api/request (str "/api/article/" id) :PUT
                                      (-> (om/get-state owner :editing-article)
-                                         (assoc :article/curator user))
+                                         (assoc :article/curator user :article/thread (:db/id thread)))
                                      {:handler (fn [response]
                                                  (om/set-state! owner [:editing-article :db/id] (:db/id response)))})
                               (api/request (str "/api/articles") :POST
                                      (-> (om/get-state owner :editing-article)
-                                         (assoc :article/curator user))
+                                         (assoc :article/curator user :article/thread (:db/id thread)))
                                      {:handler (fn [response]
                                                  (set! (.-href js/location) (str "#/article/" (:db/id response)))
-                                                 (.reload js/location))})))))}
+                                                 (.reload js/location))
+                                      :error-handler (fn [response xhrio]
+                                                       (let [message
+                                                             (condp == (.getStatus xhrio)
+                                                               409 "Specified artifact name is already used."
+                                                               (str response))]
+                                                         (om/set-state! owner :error-map [[nil [message]]])))})))))}
            [:i.save.icon] "Save"]]
          (when-not (empty? error-map)
            [:div.ui.error.message

@@ -38,7 +38,7 @@
                         (let [res (read-string (.getResponseText xhrio))]
                           (cond
                             (fn? error-handler)
-                            (error-handler res (.getLastErrorCode xhrio))
+                            (error-handler res xhrio)
 
                             (map? error-handler)
                             (condp = (.getLastErrorCode xhrio)

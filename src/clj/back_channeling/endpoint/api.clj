@@ -378,11 +378,26 @@
    :handle-ok (fn [_]
                 (vec (find-users socketapp)))))
 
+(defn find-article-by-name [datomic article-name]
+  (d/query
+   datomic
+   '{:find [[?article]]
+     :in [$ ?article-name]
+     :where [[?article :article/name ?article-name]]}
+   article-name))
+
 (defn articles-resource [{:keys [datomic]}]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
    :allowed-methods [:get :post]
    :malformed? #(parse-request %)
+   :post-to-existing? (fn [{{article-name :article/name} :edn :as ctx}]
+                        (not
+                         (and (#{:post} (get-in ctx [:request :request-method]))
+                              (find-article-by-name datomic article-name))))
+   ;; Only :post-to-existing? = false pattern.
+   :put-to-existing? (fn [_] true)
+   :conflict? (fn [_] true)
    :post! (fn [{article :edn req :request}]
             (let [article-id (d/tempid :db.part/user)
                   tempids (-> (d/transact datomic
