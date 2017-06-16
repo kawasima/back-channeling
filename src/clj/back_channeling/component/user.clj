@@ -51,7 +51,7 @@
 (defn tags-resource [{:keys [datomic]} user-name]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
-   :allowed-methods [:post]
+   :allowed-methods [:get :post]
    :malformed? #(parse-request % {:db/id [[v/required]]})
    :allowed? (fn [ctx]
                (let [identity (get-in ctx [:request :identity])
@@ -60,19 +60,31 @@
                                      :in [$ ?u-name]
                                      :where [[?u :user/name ?u-name]]}
                                    user-name)
-                     tag (find-authorized-tag datomic (get-in ctx [:edn :db/id]) (:user/name identity))]
-                 (if tag
-                   {::tag tag ::user user ::identity identity}
-                   false)))
+                     method (get-in ctx [:request :request-method])]
+                 (if (= method :get)
+                   {::user user ::identity identity ::method method}
+                   (if-let [tag (find-authorized-tag datomic (get-in ctx [:edn :db/id]) (:user/name identity))]
+                     {::tag tag ::user user ::identity identity ::method method}
+                     false))))
 
-   :exists? (fn [{tag ::tag user ::user}]
-              (when (d/query datomic
-                             '{:find [?t .]
-                               :in [$ ?u-name ?t]
-                               :where [[?u :user/name ?u-name]
-                                       [?u :user/tags ?t]]}
-                             (:user/name user) (:db/id tag))
-                true))
+   :exists? (fn [{tag ::tag user ::user method ::method}]
+              (if (= method :post)
+                (when (d/query datomic
+                               '{:find [?t .]
+                                 :in [$ ?u ?t]
+                                 :where [[?u :user/tags ?t]]}
+                               (:db/id user) (:db/id tag))
+                  true)
+                (if-let [tags (d/query datomic
+                                       '{:find [[(pull ?t [:*]) ...]]
+                                         :in [$ ?u]
+                                         :where [[?t :tag/owners ?u]
+                                                 [?t :tag/private? true]]}
+                                       (:db/id user))]
+                  {::tags tags})))
+
+   :handle-ok (fn [{tags ::tags}]
+                tags)
 
    :post! (fn [{tag ::tag user ::user}]
               (d/transact datomic [[:db/add (:db/id user) :user/tags (:db/id tag)]])

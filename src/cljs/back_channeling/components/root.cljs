@@ -98,6 +98,7 @@
   (will-mount [_]
     (routing/init app owner)
     (refresh-boards app)
+    (routing/fetch-private-tags app)
     (api/request "/api/reactions"
                  {:handler
                   (fn [response]
@@ -189,7 +190,7 @@
           [:a.item {:href "/logout"} "Logout"]]]]]
       (when-let [board (get-in app [:boards (:target-board-name app)])]
         (case (:page app)
-          :boards (om/build boards-view (:boards app))
+          :boards (om/build boards-view (:boards app) {:opts {:private-tags (:private-tags app)}})
           :board (om/build board-view board
                            {:init-state {:channel board-channel}
                             :opts {:user user
