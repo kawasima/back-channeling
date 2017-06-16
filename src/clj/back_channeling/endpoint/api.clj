@@ -395,15 +395,18 @@
                         (not
                          (and (#{:post} (get-in ctx [:request :request-method]))
                               (find-article-by-name datomic article-name))))
+
    ;; Only :post-to-existing? = false pattern.
    :put-to-existing? (fn [_] true)
    :conflict? (fn [_] true)
+
    :post! (fn [{article :edn req :request}]
             (let [article-id (d/tempid :db.part/user)
                   tempids (-> (d/transact datomic
                                           (apply concat [{:db/id article-id
                                                           :article/name (:article/name article)
-                                                          :article/curator [:user/name (get-in article [:article/curator :user/name])]}]
+                                                          :article/curator [:user/name (get-in article [:article/curator :user/name])]
+                                                          :article/thread (:article/thread article)}]
                                                  (for [block (:article/blocks article)]
                                                    (let [tempid (d/tempid :db.part/user)]
                                                      [[:db/add article-id :article/blocks tempid]
@@ -452,9 +455,10 @@
                         '[:*
                           {:article/curator [:user/name :user/email]}
                           {:article/blocks [:curating-block/posted-at
-                                             :curating-block/content
-                                             {:curating-block/format [:db/ident]}
-                                             {:curating-block/posted-by [:user/name :user/email]}]}]
+                                            :curating-block/content
+                                            {:curating-block/format [:db/ident]}
+                                            {:curating-block/posted-by [:user/name :user/email]}]}
+                          {:article/thread [:*]}]
                         article-id))))
 
 (defn token-resource [{:keys [datomic token]}]

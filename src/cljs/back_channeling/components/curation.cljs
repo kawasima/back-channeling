@@ -163,7 +163,7 @@
                                      (-> (om/get-state owner :editing-article)
                                          (assoc :article/curator user :article/thread (:db/id thread)))
                                      {:handler (fn [response]
-                                                 (om/set-state! owner [:editing-article :db/id] (:db/id response)))})
+                                                 (om/set-state! owner [:editing-article :db/id] (:db/id article)))})
                               (api/request (str "/api/articles") :POST
                                      (-> (om/get-state owner :editing-article)
                                          (assoc :article/curator user :article/thread (:db/id thread)))
