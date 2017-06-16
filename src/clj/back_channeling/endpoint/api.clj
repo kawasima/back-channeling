@@ -393,12 +393,16 @@
    :malformed? #(parse-request %)
    :post-to-existing? (fn [{{article-name :article/name} :edn :as ctx}]
                         (not
-                         (and (#{:post} (get-in ctx [:request :request-method]))
-                              (find-article-by-name datomic article-name))))
+                         (or
+                          (#{:get} (get-in ctx [:request :request-method]))
+                          (and (#{:post} (get-in ctx [:request :request-method]))
+                               (find-article-by-name datomic article-name)))))
 
    ;; Only :post-to-existing? = false pattern.
-   :put-to-existing? (fn [_] true)
-   :conflict? (fn [_] true)
+   :put-to-existing? (fn [ctx]
+                       (#{:post} (get-in ctx [:request :request-method])))
+   :conflict? (fn [ctx]
+                (#{:post} (get-in ctx [:request :request-method])))
 
    :post! (fn [{article :edn req :request}]
             (let [article-id (d/tempid :db.part/user)
