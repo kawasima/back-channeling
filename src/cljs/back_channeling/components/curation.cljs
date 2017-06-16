@@ -175,7 +175,7 @@
                                                              (condp == (.getStatus xhrio)
                                                                409 "Specified artifact name is already used."
                                                                (str response))]
-                                                         (om/set-state! owner :error-map [[nil [message]]])))})))))}
+                                                         (om/set-state! owner :error-map {:article/name [message]})))})))))}
            [:i.save.icon] "Save"]]
          (when-not (empty? error-map)
            [:div.ui.error.message
