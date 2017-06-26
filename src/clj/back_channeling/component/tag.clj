@@ -78,11 +78,11 @@
                                    '{:find [?u .]
                                      :in [$ ?name]
                                      :where [[?u :user/name ?name]]}
-                                   (:user/name identity))
+                                   (:tag/owner new))
                  qs [(when-let [name (:tag/name new)]               [:db/add tag-id :tag/name name])
                      (when-let [description (:tag/description new)] [:db/add tag-id :tag/description description])
                      (when-let [private? (:tag/private? new)]       [:db/add tag-id :tag/private? private?])
-                                                                    [:db/add tag-id :tag/owners owner-id]]]
+                     (when owner-id                                 [:db/add tag-id :tag/owners owner-id])                                               ]]
              (d/transact datomic (filter (fn [q] q) qs))))
 
    :handle-ok (fn [{tag ::tag}]
