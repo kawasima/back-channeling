@@ -63,7 +63,7 @@
                                                    [?owner :user/name ?u-name]]}
                                          tag-id (:user/name identity))]
                  (if (or owner-name (= method :get))
-                   {::identity identity}
+                   true
                    false)))
 
    :exists? (fn [ctx]
@@ -78,12 +78,11 @@
                                    '{:find [?u .]
                                      :in [$ ?name]
                                      :where [[?u :user/name ?name]]}
-                                   (:tag/owner new))
+                                   (:tag/owner-name new))
                  qs [(when-let [name (:tag/name new)]               [:db/add tag-id :tag/name name])
                      (when-let [description (:tag/description new)] [:db/add tag-id :tag/description description])
-                     (when-let [private? (:tag/private? new)]       [:db/add tag-id :tag/private? private?])
-                     (when owner-id                                 [:db/add tag-id :tag/owners owner-id])                                               ]]
-             (d/transact datomic (filter (fn [q] q) qs))))
+                     (when     owner-id                             [:db/add tag-id :tag/owners owner-id])]]
+             (d/transact datomic (filter some? qs))))
 
    :handle-ok (fn [{tag ::tag}]
                 tag)))

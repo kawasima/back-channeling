@@ -32,7 +32,7 @@
 
 (defn board-authorized? [datomic user-name board-name]
   (let [public (d/query datomic
-                        '{:find [?b]
+                        '{:find [?b .]
                           :in [$ ?b-name]
                           :where [[?b :board/name ?b-name]
                                   (not-join [?b]
@@ -40,7 +40,7 @@
                                     [?t :tag/private? true])]}
                         board-name)
         private (d/query datomic
-                          '{:find [?b]
+                          '{:find [?b .]
                             :in [$ ?b-name ?u-name]
                             :where [[?b :board/name ?b-name]
                                     [?u :user/name ?u-name]
@@ -48,9 +48,9 @@
                                     [?b :board/tags ?tag]
                                     [?tag :tag/private? true]]}
                           board-name user-name)]
-        (if (or (some? public) (some? private))
-          true
-          false)))
+    (if (or (some? public) (some? private))
+      true
+      false)))
 
 (defn save-board [datomic board]
   (let [board-id (d/tempid :db.part/user)
@@ -104,7 +104,8 @@
    :allowed-methods [:get :put]
    :malformed? #(parse-request %)
 
-   :allowed? (fn [ctx] (board-authorized? datomic (get-in ctx [:request :identity :user/name]) board-name))
+   :allowed? (fn [ctx]
+               (board-authorized? datomic (get-in ctx [:request :identity :user/name]) board-name))
 
    :exists? (fn [ctx]
               (if-let [board (d/query datomic
@@ -222,7 +223,7 @@
 
    :allowed? (fn [ctx]
                (let [board-name (d/query datomic
-                                         '{:find [?b-name]
+                                         '{:find [?b-name .]
                                            :in [$ ?th]
                                            :where [[?b :board/threads ?th]
                                                    [?b :board/name ?b-name]]}
@@ -268,7 +269,7 @@
                                                                "comment.format/voice"]]]})
    :allowed? (fn [ctx]
                (let [board-name (d/query datomic
-                                         '{:find [?b-name]
+                                         '{:find [?b-name .]
                                            :in [$ ?th]
                                            :where [[?b :board/threads ?th]
                                                    [?b :board/name ?b-name]]}
@@ -365,7 +366,7 @@
    :malformed? #(parse-request % {:reaction/name [[v/required]]})
    :allowed? (fn [{identity ::identity}]
                (let [board-name (d/query datomic
-                                         '{:find [?b-name]
+                                         '{:find [?b-name .]
                                            :in [$ ?th]
                                            :where [[?b :board/threads ?th]
                                                    [?b :board/name ?b-name]]}
@@ -428,7 +429,7 @@
                      true)))
    :allowed? (fn [ctx]
                (let [board-name (d/query datomic
-                                         '{:find [?b-name]
+                                         '{:find [?b-name .]
                                            :in [$ ?th]
                                            :where [[?b :board/threads ?th]
                                                    [?b :board/name ?b-name]]}
