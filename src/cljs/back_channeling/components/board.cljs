@@ -462,12 +462,7 @@
                     {:opts {:board-name (:board/name board)}})
           [:div.ui.top.attached.thread.content.segment
           [:div.ui.top.attached.tabular.sticky.menu
-            (when sticky-thread-content?
-              {:class "fixed"
-              :style {:margin-top "66px"
-                      :width "874px"
-                      :background-color "#ffffff"
-                      :z-index "1"}})
+            (when sticky-thread-content? {:class "fixed"})
             (for [tab tabs]
               [:a.item (merge {:on-click (fn [_]
                                           (set! (.-href js/location)
