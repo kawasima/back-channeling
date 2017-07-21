@@ -1,7 +1,5 @@
 (ns back-channeling.endpoint.api
-  (:require [clojure.edn :as edn]
-            [clojure.data.json :as json]
-            [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
             [clojure.tools.logging :as log]
             [clj-time.format :as time-fmt]
             [clj-time.coerce :refer [from-date to-date]]
@@ -9,11 +7,13 @@
             [compojure.coercions  :refer :all]
             [liberator.representation :refer [ring-response]]
             [liberator.core :as liberator]
-            [bouncer.core :as b]
             [bouncer.validators :as v]
+            (back-channeling [util :refer [parse-request]])
             (back-channeling.component [datomic :as d]
                                        [token :as token]
-                                       [socketapp :refer [broadcast-message multicast-message find-users]]))
+                                       [socketapp :refer [broadcast-message multicast-message]]
+                                       [tag :as tag]
+                                       [user :as user]))
   (:import [java.util Date UUID]
            [java.nio.file Files Paths CopyOption]
            [java.nio.file.attribute FileAttribute]))
@@ -30,46 +30,35 @@
   (-write [uuid out]
     (json/-write (.toString uuid) out)))
 
-(defn- body-as-string
-  "Returns a request body as String."
-  [ctx]
-  (if-let [body (get-in ctx [:request :body])]
-    (condp instance? body
-      java.lang.String body
-      (slurp (io/reader body)))))
-
-(defn- validate
-  "Validate the given model with the given spec of validation."
-  [model validation-spec]
-  (if validation-spec
-    (let [[result map] (b/validate model validation-spec)]
-      (if result
-        {:message (pr-str (:bouncer.core/errors map))}
-        [false {:edn model}]))
-    [false {:edn model}]))
-
-(defn- parse-request
-  ([context]
-   (parse-request context nil))
-  ([context validation-spec]
-   (when (#{:put :post} (get-in context [:request :request-method]))
-     (try
-       (if-let [body (body-as-string context)]
-         (case (get-in context [:request :content-type])
-           "application/edn"  (validate (edn/read-string body) validation-spec)
-           "application/json" (validate (json/read-str body :key-fn keyword) validation-spec)
-           {:message "Unknown format."})
-         false)
-       (catch Exception e
-         (log/error e "fail to parse edn.")
-         {:message (format "IOException: %s" (.getMessage e))})))))
+(defn board-authorized? [datomic user-name board-name]
+  (let [public (d/query datomic
+                        '{:find [?b .]
+                          :in [$ ?b-name]
+                          :where [[?b :board/name ?b-name]
+                                  (not-join [?b]
+                                    [?b :board/tags ?t]
+                                    [?t :tag/private? true])]}
+                        board-name)
+        private (d/query datomic
+                          '{:find [?b .]
+                            :in [$ ?b-name ?u-name]
+                            :where [[?b :board/name ?b-name]
+                                    [?u :user/name ?u-name]
+                                    [?u :user/tags ?tag]
+                                    [?b :board/tags ?tag]
+                                    [?tag :tag/private? true]]}
+                          board-name user-name)]
+    (if (or (some? public) (some? private))
+      true
+      false)))
 
 (defn save-board [datomic board]
   (let [board-id (d/tempid :db.part/user)
+        qs (map (fn [tag-id] [:db/add board-id :board/tags tag-id]) (:board/tags board))
         tempids (-> (d/transact datomic
-                                [{:db/id board-id
-                                  :board/name (:board/name board)
-                                  :board/description (:board/description board)}])
+                                (conj qs {:db/id board-id
+                                          :board/name (:board/name board)
+                                          :board/description (:board/description board)}))
                     :tempids)]
     [tempids board-id]))
 
@@ -92,16 +81,32 @@
    :handle-created (fn [ctx]
                      {:db/id (:db/id ctx)})
 
-   :handle-ok (fn [_]
-                (d/query datomic
-                         '{:find [[(pull ?board [:*]) ...]]
-                           :where [[?board :board/name]]}))))
+   :handle-ok (fn [{identity ::identity}]
+                (let [public-boards (d/query datomic
+                                             '{:find [[(pull ?board [:*]) ...]]
+                                               :where [[?board :board/name]
+
+                                                       (not-join [?board] [?board :board/tags ?tag]
+                                                         [?tag :tag/private? true])]})
+                      private-boards (d/query datomic
+                                             '{:find [[(pull ?board [:*]) ...]]
+                                               :in [$ ?uer-name]
+                                               :where [[?uer :user/name ?uer-name]
+                                                       [?uer :user/tags ?tag]
+                                                       [?board :board/tags ?tag]
+                                                       [?tag :tag/private? true]]}
+                                             (:user/name identity))]
+                  (concat public-boards private-boards)))))
 
 (defn board-resource [{:keys [datomic]} board-name]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
    :allowed-methods [:get :put]
    :malformed? #(parse-request %)
+
+   :allowed? (fn [ctx]
+               (board-authorized? datomic (get-in ctx [:request :identity :user/name]) board-name))
+
    :exists? (fn [ctx]
               (if-let [board (d/query datomic
                                        '{:find [(pull ?board [:*]) .]
@@ -169,6 +174,8 @@
                     {::identity identity}
                     false))
 
+   :allowed? (fn [{identity ::identity}] (board-authorized? datomic (:user/name identity) board-name))
+
    :handle-created (fn [ctx]
                      {:db/id (:db/id ctx)})
 
@@ -213,6 +220,16 @@
    :available-media-types ["application/edn" "application/json"]
    :allowed-methods [:get :put]
    :malformed? #(parse-request %)
+
+   :allowed? (fn [ctx]
+               (let [board-name (d/query datomic
+                                         '{:find [?b-name .]
+                                           :in [$ ?th]
+                                           :where [[?b :board/threads ?th]
+                                                   [?b :board/name ?b-name]]}
+                                         thread-id)]
+                 (board-authorized? datomic (get-in ctx [:request :identity :user/name]) board-name)))
+
    :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
            (when-let [user (d/query datomic
                                     '{:find [?u .]
@@ -250,6 +267,14 @@
                                                                "comment.format/plain"
                                                                "comment.format/markdown"
                                                                "comment.format/voice"]]]})
+   :allowed? (fn [ctx]
+               (let [board-name (d/query datomic
+                                         '{:find [?b-name .]
+                                           :in [$ ?th]
+                                           :where [[?b :board/threads ?th]
+                                                   [?b :board/name ?b-name]]}
+                                         thread-id)]
+                 (board-authorized? datomic (get-in ctx [:request :identity :user/name]) board-name)))
    :processable? (fn [ctx]
                    (if (#{:put :post} (get-in ctx [:request :request-method]))
                      (if-let [resnum (d/query datomic
@@ -339,7 +364,14 @@
                     {::identity identity}
                     false))
    :malformed? #(parse-request % {:reaction/name [[v/required]]})
-
+   :allowed? (fn [{identity ::identity}]
+               (let [board-name (d/query datomic
+                                         '{:find [?b-name .]
+                                           :in [$ ?th]
+                                           :where [[?b :board/threads ?th]
+                                                   [?b :board/name ?b-name]]}
+                                         thread-id)]
+                 (board-authorized? datomic (:user/name identity) board-name)))
    :post! (fn [{comment-reaction :edn identity ::identity}]
             (let [user (d/query datomic
                                 '{:find [?u .]
@@ -395,6 +427,14 @@
                      "audio/ogg"  [false {::media-type :audio/ogg}]
                      "audio/wav"  [false {::media-type :audio/wav}]
                      true)))
+   :allowed? (fn [ctx]
+               (let [board-name (d/query datomic
+                                         '{:find [?b-name .]
+                                           :in [$ ?th]
+                                           :where [[?b :board/threads ?th]
+                                                   [?b :board/name ?b-name]]}
+                                         thread-id)]
+                 (board-authorized? datomic (get-in ctx [:request :identity :user/name]) board-name)))
    :post! (fn [ctx]
             (let [body-stream (get-in ctx [:request :body])
                   filename (str (.toString (UUID/randomUUID))
@@ -411,13 +451,6 @@
               {::filename filename}))
    :handle-created (fn [ctx]
                      {:comment/content (str thread-id "/" (::filename ctx))})))
-
-(defn users-resource [{:keys [socketapp]} path]
-  (liberator/resource
-   :available-media-types ["application/edn" "application/json"]
-   :allowed-methods [:get]
-   :handle-ok (fn [_]
-                (vec (find-users socketapp)))))
 
 (defn articles-resource [{:keys [datomic]}]
   (liberator/resource
@@ -517,7 +550,7 @@
                            :in [$]
                            :where [[?r :reaction/name]]}))))
 
-(defn api-endpoint [config]
+(defn api-endpoint [{:keys [datomic token socketapp tag user] :as config}]
   (context "/api" []
    (ANY "/token" []  (token-resource config))
    (ANY "/boards" [] (boards-resource config))
@@ -545,6 +578,16 @@
      (articles-resource config))
    (ANY "/article/:article-id" [article-id]
      (article-resource config (Long/parseLong article-id)))
-   (ANY "/users" [] (users-resource config "/ws"))
+   (ANY "/users" [] (user/list-resource user))
+   (ANY "/user/:user-name" [user-name]
+     (user/entry-resource user user-name))
+   (ANY "/user/:user-name/tags" [user-name]
+     (user/tags-resource user user-name))
+   (ANY "/user/:user-name/tag/:tag-id" [user-name tag-id]
+     (user/tag-resource user user-name (Long/parseLong tag-id)))
 
-   (ANY "/reactions" [] (reactions-resource config))))
+   (ANY "/reactions" [] (reactions-resource config))
+
+   (ANY "/tags" [] (tag/list-resource tag))
+   (ANY "/tag/:tag-id" [tag-id]
+     (tag/entry-resource tag (Long/parseLong tag-id)))))
