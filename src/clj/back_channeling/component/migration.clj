@@ -9,15 +9,16 @@
            (fields
             [name :string :indexed :unique-value :fulltext]
             [description :string]
-            [tags :ref :many]
-            [threads :ref :many]))
+            [threads :ref :many]
+            [tags :ref :many]))
    (schema thread
            (fields
             [title :string]
             [comments :ref :many]
             [since :instant]
             [last-updated :instant]
-            [watchers :ref :many]))
+            [watchers :ref :many]
+            [tags :ref :many]))
    (schema comment
            (fields
             [posted-at :instant]
@@ -39,10 +40,10 @@
            (fields
             [name :string :unique-value]
             [email :string :unique-value]
-            [tags :ref :many]
             [password :string]
             [salt :bytes]
-            [token :string]))
+            [token :string]
+            [tags :ref :many]))
    (schema article
            (fields
             [name :string :unique-value]
@@ -66,6 +67,8 @@
             [name :string :fulltext]
             [owners :ref :many]
             [private? :boolean]
+            [color :enum [:white :black :grey :yellow :orange :green :red :blue :pink :purple :brown]]
+            [priority :long]
             [description :string]))])
 
 (defn generate-enums [& enums]
