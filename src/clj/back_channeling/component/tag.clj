@@ -4,7 +4,8 @@
             [bouncer.validators :as v]
             [com.stuartsierra.component :as component]
             (back-channeling [util :refer [parse-request]])
-            (back-channeling.component [datomic :as d])))
+            (back-channeling.component [datomic :as d]
+                                       [user :as user])))
 
 (defn save-tag [datomic tag]
   (let [tag-id (d/tempid :db.part/user)
@@ -18,9 +19,24 @@
                                   :tag/name (:tag/name tag)
                                   :tag/description (or (:tag/description tag) "")
                                   :tag/owners owner-id
-                                  :tag/private? (or (:tag/private? tag) false)}])
+                                  :tag/private? (or (:tag/private? tag) false)
+                                  :tag/color (-> tag
+                                                 (get :tag/color :tag.color/white)
+                                                 keyword)
+                                  :tag/priority (or (:tag/priority tag) 0)}])
                     :tempids)]
     [tempids tag-id]))
+
+(defn find-tag [datomic tag-id]
+  (when tag-id
+    (d/query datomic
+             '{:find [(pull ?t [:*]) .]
+               :in [$ ?t]
+               :where [[?t :tag/name]]}
+             tag-id)))
+
+(defn allowed? [tag user-id]
+  (or (not (:tag/private? tag)) (some #(= user-id %) (:tag/owners tag))))
 
 (defn list-resource [{:keys [datomic]}]
   (liberator/resource
@@ -28,7 +44,29 @@
    :allowed-methods [:get :post]
    :malformed? #(parse-request % {:tag/name [[v/required]
                                              [v/max-count 255]]
-                                  :tag/owner-name [[v/required]]})
+                                  :tag/owner-name [[v/required]]
+                                  :tag/color [[v/member [:tag.color/white
+                                                         :tag.color/black
+                                                         :tag.color/grey
+                                                         :tag.color/yellow
+                                                         :tag.color/orange
+                                                         :tag.color/green
+                                                         :tag.color/red
+                                                         :tag.color/blue
+                                                         :tag.color/pink
+                                                         :tag.color/purple
+                                                         :tag.color/brown
+                                                         "tag.color/white"
+                                                         "tag.color/black"
+                                                         "tag.color/grey"
+                                                         "tag.color/yellow"
+                                                         "tag.color/orange"
+                                                         "tag.color/green"
+                                                         "tag.color/red"
+                                                         "tag.color/blue"
+                                                         "tag.color/pink"
+                                                         "tag.color/purple"
+                                                         "tag.color/brown"]]]})
 
    :post! (fn [{tag :edn req :request}]
             (let [[tempids tag-id] (save-tag datomic tag)]
@@ -81,11 +119,72 @@
                                    (:tag/owner-name new))
                  qs [(when-let [name (:tag/name new)]               [:db/add tag-id :tag/name name])
                      (when-let [description (:tag/description new)] [:db/add tag-id :tag/description description])
-                     (when     owner-id                             [:db/add tag-id :tag/owners owner-id])]]
+                     (when     owner-id                             [:db/add tag-id :tag/owners owner-id])
+                     (when-let [color (:tag/color new)]             [:db/add tag-id :tag/color color])
+                     (when-let [priority (:tag/priority new)]       [:db/add tag-id :tag/priority priority])]]
              (d/transact datomic (filter some? qs))))
 
    :handle-ok (fn [{tag ::tag}]
                 tag)))
+
+(defn user-list-resource [{:keys [datomic]} user-name]
+  (liberator/resource
+   :available-media-types ["application/edn" "application/json"]
+   :allowed-methods [:get :post]
+   :malformed? #(parse-request % {:db/id [[v/required]]})
+   :allowed? (fn [ctx]
+               (let [identity (get-in ctx [:request :identity])
+                     user (user/find-user-by-name datomic user-name)
+                     method (get-in ctx [:request :request-method])
+                     tag (find-tag datomic (get-in ctx [:edn :db/id]))]
+                 (when (or (= method :get) (allowed? tag (:db/id identity)))
+                   {::tag tag ::user user ::identity identity ::method method})))
+
+   :exists? (fn [{tag ::tag user ::user method ::method}]
+              (if (= method :post)
+                (when (d/query datomic
+                               '{:find [?t .]
+                                 :in [$ ?u ?t]
+                                 :where [[?u :user/tags ?t]]}
+                               (:db/id user) (:db/id tag))
+                  true)
+                (if-let [tags (d/query datomic
+                                       '{:find [[(pull ?t [:*]) ...]]
+                                         :in [$ ?u]
+                                         :where [[?t :tag/owners ?u]
+                                                 [?t :tag/private? true]]}
+                                       (:db/id user))]
+                  {::tags tags})))
+
+   :handle-ok (fn [{tags ::tags}]
+                tags)
+
+   :post! (fn [{tag ::tag user ::user}]
+              (d/transact datomic [[:db/add (:db/id user) :user/tags (:db/id tag)]])
+              {:db/id (:db/id tag)})
+
+   :post-to-existing? (fn [_] false)
+
+   :handle-created (fn [{id :db/id}]
+                     {:db/id id})))
+
+(defn user-resource [{:keys [datomic]} user-name tag-id]
+  (liberator/resource
+   :available-media-types ["application/edn" "application/json"]
+   :allowed-methods [:delete]
+
+   :allowed? (fn [ctx]
+               (let [identity (get-in ctx [:request :identity])
+                     user (user/find-user-by-name datomic user-name)
+                     tag (find-tag datomic tag-id)]
+                 (when (allowed? tag (:db/id identity))
+                   {::tag tag ::user user ::identity identity})))
+
+   :exists? (fn [{user ::user tag ::tag}]
+              (some #(= (:db/id tag) %) (:user/tags user)))
+
+   :delete! (fn [{user ::user tag ::tag}]
+              (d/transact datomic [[:db/retract (:db/id user) :user/tags (:db/id tag)]]))))
 
 (defrecord Tag []
   component/Lifecycle

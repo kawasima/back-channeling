@@ -109,10 +109,10 @@
 
    :exists? (fn [ctx]
               (if-let [board (d/query datomic
-                                       '{:find [(pull ?board [:*]) .]
-                                         :in [$ ?b-name]
-                                         :where [[?board :board/name ?b-name]]}
-                                       board-name)]
+                                      '{:find [(pull ?board [:*]) .]
+                                        :in [$ ?b-name]
+                                        :where [[?board :board/name ?b-name]]}
+                                      board-name)]
                 {::board board}
                 false))
 
@@ -132,7 +132,9 @@
                                 (:db/id board))
                        (map #(-> (d/pull datomic
                                          '[:db/id :thread/title :thread/since :thread/last-updated
-                                           {:thread/watchers [:user/name]}]
+                                           {:thread/watchers [:user/name]}
+                                           {:thread/tags [:tag/name :tag/priority
+                                                          {:tag/color [:db/ident]}]}]
                                          (first %))
                                  (assoc :thread/resnum (second %))
                                  (update-in [:thread/watchers]
@@ -230,7 +232,7 @@
                                          thread-id)]
                  (board-authorized? datomic (get-in ctx [:request :identity :user/name]) board-name)))
 
-   :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
+   :put! (fn [{{:keys [add-watcher remove-watcher tag]} :edn req :request}]
            (when-let [user (d/query datomic
                                     '{:find [?u .]
                                       :in [$ ?name]
@@ -241,7 +243,10 @@
                            [[:db/add thread-id :thread/watchers user]]))
              (when remove-watcher
                (d/transact datomic
-                           [[:db/retract thread-id :thread/watchers user]]))))
+                           [[:db/retract thread-id :thread/watchers user]]))
+             (when tag
+               (d/transact datomic
+                           [[:db/add thread-id :thread/tags tag]]))))
    :handle-created (fn [_]
                      {:status "ok"})
    :handle-ok (fn [_]
@@ -605,9 +610,9 @@
    (ANY "/user/:user-name" [user-name]
      (user/entry-resource user user-name))
    (ANY "/user/:user-name/tags" [user-name]
-     (user/tags-resource user user-name))
+     (tag/user-list-resource user user-name))
    (ANY "/user/:user-name/tag/:tag-id" [user-name tag-id]
-     (user/tag-resource user user-name (Long/parseLong tag-id)))
+     (tag/user-resource user user-name (Long/parseLong tag-id)))
 
    (ANY "/reactions" [] (reactions-resource config))
 
