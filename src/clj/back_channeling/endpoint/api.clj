@@ -64,10 +64,34 @@
          (log/error e "fail to parse edn.")
          {:message (format "IOException: %s" (.getMessage e))})))))
 
+(defn save-board [datomic board]
+  (let [board-id (d/tempid :db.part/user)
+        tempids (-> (d/transact datomic
+                                [{:db/id board-id
+                                  :board/name (:board/name board)
+                                  :board/description (:board/description board)}])
+                    :tempids)]
+    [tempids board-id]))
+
 (defn boards-resource [{:keys [datomic]}]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
-   :allowed-methods [:get]
+   :allowed-methods [:get :post]
+   :malformed? #(parse-request % {:board/name [[v/required]
+                                               [v/max-count 255]]})
+
+   :authorized? (fn [ctx]
+                  (if-let [identity (get-in ctx [:request :identity])]
+                    {::identity identity}
+                    false))
+
+   :post! (fn [{board :edn req :request}]
+            (let [[tempids board-id] (save-board datomic board)]
+              {:db/id (d/resolve-tempid datomic tempids board-id)}))
+
+   :handle-created (fn [ctx]
+                     {:db/id (:db/id ctx)})
+
    :handle-ok (fn [_]
                 (d/query datomic
                          '{:find [[(pull ?board [:*]) ...]]
@@ -76,7 +100,8 @@
 (defn board-resource [{:keys [datomic]} board-name]
   (liberator/resource
    :available-media-types ["application/edn" "application/json"]
-   :allowed-methods [:get :post]
+   :allowed-methods [:get :put]
+   :malformed? #(parse-request %)
    :exists? (fn [ctx]
               (if-let [board (d/query datomic
                                        '{:find [(pull ?board [:*]) .]
@@ -85,11 +110,13 @@
                                        board-name)]
                 {::board board}
                 false))
-   :post! (fn [ctx]
-            (d/transact datomic
-                        [{:db/id #db/id[:db.part/message]
-                          :board/name board-name
-                          :board/description board-name}]))
+
+   :put! (fn [{old ::board new :edn}]
+           (d/transact datomic
+             {:db/id (:db/id old)
+              :board/name (:board/name new)
+              :board/description (:board/description new)}))
+
    :handle-ok (fn [ctx]
                 (let [board (::board ctx)]
                   (->> (d/query datomic
@@ -239,6 +266,12 @@
                                   :in [$ ?name]
                                   :where [[?u :user/name ?name]]}
                                 (get-in req [:identity :user/name]))
+                  board-name (d/query datomic
+                                       '{:find [?bname .]
+                                         :in [$ ?t]
+                                         :where [[?b :board/name ?bname]
+                                                 [?b :board/threads ?t]]}
+                                       thread-id)
                   now (Date.)]
               (d/transact
                datomic
@@ -256,7 +289,8 @@
                socketapp
                [:update-thread {:db/id thread-id
                                 :thread/last-updated now
-                                :thread/resnum (inc resnum)}])
+                                :thread/resnum (inc resnum)
+                                :board/name board-name}])
               (when-let [watchers (not-empty (->> (d/pull datomic
                                                           '[{:thread/watchers
                                                              [:user/name :user/email]}]
@@ -312,6 +346,12 @@
                                   :in [$ ?name]
                                   :where [[?u :user/name ?name]]}
                                 (:user/name identity))
+                  board-name (d/query datomic
+                                      '{:find [?bname .]
+                                        :in [$ ?t]
+                                        :where [[?b :board/name ?bname]
+                                                [?b :board/threads ?t]]}
+                                      thread-id)
                   reaction (d/query datomic
                                     '{:find [?r .]
                                       :in [$ ?r-name]
@@ -341,7 +381,8 @@
                                 :thread/last-updated now
                                 :thread/resnum (count comments)
                                 :comments/from comment-no
-                                :comments/to   comment-no}])))))
+                                :comments/to   comment-no
+                                :board/name board-name}])))))
 
 (defn voices-resource [{:keys [datomic]} thread-id]
   (liberator/resource

@@ -6,8 +6,9 @@
 (set! js/md (js/markdownit))
 
 (def app-state (atom {:boards {}
+                      :target-board-name "default"
                       :users #{}
-                      :page :board}))
+                      :page :boards}))
 
 (om/root root-view app-state
          {:target (.getElementById js/document "app")})
