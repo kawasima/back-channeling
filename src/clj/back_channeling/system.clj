@@ -24,6 +24,20 @@
             (back-channeling.endpoint [chat-app :refer [chat-app-endpoint]]
                                       [api      :refer [api-endpoint]])))
 
+(defn wrap-same-origin-policy [handler {:keys [access-control-allow-origin]}]
+  (fn [req]
+    (if (= (:request-method req) :options)
+      ;;Pre-flight request
+      {:status 200
+       :headers {"Access-Control-Allow-Methods" "POST,GET,PUT,DELETE,OPTIONS"
+                 "Access-Control-Allow-Origin" access-control-allow-origin
+                 "Access-Control-Allow-Headers" "Accept, Content-Type"
+                 "Access-Control-Allow-Credentials" "true"}}
+      (when-let [resp (handler req)]
+        (-> resp
+            (header "Access-Control-Allow-Origin" access-control-allow-origin)
+            (header "Access-Control-Allow-Credentials" "true"))))))
+
 (defn api-access? [req]
   (if-let [accept (get-in req [:headers "accept"])]
     (or (.contains accept "application/json")
@@ -51,6 +65,7 @@
                       [wrap-access-rules   :access-rules]
                       [wrap-authorization  :authorization]
                       [wrap-authn          :token :session-base]
+                      [wrap-same-origin-policy :same-origin]
                       [wrap-defaults       :defaults]]
          :access-rules {:rules access-rules :policy :allow}
          :not-found    "Resource Not Found"
