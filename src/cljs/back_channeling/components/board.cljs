@@ -326,6 +326,25 @@
                          [false true]  "unhide green"
                          [false false] "hide grey")}]])))
 
+(defn thread-tags-view [tags]
+  (let [primary (first (max-key :tag/priority tags))
+        color (get
+               {:tag.color/white ""
+                :tag.color/black "black"
+                :tag.color/grey "grey"
+                :tag.color/yellow "yellow"
+                :tag.color/orange "orange"
+                :tag.color/green "green"
+                :tag.color/red "red"
+                :tag.color/blue "blue"
+                :tag.color/pink "pink"
+                :tag.color/purple "purple"
+                :tag.color/brown "brown"}
+                (get-in primary [:tag/color :db/ident]))]
+    (when primary
+      [:div.ui.tag.label (when color {:class color})
+        (:tag/name primary)])))
+
 (defcomponent thread-list-view [threads owner {:keys [board-name]}]
   (init-state [_]
     {:sort-key [:thread/last-updated :desc]
@@ -359,7 +378,8 @@
            [:div "Since"
             (when (= (first sort-key) :thread/since) (case (second sort-key)
                                                               :asc  [:i.caret.up.icon]
-                                                              :desc [:i.caret.down.icon]))]]]]
+                                                              :desc [:i.caret.down.icon]))]]
+          [:th "Tag" [:div "Tag"]]]]
         [:tbody
          (for [thread (->> (vals threads)
                            (map #(if (:thread/watchers %) % (assoc % :thread/watchers #{})))
@@ -373,7 +393,8 @@
               (:thread/title thread)]]
             [:td (:thread/resnum thread)]
             [:td (.format date-format-m (:thread/last-updated thread))]
-            [:td (.format date-format-m (:thread/since thread))]])]]]])))
+            [:td (.format date-format-m (:thread/since thread))]
+            [:td (thread-tags-view (:thread/tags thread))]])]]]])))
 
 (defcomponent thread-new-view [board owner]
   (init-state [_] {:thread {:board/name (:board/name @board)
