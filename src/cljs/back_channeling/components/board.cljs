@@ -327,20 +327,19 @@
                          [false false] "hide grey")}]])))
 
 (defn thread-tags-view [tags]
-  (let [primary (first (max-key :tag/priority tags))
-        color (get
-               {:tag.color/white ""
-                :tag.color/black "black"
-                :tag.color/grey "grey"
-                :tag.color/yellow "yellow"
-                :tag.color/orange "orange"
-                :tag.color/green "green"
-                :tag.color/red "red"
-                :tag.color/blue "blue"
-                :tag.color/pink "pink"
-                :tag.color/purple "purple"
-                :tag.color/brown "brown"}
-                (get-in primary [:tag/color :db/ident]))]
+  (let [primary (apply max-key :tag/priority tags)
+        color (get {:tag.color/white ""
+                    :tag.color/black "black"
+                    :tag.color/grey "grey"
+                    :tag.color/yellow "yellow"
+                    :tag.color/orange "orange"
+                    :tag.color/green "green"
+                    :tag.color/red "red"
+                    :tag.color/blue "blue"
+                    :tag.color/pink "pink"
+                    :tag.color/purple "purple"
+                    :tag.color/brown "brown"}
+                   (get-in primary [:tag/color :db/ident]))]
     (when primary
       [:div.ui.tag.label (when color {:class color})
         (:tag/name primary)])))

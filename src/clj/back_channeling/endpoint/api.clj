@@ -232,7 +232,7 @@
                                          thread-id)]
                  (board-authorized? datomic (get-in ctx [:request :identity :user/name]) board-name)))
 
-   :put! (fn [{{:keys [add-watcher remove-watcher tag]} :edn req :request}]
+   :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
            (when-let [user (d/query datomic
                                     '{:find [?u .]
                                       :in [$ ?name]
@@ -243,10 +243,7 @@
                            [[:db/add thread-id :thread/watchers user]]))
              (when remove-watcher
                (d/transact datomic
-                           [[:db/retract thread-id :thread/watchers user]]))
-             (when tag
-               (d/transact datomic
-                           [[:db/add thread-id :thread/tags tag]]))))
+                           [[:db/retract thread-id :thread/watchers user]]))))
    :handle-created (fn [_]
                      {:status "ok"})
    :handle-ok (fn [_]
@@ -602,6 +599,10 @@
    (ANY "/thread/:thread-id/comment/:comment-no"
        [thread-id :<< as-int comment-no :<< as-int]
      (comment-resource config thread-id comment-no))
+   (ANY "/thread/:thread-id/tags" [thread-id]
+     (tag/thread-list-resource config (Long/parseLong thread-id)))
+   (ANY "/thread/:thread-id/tag/:tag-id" [thread-id tag-id]
+     (tag/thread-resource config (Long/parseLong thread-id) (Long/parseLong tag-id)))
    (ANY "/articles" []
      (articles-resource config))
    (ANY "/article/:article-id" [article-id]
