@@ -181,10 +181,66 @@
                    {::tag tag ::user user ::identity identity})))
 
    :exists? (fn [{user ::user tag ::tag}]
-              (some #(= (:db/id tag) %) (:user/tags user)))
+              (some #(= (:db/id tag) (:db/id %)) (:user/tags user)))
 
    :delete! (fn [{user ::user tag ::tag}]
               (d/transact datomic [[:db/retract (:db/id user) :user/tags (:db/id tag)]]))))
+
+
+(defn thread-list-resource [{:keys [datomic]} thread-id]
+  (liberator/resource
+   :available-media-types ["application/edn" "application/json"]
+   :allowed-methods [:post]
+   :malformed? #(parse-request % {:db/id [[v/required]]})
+   :allowed? (fn [ctx]
+               (let [identity (get-in ctx [:request :identity])
+                     thread (d/query datomic
+                                     '{:find [(pull ?th [:db/id :thread/tags]) .]
+                                       :in [$ ?th]
+                                       :where [[?th :thread/title]]}
+                                     thread-id)
+                     tag (find-tag datomic (get-in ctx [:edn :db/id]))]
+                 (when (allowed? tag (:db/id identity))
+                   {::tag tag ::thread thread ::identity identity})))
+
+   :exists? (fn [{tag ::tag thread ::thread}]
+              (when (d/query datomic
+                             '{:find [?t .]
+                               :in [$ ?th ?t]
+                               :where [[?th :thread/tags ?t]]}
+                             (:db/id thread) (:db/id tag))
+                true))
+
+   :post! (fn [{tag ::tag thread ::thread}]
+              (d/transact datomic [[:db/add (:db/id thread) :thread/tags (:db/id tag)]])
+              {:db/id (:db/id tag)})
+
+   :post-to-existing? (fn [_] false)
+
+   :handle-created (fn [{id :db/id}]
+                     {:db/id id})))
+
+(defn thread-resource [{:keys [datomic]} thread-id tag-id]
+  (liberator/resource
+   :available-media-types ["application/edn" "application/json"]
+   :allowed-methods [:delete]
+
+   :allowed? (fn [ctx]
+               (let [identity (get-in ctx [:request :identity])
+                     thread (d/query datomic
+                                     '{:find [(pull ?th [:db/id :thread/tags]) .]
+                                       :in [$ ?th]
+                                       :where [[?th :thread/title]]}
+                                     thread-id)
+                     tag (find-tag datomic tag-id)]
+                 (when (allowed? tag (:db/id identity))
+                   {::tag tag ::thread thread ::identity identity})))
+
+   :exists? (fn [{thread ::thread tag ::tag}]
+              (some #(= (:db/id tag) (:db/id %)) (:thread/tags thread)))
+
+   :delete! (fn [{thread ::thread tag ::tag}]
+              (d/transact datomic [[:db/retract (:db/id thread) :thread/tags (:db/id tag)]]))))
 
 (defrecord Tag []
   component/Lifecycle
