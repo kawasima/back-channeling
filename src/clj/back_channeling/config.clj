@@ -3,11 +3,10 @@
 
 (def defaults
   {:http      {:port 3009}
-   :app       {:console {:uri "http://localhost:3000"}}
    :socketapp {:path "/ws"}
    :datomic   {:uri  "datomic:mem://bc"
                :recreate? false}})
 
 (def environ {:http {:port (some-> env :port Integer.)}
-              :app {:console {:uri (:console-uri env)}}
+              :app {:console {:uri (some-> env :console-uri)}}
               :datomic {:uri (some-> env :datomic-url) }})
