@@ -21,6 +21,14 @@
 (def date-format-m  (DateTimeFormat. goog.i18n.DateTimeFormat.Format.MEDIUM_DATETIME
                                      (aget goog.i18n (str "DateTimeSymbols_" (.-language js/navigator)))))
 
+(defn save-board [board]
+  (api/request "/api/boards"
+               :POST
+               board
+               {:handler (fn [response]
+                           (set! (.-href js/location) (str "#/board/" (:board/name board))))}))
+
+
 (defn save-comment [comment on-success]
   (if (= (:comment/format comment) :comment.format/voice)
     (let [blob (:comment/content comment)]
@@ -433,7 +441,7 @@
         (om/set-state! owner :sticky-thread-content? true)
         (om/set-state! owner :sticky-thread-content? false)))))
 
-(defcomponent board-view [board owner {:keys [reactions]}]
+(defcomponent board-view [wrap-board owner {:keys [reactions]}]
   (init-state [_]
     {:tabs [{:id 0 :name "New"}]
      :sticky-thread-content? false})
@@ -442,44 +450,88 @@
     (.addEventListener js/window "scroll"
                        (sticky-thread-content-fn owner)))
 
-  (render-state [_ {:keys [tabs target-thread target-comment channel sticky-thread-content?]}]
-    (if (->> tabs (filter #(= target-thread (:id %))) empty?)
+  (render-state [_ {:keys [tabs channel sticky-thread-content?]}]
+    (let [board (:value wrap-board)
+          target-thread (get-in wrap-board [:target :thread])
+          target-comment (get-in wrap-board [:target :comment])]
+      (if (->> tabs (filter #(= target-thread (:id %))) empty?)
         (om/update-state! owner :tabs #(conj % {:id target-thread :name (get-in board [:board/threads target-thread :thread/title])})))
+      (html
+        [:div.main.content.full.height
+          (om/build thread-list-view (:board/threads board)
+                    {:opts {:board-name (:board/name board)}})
+          [:div.ui.top.attached.thread.content.segment
+          [:div.ui.top.attached.tabular.sticky.menu
+            (when sticky-thread-content? {:class "fixed"})
+            (for [tab tabs]
+              [:a.item (merge {:on-click (fn [_]
+                                          (set! (.-href js/location)
+                                                (if (= (:id tab) 0)
+                                                  (str "#/board/" (:board/name board))
+                                                  (str "#/board/" (:board/name board) "/" (:id tab)))))}
+                              (when (= target-thread (:id tab)) {:class "active"}))
+              [:span.tab-name (:name tab)]
+              (when (not= (:id tab) 0)
+                [:span
+                  [:i.close.icon {:on-click (fn [e]
+                                              (om/update-state! owner #(assoc % :tabs (vec (remove (fn [t] (= (:id t) (:id tab))) (:tabs %)))))
+                                              (om/transact! wrap-board #(assoc-in % [:target :thread]
+                                                                                  (if (= target-thread (:id tab)) 0 target-thread)))
+                                              (when (= target-thread (:id tab))
+                                                (set! (.. js/location -href) (str "#/board/" (:board/name board))))
+                                              (.stopPropagation e))}]])])]
+          (for [tab tabs]
+            [:div.ui.bottom.attached.tab.full.height.segment
+              (when (= target-thread (:id tab)) {:class "active"})
+              (if (= (:id tab) 0)
+                (om/build thread-new-view board)
+                (om/build thread-view (get-in board [:board/threads (:id tab)])
+                          {:state {:target-comment target-comment}
+                          :opts {:board-name (:board/name board)
+                                  :reactions reactions}}))])]]))))
+
+(defcomponent boards-view [boards owner]
+  (init-state [_] {:board {:board/name ""
+                           :board/description ""}})
+  (render-state [_ {:keys [board error-map]}]
     (html
      [:div.main.content.full.height
-      (om/build thread-list-view (:board/threads board)
-                {:opts {:board-name (:board/name board)}})
-      [:div.ui.top.attached.thread.content.segment
-       [:div.ui.top.attached.tabular.sticky.menu
-        (when sticky-thread-content?
-         {:class "fixed"
-          :style {:margin-top "66px"
-                  :width "874px"
-                  :background-color "#ffffff"
-                  :z-index "1"}})
-        (for [tab tabs]
-          [:a.item (merge {:on-click (fn [_]
-                               (set! (.-href js/location)
-                                     (if (= (:id tab) 0)
-                                       "#/"
-                                       (str "#/board/" (:board/name board) "/" (:id tab)))))}
-                          (when (= target-thread (:id tab)) {:class "active"}))
-           [:span.tab-name (:name tab)]
-           (when (not= (:id tab) 0)
-             [:span
-              [:i.close.icon {:on-click (fn [e]
-                                          (om/update-state! owner #(assoc %
-                                                                          :tabs (vec (remove (fn [t] (= (:id t) (:id tab))) (:tabs %)))
-                                                                          :target-thread (if (= (:target-thread %) (:id tab)) 0 (:target-thread %))) )
-                                          (when (= target-thread (:id tab))
-                                            (set! (.. js/location -href) "#/"))
-                                          (.stopPropagation e))}]])])]
-       (for [tab tabs]
-         [:div.ui.bottom.attached.tab.full.height.segment
-          (when (= target-thread (:id tab)) {:class "active"})
-          (if (= (:id tab) 0)
-            (om/build thread-new-view board)
-            (om/build thread-view (get-in board [:board/threads (:id tab)])
-                      {:state {:target-comment target-comment}
-                       :opts {:board-name (:board/name board)
-                              :reactions reactions}}))])]])))
+      [:div.ui.cards
+       (for [[board-name {:keys [value]}] boards]
+         [:a.card.link
+          {:on-click (fn [e]
+                       (set! (.-href js/location) (str "#/board/" board-name)))}
+          [:div.content
+           [:div.header (:board/name value)]
+           [:div.description
+            [:p (:board/description value)]]]])]
+      [:h4.ui.horizontal.divider.headre [:i.icon.edit] "New"]
+      [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
+        [:div.field  (when (:board/name error-map) {:class "error"})
+          [:label "Board Name"]
+          [:input {:type "text" :name "name" :value (:board/name board)
+                   :on-change (fn [e] (om/set-state! owner [:board :board/name] (.. e -target -value)))}]]
+        [:div.field
+          [:label "Description"]
+          [:textarea {:name "description"
+                      :value (:board/description board)
+                      :on-change (fn [e]
+                                   (om/set-state! owner [:board :board/description] (.. e -target -value)))
+                      :on-key-up (fn [e]
+                                   (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
+                                     (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
+                                       (.click btn))))}]]
+          [:div.field
+            [:button.ui.blue.labeled.submit.icon.button
+             {:on-click (fn [_]
+                          (let [board (om/get-state owner :board)
+                                [result map] (b/validate board
+                                                         :board/name v/required)]
+                            (if result
+                              (om/set-state! owner :error-map (:bouncer.core/errors map))
+                              (do (save-board board)
+                                  (om/update-state! owner [:board]
+                                                    #(assoc %
+                                                            :board/name ""
+                                                            :board/description ""))))))}
+             [:i.icon.edit] "Create board"]]]])))
