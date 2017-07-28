@@ -31,6 +31,7 @@
                       {:class "error"})
          [:textarea
           {:value content
+           :placeholder "Input content and press Ctrl+Enter to save."
            :on-change (fn [e]
                         (om/set-state! owner :content
                                        (.. (om/get-node owner) (querySelector "textarea") -value)))
@@ -150,22 +151,37 @@
           [:button.ui.primary.button
            {:on-click (fn [_]
                         (let [article (om/get-state owner :editing-article)
-                              [result map] (b/validate article :article/name v/required)]
+                              [result map] (b/validate article
+                                                       :article/name v/required
+                                                       :article/blocks [[v/every #(not (or (nil? (:curating-block/content %))
+                                                                                           (empty? (:curating-block/content %))))
+                                                                         :message "All editable spaces must be saved."]])]
                           (if result
                             (om/set-state! owner :error-map (:bouncer.core/errors map))
                             (if-let [id (:db/id article)]
                               (api/request (str "/api/article/" id) :PUT
                                      (-> (om/get-state owner :editing-article)
-                                         (assoc :article/curator user))
+                                         (assoc :article/curator user :article/thread (:db/id thread)))
                                      {:handler (fn [response]
-                                                 (om/set-state! owner [:editing-article :db/id] (:db/id response)))})
+                                                 (om/set-state! owner [:editing-article :db/id] (:db/id article)))})
                               (api/request (str "/api/articles") :POST
                                      (-> (om/get-state owner :editing-article)
-                                         (assoc :article/curator user))
+                                         (assoc :article/curator user :article/thread (:db/id thread)))
                                      {:handler (fn [response]
                                                  (set! (.-href js/location) (str "#/article/" (:db/id response)))
-                                                 (.reload js/location))})))))}
+                                                 (.reload js/location))
+                                      :error-handler (fn [response xhrio]
+                                                       (let [message
+                                                             (condp == (.getStatus xhrio)
+                                                               409 "Specified artifact name is already used."
+                                                               (str response))]
+                                                         (om/set-state! owner :error-map {:article/name [message]})))})))))}
            [:i.save.icon] "Save"]]
+         (when-not (empty? error-map)
+           [:div.ui.error.message
+            (for [[_ messages] error-map]
+              (for [message messages]
+                [:div.header message]))])
          [:div.scroll-pane
           [:div.ui.comments
            (map-indexed
@@ -206,11 +222,14 @@
                    (om/build editorial-space-view curating-block
                              {:state {:content (:curating-block/content curating-block)}
                               :opts {:save-fn (fn [content]
-                                                (om/update-state! owner [:editing-article :article/blocks index ]
-                                                                  (fn [block]
-                                                                    (assoc block
-                                                                           :curating-block/content content
-                                                                           :curating-block/posted-at (js/Date.)))))}})
+                                                (om/update-state! owner
+                                                                  (fn [state]
+                                                                    (-> state
+                                                                        (update-in [:editing-article :article/blocks index]
+                                                                                   assoc
+                                                                                   :curating-block/content content
+                                                                                   :curating-block/posted-at (js/Date.))
+                                                                        (update-in [:error-map] dissoc :article/blocks)))))}})
                    (case (get-in curating-block [:curating-block/format :db/ident])
                      :curating-block.format/markdown {:dangerouslySetInnerHTML {:__html (.render js/md (:curating-block/content curating-block))}}
                      :curating-block.format/voice [:audio {:controls true

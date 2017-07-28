@@ -64,14 +64,16 @@
   (api/request (str "/api/articles")
                {:handler (fn [response]
                            (om/transact! app
-                                         #(-> %
-                                              (assoc :page :article :articles response))))}))
+                                         #(assoc % :page :article :articles response)))}))
+
 (defn fetch-article [id app]
   (api/request (str "/api/article/" id)
                {:handler (fn [response]
                            (om/transact! app
-                                         #(-> %
-                                              (assoc :page :article :article response))))}))
+                                         #(assoc %
+                                                 :page :article
+                                                 :target-thread (js/parseInt (get-in response [:article/thread :db/id]))
+                                                 :article response)))}))
 
 (defn- setup-routing [app]
   (sec/set-config! :prefix "#")
@@ -104,4 +106,3 @@
 (defn init [app-state owner]
   (setup-routing app-state)
   (setup-history owner))
-
