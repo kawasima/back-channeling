@@ -20,7 +20,9 @@
                                        [datomic   :refer [datomic-connection]]
                                        [migration :refer [migration-model]]
                                        [socketapp :refer [socketapp-component]]
-                                       [token     :refer [token-provider-component] :as token])
+                                       [token     :refer [token-provider-component] :as token]
+                                       [tag       :refer [tag-component]]
+                                       [user      :refer [user-component]])
             (back-channeling.endpoint [chat-app :refer [chat-app-endpoint]]
                                       [api      :refer [api-endpoint]])))
 
@@ -96,11 +98,15 @@
          :datomic   (datomic-connection  (:datomic config))
          :migration (migration-model)
          :chat      (endpoint-component chat-app-endpoint)
-         :api       (endpoint-component api-endpoint))
+         :api       (endpoint-component api-endpoint)
+         :tag       (tag-component       (:tag config))
+         :user      (user-component      (:user config)))
         (component/system-using
          {:http      [:app :socketapp]
           :app       [:chat :api :token]
           :socketapp [:token]
           :migration [:datomic]
           :chat      [:datomic]
-          :api       [:datomic :token :socketapp]}))))
+          :api       [:datomic :token :socketapp :tag :user]
+          :tag       [:datomic]
+          :user      [:datomic :socketapp]}))))

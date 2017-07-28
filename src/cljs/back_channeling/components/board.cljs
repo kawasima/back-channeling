@@ -490,9 +490,10 @@
                           :opts {:board-name (:board/name board)
                                   :reactions reactions}}))])]]))))
 
-(defcomponent boards-view [boards owner]
+(defcomponent boards-view [boards owner {:keys [private-tags]}]
   (init-state [_] {:board {:board/name ""
-                           :board/description ""}})
+                           :board/description ""
+                           :board/tags []}})
   (render-state [_ {:keys [board error-map]}]
     (html
      [:div.main.content.full.height
@@ -521,6 +522,15 @@
                                    (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
                                      (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
                                        (.click btn))))}]]
+        (when-not (empty? private-tags)
+          [:div.field
+            [:label "Set Private Tag"]
+            [:select.ui.basic.floating.dropdown.button
+              {:on-change (fn [e]
+                            (om/set-state! owner [:board :board/tags] [(js/parseInt (.. e -target -value))]))}
+              [:option.item]
+              (for [tag private-tags]
+                [:option.item {:value (:db/id tag)} (:tag/name tag)])]])
           [:div.field
             [:button.ui.blue.labeled.submit.icon.button
              {:on-click (fn [_]
