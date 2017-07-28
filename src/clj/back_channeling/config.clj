@@ -8,4 +8,5 @@
                :recreate? false}})
 
 (def environ {:http {:port (some-> env :port Integer.)}
+              :app {:console {:uri (some-> env :console-uri)}}
               :datomic {:uri (some-> env :datomic-url) }})
