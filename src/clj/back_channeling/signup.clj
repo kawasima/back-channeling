@@ -59,7 +59,7 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
       [:div.content
        [:img.ui.image {:src "/img/logo.png"}]]]
      [:form.ui.large.login.form (merge {:method "post"}
-                                       (when error-map {:class "error"})) 
+                                       (when error-map {:class "error"}))
       [:div.ui.stacked.segment
        [:div.field
         [:div.ui.two.column.grid
@@ -115,14 +115,14 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
 
 (defn validate-user [datomic user]
   (b/validate user
-              :user/password [[v/required :pre (comp nil? :user/token)]
-                              [v/min-count 8 :message "Password must be at least 8 characters long." :pre (comp nil? :user/token)]]
+              :user/password [[v/required :pre (comp nil? not-empty :user/token)]
+                              [v/min-count 8 :message "Password must be at least 8 characters long." :pre (comp nil? not-empty :user/token)]]
               :user/email    [[v/required]
                               [v/email]
                               [v/max-count 100 :message "Email is too long."]
                               [unique-email-validator datomic]]
-              :user/token    [[v/required :pre (comp nil? :user/password)]
-                              [v/matches #"[0-9a-z]{16}" :pre (comp nil? :user/password)]]
+              :user/token    [[v/required :pre (comp nil? not-empty :user/password)]
+                              [v/matches #"[0-9a-z]{16}" :pre (comp nil? not-empty :user/password)]]
               :user/name     [[v/required]
                               [v/min-count 3 :message "Username must be at least 3 characters long."]
                               [v/max-count 20 :message "Username is too long."]
