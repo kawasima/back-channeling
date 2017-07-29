@@ -19,7 +19,8 @@
   (if validation-spec
     (let [[result map] (b/validate model validation-spec)]
       (if result
-        {:message (pr-str (:bouncer.core/errors map))}
+        {:message (pr-str (:bouncer.core/errors map))
+         :errors (:bouncer.core/errors map)}
         [false {:edn model}]))
     [false {:edn model}]))
 
@@ -38,3 +39,8 @@
        (catch Exception e
          (log/error e "fail to parse edn.")
          {:message (format "IOException: %s" (.getMessage e))})))))
+
+(defn render-body [map {{:keys [media-type]} :representation}]
+  (case media-type
+        "application/json" (json/write-str map)
+        (pr-str map)))

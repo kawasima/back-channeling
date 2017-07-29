@@ -11,7 +11,8 @@
             (back-channeling [util :refer [parse-request]])
             (back-channeling.component [datomic :as d]
                                        [token :as token]
-                                       [socketapp :refer [broadcast-message multicast-message]]
+                                       [auth :as auth]
+                                       [socketapp :refer [broadcast-message multicast-message find-users]]
                                        [tag :as tag]
                                        [user :as user]))
   (:import [java.util Date UUID]
@@ -580,9 +581,13 @@
                            :in [$]
                            :where [[?r :reaction/name]]}))))
 
-(defn api-endpoint [{:keys [datomic token socketapp tag user] :as config}]
+(defn api-endpoint [{:keys [datomic token auth socketapp tag user] :as config}]
   (context "/api" []
+   ;; Authentication
    (ANY "/token" []  (token-resource config))
+   (ANY "/signup" [] (auth/signup-resource auth))
+   (ANY "/login" [] (auth/login-resource auth))
+
    (ANY "/boards" [] (boards-resource config))
    (ANY "/board/:board-name" [board-name]
      (board-resource config board-name))
