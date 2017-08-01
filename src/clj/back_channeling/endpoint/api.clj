@@ -452,13 +452,6 @@
    :handle-created (fn [ctx]
                      {:comment/content (str thread-id "/" (::filename ctx))})))
 
-(defn users-resource [{:keys [socketapp]} path]
-  (liberator/resource
-   :available-media-types ["application/edn" "application/json"]
-   :allowed-methods [:get]
-   :handle-ok (fn [_]
-                (vec (find-users socketapp)))))
-
 (defn find-article-by-name [datomic article-name]
   (d/query
    datomic
