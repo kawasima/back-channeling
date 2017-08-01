@@ -4,8 +4,8 @@
   :test-paths ["test/clj"]
   :min-lein-version "2.0.0"
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [org.clojure/tools.logging "0.3.1"]
-                 [com.stuartsierra/component "0.3.1"]
+                 [org.clojure/tools.logging "0.4.0"]
+                 [com.stuartsierra/component "0.3.2"]
                  [duct "0.7.0"]
                  [org.clojure/data.json "0.2.6"]
 
@@ -45,6 +45,7 @@
 
   :main ^:skip-aot back-channeling.main
   :target-path "target/%s"
+  :uberjar-name "back-channeling-standalone.jar"
   :resource-paths ["resources" "target/cljsbuild"]
   :prep-tasks [["javac"] ["cljsbuild" "once"] ["compile"]]
   :aliases {"run-task" ["with-profile" "+repl" "run" "-m"]
