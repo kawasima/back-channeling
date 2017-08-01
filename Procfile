@@ -1,1 +1,1 @@
-web: java -jar target/uberjar/{{uberjar-name}}
+web: java -jar target/uberjar/back-channeling-standalone.jar
