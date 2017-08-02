@@ -109,10 +109,10 @@
 
    :exists? (fn [ctx]
               (if-let [board (d/query datomic
-                                       '{:find [(pull ?board [:*]) .]
-                                         :in [$ ?b-name]
-                                         :where [[?board :board/name ?b-name]]}
-                                       board-name)]
+                                      '{:find [(pull ?board [:*]) .]
+                                        :in [$ ?b-name]
+                                        :where [[?board :board/name ?b-name]]}
+                                      board-name)]
                 {::board board}
                 false))
 
@@ -132,7 +132,9 @@
                                 (:db/id board))
                        (map #(-> (d/pull datomic
                                          '[:db/id :thread/title :thread/since :thread/last-updated
-                                           {:thread/watchers [:user/name]}]
+                                           {:thread/watchers [:user/name]}
+                                           {:thread/tags [:tag/name :tag/priority
+                                                          {:tag/color [:db/ident]}]}]
                                          (first %))
                                  (assoc :thread/resnum (second %))
                                  (update-in [:thread/watchers]
@@ -597,6 +599,10 @@
    (ANY "/thread/:thread-id/comment/:comment-no"
        [thread-id :<< as-int comment-no :<< as-int]
      (comment-resource config thread-id comment-no))
+   (ANY "/thread/:thread-id/tags" [thread-id]
+     (tag/thread-list-resource config (Long/parseLong thread-id)))
+   (ANY "/thread/:thread-id/tag/:tag-id" [thread-id tag-id]
+     (tag/thread-resource config (Long/parseLong thread-id) (Long/parseLong tag-id)))
    (ANY "/articles" []
      (articles-resource config))
    (ANY "/article/:article-id" [article-id]
@@ -605,9 +611,9 @@
    (ANY "/user/:user-name" [user-name]
      (user/entry-resource user user-name))
    (ANY "/user/:user-name/tags" [user-name]
-     (user/tags-resource user user-name))
+     (tag/user-list-resource user user-name))
    (ANY "/user/:user-name/tag/:tag-id" [user-name tag-id]
-     (user/tag-resource user user-name (Long/parseLong tag-id)))
+     (tag/user-resource user user-name (Long/parseLong tag-id)))
 
    (ANY "/reactions" [] (reactions-resource config))
 
