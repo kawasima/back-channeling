@@ -2,33 +2,20 @@
   (:require [clojure.edn :as edn]
             [clojure.tools.logging :as log]
             [ring.util.response :refer [resource-response content-type header redirect]]
+            [ring.middleware.flash :refer [flash-response]]
             [liberator.dev]
+            [bouncer.core :as b]
             [environ.core :refer [env]]
             [hiccup.page :refer [include-js]]
             [hiccup.middleware :refer [wrap-base-url]]
             [compojure.core :refer [GET POST routes] :as compojure]
             [compojure.route :as route]
-            
             (back-channeling [layout :refer [layout]]
-                             [signup :as signup]
                              [style :as style])
             (back-channeling.component [token :as token]
+                                       [auth :as auth]
                                        [datomic :as d]))
   (:import [java.io FileInputStream]))
-
-(defn auth-by-password [datomic username password]
-  (when (and (not-empty username) (not-empty password))
-    (d/query datomic
-             '{:find [(pull ?s [:*]) .]
-               :in [$ ?uname ?passwd]
-               :where [[?s :user/name ?uname]
-                       [?s :user/salt ?salt]
-                       [(concat ?salt ?passwd) ?passwd-seq]
-                       [(into-array Byte/TYPE ?passwd-seq) ?passwd-bytes]
-                       [(buddy.core.hash/sha256 ?passwd-bytes) ?hash]
-                       [(buddy.core.codecs/bytes->hex ?hash) ?hash-hex]
-                       [?s :user/password ?hash-hex]]}
-             username password)))
 
 (defn index-view [req]
   (layout req
@@ -68,21 +55,26 @@
    (GET "/" req (index-view req))
    (GET "/login" req (login-view req))
    (POST "/login" {{:keys [username password]} :params :as req}
-     (if-let [user (auth-by-password datomic username password)]
+     (if-let [user (auth/auth-by-password datomic username password)]
        (-> (redirect (get-in req [:query-params "next"] "/"))
            (assoc-in [:session :identity] (select-keys user [:user/name :user/email])))
        (login-view req)))
    (GET "/signup" req
-     (signup/signup-view req))
+     (auth/signup-view req))
    (POST "/signup" req
-     (signup/signup datomic
-                    (select-keys (clojure.walk/keywordize-keys (:params req))
-                                 [:user/email :user/name :user/password :user/token])))
-   
+     (let [user (select-keys (clojure.walk/keywordize-keys (:params req))
+                             [:user/email :user/name :user/password :user/token])
+           [result map] (b/validate user (auth/user-validation-spec datomic))]
+       (if-let [error-map (:bouncer.core/errors map)]
+         (auth/signup-view {:error-map error-map :params user})
+         (do (auth/signup datomic user)
+             (-> (redirect "/")
+                 (flash-response {:flash (str "Create account " (:user/name user))}))))))
+
    (GET "/logout" []
      (-> (redirect "/")
          (assoc :session {})))
-   
+
    (GET "/react/react.js" [] (-> (resource-response "cljsjs/development/react.inc.js")
                                  (content-type "text/javascript")))
    (GET "/react/react.min.js" [] (resource-response "cljsjs/production/react.min.inc.js"))

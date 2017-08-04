@@ -20,9 +20,10 @@
                                        [datomic   :refer [datomic-connection]]
                                        [migration :refer [migration-model]]
                                        [socketapp :refer [socketapp-component]]
-                                       [token     :refer [token-provider-component] :as token]
                                        [tag       :refer [tag-component]]
-                                       [user      :refer [user-component]])
+                                       [user      :refer [user-component]]
+                                       [auth      :refer [auth-provider-component]]
+                                       [token     :refer [token-provider-component] :as token])
             (back-channeling.endpoint [chat-app :refer [chat-app-endpoint]]
                                       [api      :refer [api-endpoint]])))
 
@@ -47,7 +48,7 @@
     (or (.contains accept "application/json")
         (.contains accept "application/edn"))))
 
-(def access-rules [{:pattern #"^(/|/api/(?!token).*)$"
+(def access-rules [{:pattern #"^(/|/api/(?!token|signup|login).*)$"
                     :handler authenticated?}])
 
 (defn token-base [token-provider]
@@ -97,6 +98,7 @@
          :token     (token-provider-component (:token config))
          :datomic   (datomic-connection  (:datomic config))
          :migration (migration-model)
+         :auth      (auth-provider-component  (:auth config))
          :chat      (endpoint-component chat-app-endpoint)
          :api       (endpoint-component api-endpoint)
          :tag       (tag-component       (:tag config))
@@ -106,7 +108,8 @@
           :app       [:chat :api :token]
           :socketapp [:token]
           :migration [:datomic]
+          :auth      [:datomic]
           :chat      [:datomic]
-          :api       [:datomic :token :socketapp :tag :user]
+          :api       [:datomic :token :auth :socketapp :tag :user]
           :tag       [:datomic]
           :user      [:datomic :socketapp]}))))
