@@ -92,10 +92,10 @@
   (sec/defroute "/board/:board-name" [board-name]
     (fetch-board board-name app))
   (sec/defroute "/board/:board-name/:thread-id" [board-name thread-id]
-    (om/transact! app #(setup-target % board-name thread-id nil))
+    (om/transact! app #(assoc % :target-board-name board-name))
     (fetch-thread (js/parseInt thread-id) nil board-name app))
   (sec/defroute "/board/:board-name/:thread-id/:comment-no" [board-name thread-id comment-no]
-    (om/transact! app #(setup-target % board-name thread-id comment-no))
+    (om/transact! app #(assoc % :target-board-name board-name))
     (fetch-thread (js/parseInt thread-id) comment-no board-name app))
   (sec/defroute "/articles/new" [query-params]
     (om/transact! app #(assoc %
