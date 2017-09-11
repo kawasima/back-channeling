@@ -98,6 +98,8 @@
   (will-mount [_]
     (routing/init app owner)
     (refresh-boards app)
+    (refresh-board app (:target-board-name @app))
+
     (routing/fetch-private-tags app)
     (api/request "/api/reactions"
                  {:handler
