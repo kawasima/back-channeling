@@ -12,12 +12,12 @@
         }
         return s;
     }
-    
+
     function switchToBot(e) {
         robotSvg.setAttribute("class", "account-type on");
         humanSvg.setAttribute("class", "account-type off");
-        token.querySelector("input[name='user/token']").value = randomString(16);
-        password.querySelector("input[name='user/password']").value = '';
+        token.querySelector("input[name='token-credential/token']").value = randomString(16);
+        password.querySelector("input[name='password-credential/password']").value = '';
         password.style['display'] = 'none';
         token.style['display'] = 'block';
     }
@@ -25,7 +25,7 @@
     function switchToHuman(e) {
         humanSvg.setAttribute("class", "account-type on");
         robotSvg.setAttribute("class", "account-type off");
-        token.querySelector("input[name='user/token']").value = '';
+        token.querySelector("input[name='token-credential/token']").value = '';
         password.style['display'] = 'block';
         token.style['display'] = 'none';
     }

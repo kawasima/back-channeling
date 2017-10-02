@@ -1,0 +1,3 @@
+{:back-channeling.server.http/undertow [:duct.server/http]
+ :back-channeling.database/datomic     [:duct/database]
+ :back-channeling.module/auth          [:duct/module]}

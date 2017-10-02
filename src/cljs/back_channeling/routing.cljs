@@ -10,61 +10,35 @@
   (:use [cljs.reader :only [read-string]])
   (:import [goog.History]))
 
-(defn fetch-private-tags [app]
-  (let [user-name (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))]
-    (api/request (str "/api/user/" user-name "/tags")
-                 {:handler (fn [response]
-                             (om/transact! app #(assoc % :private-tags response)))})))
-
 (defn fetch-boards [app]
-  (api/request "/api/boards"
-               {:handler (fn [response]
-                           (let [boards (->> response
-                                             (map #(update-in % [:board/threads] (fn [threads]
-                                                        (when threads
-                                                          (->> threads
-                                                               (map (fn [t] {(:db/id t) t}))
-                                                               (reduce merge {}))))))
-                                             (reduce #(assoc %1 (:board/name %2) {:value %2}) {}))]
-                             (om/transact! app #(assoc % :boards boards :page :boards))))}))
+  (api/request
+   "/api/boards"
+   {:handler
+    (fn [response]
+      (om/transact! app #(assoc % :boards response :page :boards)))}))
 
 (defn fetch-board [board-name app]
-  (api/request (str "/api/board/" board-name)
-               {:handler (fn [response]
-                           (let [new-board (update-in response [:board/threads]
-                                                      (fn [threads]
-                                                        (->> threads
-                                                             (map (fn [t] {(:db/id t) t}))
-                                                             (reduce merge {}))))]
-                             (if (get-in @app [:boards board-name])
-                               (om/transact! app
-                                             (fn [app]
-                                               (-> app
-                                                   (update-in [:boards board-name :value :board/threads]
-                                                     #(merge-with merge % (:board/threads new-board)))
-                                                   (assoc :page :board :target-board-name board-name)
-                                                   (assoc-in [:boards board-name :target :thread] 0)
-                                                   (assoc-in [:boards board-name :target :comment] nil))))
-                               (om/transact! app
-                                             #(-> %
-                                                  (assoc-in [:boards board-name :value] new-board)
-                                                  (assoc :page :board :target-board-name board-name)
-                                                  (assoc-in [:boards board-name :target :thread] 0)
-                                                  (assoc-in [:boards board-name :target :comment] nil))))))}))
+  (api/request
+   (str "/api/board/" board-name)
+   {:handler
+    (fn [response]
+      (om/transact! app #(assoc %
+                                :page :board
+                                :board response)))}))
 
 (defn fetch-thread [thread-id comment-no board-name app]
   (when (> thread-id 0)
-    (let [from (inc (count (get-in @app [:boards board-name :value :board/threads thread-id :thread/comments] [])))]
-      (api/request (str "/api/thread/" thread-id "/comments/" from "-")
-                   {:handler (fn [response]
-                               (om/transact! app
-                                             #(-> %
-                                                  (update-in [:boards board-name :value :board/threads thread-id :thread/comments]
-                                                             (fn [comments new-comments]
-                                                               (vec (concat comments new-comments))) response)
-                                                  (assoc :page :board)
-                                                  (assoc-in [:boards board-name :target :thread] thread-id)
-                                                  (assoc-in [:boards board-name :target :comment] comment-no))))}))))
+    (let [from (inc (count (get-in @app [:threads thread-id :thread/comments])))]
+      (api/request
+       (str "/api/board/" board-name "/thread/" thread-id "/comments/" from "-")
+       {:handler
+        (fn [response]
+          (om/transact! app
+                        #(-> (assoc % :page :board)
+                             (assoc-in  [:threads thread-id :db/id] thread-id)
+                             (update-in [:threads thread-id :thread/comments] concat response)
+                             (assoc-in  [:threads thread-id :thread/active?] true)
+                             (assoc-in  [:threads thread-id :thread/last-comment-no] 0))))}))))
 
 (defn fetch-articles [app]
   (api/request (str "/api/articles")
@@ -84,8 +58,7 @@
 (defn- setup-routing [app]
   (sec/set-config! :prefix "#")
   (sec/defroute "/" []
-    (fetch-boards app)
-    (fetch-private-tags app))
+    (fetch-boards app))
   (sec/defroute "/board/:board-name" [board-name]
     (fetch-board board-name app))
   (sec/defroute "/board/:board-name/:thread-id" [board-name thread-id]

@@ -8,7 +8,7 @@
             [bouncer.core :as b]
             [bouncer.validators :as v :refer [defvalidator]]
             [back-channeling [layout :refer [layout]]]
-            [back-channeling.component [datomic :as d]]))
+            [datomic.api :as d]))
 
 (def robot-svg [:svg#robot-svg {:version "1.1" :xmlns "http://www.w3.org/2000/svg" :xmlns/xlink "http://www.w3.org/1999/xlink" :width "64px" :height "64px" :x "0px" :y "0px"}
                 [:g {:transform "scale(2.5)"}
@@ -81,15 +81,15 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
         [:div.ui.left.icon.input
          [:i.mail.icon]
          [:input {:type "text" :name "user/email" :placeholder "Email address" :value (:user/email params)}]]]
-       [:div#password-field.field (when (:user/password error-map)
+       [:div#password-field.field (when (:password-credential/password error-map)
                                     {:class "error"})
         [:div.ui.left.icon.input
          [:i.lock.icon]
-         [:input {:type "password" :name "user/password" :placeholder "Password"}]]]
-       [:div#token-field.field (when (:user/token error-map)
+         [:input {:type "password" :name "password-credential/password" :placeholder "Password"}]]]
+       [:div#token-field.field (when (:token-credential/token error-map)
                                  {:class "error"})
         [:div.ui.action.input
-         [:input {:type "text" :name "user/token" :placeholder "Token" :readonly true}]
+         [:input {:type "text" :name "token-credential/token" :placeholder "Token" :readonly true}]
          [:button.ui.icon.button {:type "button"}
           [:i.refresh.icon]]]]
        [:button.ui.fluid.large.teal.submit.button {:type "submit"} "Sign up"]]]]]
@@ -97,32 +97,36 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
 
 (defvalidator unique-email-validator
   {:default-message-format "%s is used by someone."}
-  [email datomic]
-  (nil? (d/query datomic
-                 '{:find [?u .]
-                   :in [$ ?email]
-                   :where [[?u :user/email ?email]]}
-                 email)))
+  [email {:keys [connection]}]
+  (nil? (d/q '{:find [?u .]
+               :in [$ ?email]
+               :where [[?u :user/email ?email]]}
+             (d/db connection)
+             email)))
 
 (defvalidator unique-name-validator
   {:default-message-format "%s is used by someone."}
-  [name datomic]
-  (nil? (d/query datomic
-                 '{:find [?u .]
-                   :in [$ ?name]
-                   :where [[?u :user/name ?name]]}
-                 name)))
+  [name {:keys [connection]}]
+  (nil? (d/q '{:find [?u .]
+               :in [$ ?name]
+               :where [[?u :user/name ?name]]}
+             (d/db connection)
+             name)))
 
 (defn validate-user [datomic user]
   (b/validate user
-              :user/password [[v/required :pre (comp nil? not-empty :user/token)]
-                              [v/min-count 8 :message "Password must be at least 8 characters long." :pre (comp nil? not-empty :user/token)]]
+              :password-credential/password
+              [[v/required :pre (comp nil? not-empty :token-credential/token)]
+               [v/min-count 8
+                :message "Password must be at least 8 characters long."
+                :pre (comp nil? not-empty :token-credential/token)]]
               :user/email    [[v/required]
                               [v/email]
                               [v/max-count 100 :message "Email is too long."]
                               [unique-email-validator datomic]]
-              :user/token    [[v/required :pre (comp nil? not-empty :user/password)]
-                              [v/matches #"[0-9a-z]{16}" :pre (comp nil? not-empty :user/password)]]
+              :token-credential/token
+              [[v/required :pre (comp nil? not-empty :password-credential/password)]
+                              [v/matches #"[0-9a-z]{16}" :pre (comp nil? not-empty :password-credential/password)]]
               :user/name     [[v/required]
                               [v/min-count 3 :message "Username must be at least 3 characters long."]
                               [v/max-count 20 :message "Username is too long."]
@@ -133,20 +137,29 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
     (if-let [error-map (:bouncer.core/errors map)]
       (signup-view {:error-map error-map :params user})
       (let [salt (nonce/random-nonce 16)
-            password (some-> (not-empty (:user/password user))
+            password (some-> (not-empty (:password-credential/password user))
                              (.getBytes)
                              (#(into-array Byte/TYPE (concat salt %)))
                              buddy.core.hash/sha256
                              buddy.core.codecs/bytes->hex)]
-        (if-not (or password (:user/token user))
-          (throw (Exception.)))
-        (d/transact datomic
-                    [(merge user
-                            {:db/id #db/id[db.part/user -1]}
-                            (when password
-                              {:user/password password
-                               :user/salt salt})
-                            (when-let [token (:user/token user)]
-                              {:user/token token}))])
+        (if-not (or password (:token-credential/token user))
+          (throw (Exception. user)))
+        (let [t (->> [(-> (select-keys user [:user/email :user/name])
+                          (assoc :db/id #db/id[db.part/user -1]))
+                      (when-let [token (not-empty (:token-credential/token user))]
+                        {:db/id #db/id[db.part/user -2]
+                         :token-credential/user #db/id[db.part/user -1]
+                         :token-credential/token token})
+                      (when password
+                        {:db/id #db/id[db.part/user -3]
+                         :password-credential/user #db/id[db.part/user -1]
+                         :password-credential/password password
+                         :password-credential/salt salt})]
+                     (remove nil?))]
+          (println t)
+          (-> (d/transact (:connection datomic) t)
+              deref))
+
+
         (-> (redirect "/")
             (flash-response {:flash (str "Create account " (:user/name user))}))))))

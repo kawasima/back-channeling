@@ -1,6 +1,5 @@
 (ns back-channeling.util
-  (:require [clojure.tools.logging :as log]
-            [clojure.edn :as edn]
+  (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [bouncer.core :as b]))
@@ -36,5 +35,4 @@
            {:message "Unknown format."})
          false)
        (catch Exception e
-         (log/error e "fail to parse edn.")
          {:message (format "IOException: %s" (.getMessage e))})))))

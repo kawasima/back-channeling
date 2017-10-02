@@ -5,8 +5,10 @@
 (.initHighlightingOnLoad js/hljs)
 (set! js/md (js/markdownit))
 
-(def app-state (atom {:boards {}
-                      :target-board-name "default"
+(def app-state (atom {:boards []
+                      :board {:name "default"
+                              :threads []}
+                      :threads {}
                       :users #{}
                       :page :boards}))
 

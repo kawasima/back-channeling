@@ -1,0 +1,39 @@
+[{:db/id #db/id[:db.part/user]
+  :board/name "default"
+  :board/description "Default board"}
+ {:db/id #db/id[:db.part/user -1]
+  :reaction/name "GM"
+  :reaction/label "( ノﾟДﾟ)"}
+ {:db/id #db/id[:db.part/user -2]
+  :reaction/name "THX"
+  :reaction/label "(´▽｀)"}
+ {:db/id #db/id[:db.part/user -3]
+  :reaction/name "SRY"
+  :reaction/label "(m´・ω・｀)m"}
+ {:db/id #db/id[:db.part/user -4]
+  :reaction/name "BYE"
+  :reaction/label "( ´Д｀)ﾉ"}
+ {:db/id #db/id[:db.part/user -5]
+  :reaction/name "BR"
+  :reaction/label "( ｀・ω・´)ﾉ"}
+ {:db/id #db/id[:db.part/user -6]
+  :reaction/name "GJ"
+  :reaction/label "(・∀・)"}
+ {:db/id #db/id[:db.part/user -7]
+  :reaction/name "BAD"
+  :reaction/label "(・A・)"}
+ {:db/id #db/id[:db.part/user -8]
+  :reaction/name "OK"
+  :reaction/label "(｀･ω･´)ゞ"}
+ {:db/id #db/id[:db.part/user -9]
+  :reaction/name "NG"
+  :reaction/label "(´・д・｀)"}
+ {:db/id #db/id[:db.part/user -10]
+  :reaction/name "HERE"
+  :reaction/label "(ﾟдﾟ)/"}
+ {:db/id #db/id[:db.part/user -11]
+  :reaction/name "OMG"
+  :reaction/label "ヽ(`Д´)ﾉ"}
+ {:db/id #db/id[:db.part/user -12]
+  :reaction/name "LOL"
+  :reaction/label "((´∀｀))"}]

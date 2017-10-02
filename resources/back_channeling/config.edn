@@ -1,0 +1,51 @@
+{:duct.core/project-ns back-channeling
+ :duct.core/environment :production
+
+ :duct.module/logging {}
+ :duct.module/web {}
+ :duct.middleware.web/defaults {:static {:resources ["duct/module/web/public"
+                                                     "back_channeling/public"]}
+                                :session {:flash true
+                                          :cookie-attrs {:http-only true
+                                                         :same-site :strict}}}
+ :duct.module/cljs {:main back-channeling.core}
+
+ :back-channeling.module/auth {}
+
+ :duct.router/cascading
+ [#ig/ref :back-channeling.handler/api
+  #ig/ref :back-channeling.handler/chat-app]
+
+ :back-channeling.handler/api
+ {:datomic   #ig/ref :back-channeling.database/datomic
+  :socketapp #ig/ref :back-channeling.websocket/socketapp
+  :cache     #ig/ref :back-channeling.database/cache}
+
+ :back-channeling.handler/chat-app
+ {:datomic   #ig/ref :back-channeling.database/datomic
+  :login-enabled? true}
+
+ :back-channeling.server.http/undertow
+ {:port 3009
+  :socketapp #ig/ref :back-channeling.websocket/socketapp}
+
+ :back-channeling.middleware/authentication
+ {:backends [#ig/ref :back-channeling.auth.backend/session
+             #ig/ref :back-channeling.auth.backend/token]}
+
+ :back-channeling.database/datomic {:uri "datomic:mem://bc" :recreate? false}
+ :back-channeling.migrator/schema
+ {:datomic #ig/ref :back-channeling.database/datomic
+  :logger #ig/ref :duct/logger}
+
+ :back-channeling.database/cache {}
+ :back-channeling.websocket/socketapp
+ {:path "/ws"
+  :cache #ig/ref :back-channeling.database/cache
+  :logger #ig/ref :duct/logger}
+
+ :back-channeling.auth.backend/token
+ {:cache #ig/ref :back-channeling.database/cache
+  :logger #ig/ref :duct/logger}
+ :back-channeling.auth.backend/session {}
+ }

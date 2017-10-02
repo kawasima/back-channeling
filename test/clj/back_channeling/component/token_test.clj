@@ -1,10 +1,8 @@
 (ns back-channeling.component.token-test
-  (:require [back-channeling.component.token :refer :all]
-            [com.stuartsierra.component :as component]
-            [clojure.pprint :refer :all]
+  (:require [clojure.pprint :refer :all]
             [clojure.test :refer :all]))
 
-(deftest token-provider-test
+#_(deftest token-provider-test
   (testing "New token"
     (let [token-provider (component/start (token-provider-component {}))
           token1 (new-token token-provider "user1")

@@ -1,14 +1,17 @@
-(ns back-channeling.component.socketapp
-  (:require [com.stuartsierra.component :as component]
-            [clojure.tools.logging :as log]
+(ns back-channeling.websocket.socketapp
+  (:require [integrant.core :as ig]
+            [duct.logger :refer [log]]
             [clojure.edn :as edn]
-            (back-channeling.component [token :as token]))
+            (back-channeling.boundary [tokens :as tokens]))
   (:import [io.undertow.websockets.core WebSockets WebSocketCallback]))
 
 
 (defprotocol ISendMessage
   (broadcast-message [this message])
-  (multicast-message [this message users]))
+  (multicast-message [this message users])
+  (on-connect [this exchange channel])
+  (on-message [this channel message])
+  (on-close   [this channel close-reason]))
 
 (defn find-users [{:keys [channels path]}]
   (->> (get @channels path)
@@ -34,47 +37,15 @@
 (defmulti handle-command (fn [socketapp msg ch] (first msg)))
 
 (defmethod handle-command :leave [socketapp [_ message] ch]
-  (log/info "disconnect" ch)
   (broadcast-message socketapp
                      [:leave {:user/name (:user/name message)
                               :user/email (:user/email message)}]))
 (defmethod handle-command :call [socketapp [_ message] ch]
-  (log/info "call from " (:from message) " to " (:to message))
   (multicast-message socketapp
                      [:call message]
                      (:to message)))
 
-(defrecord SocketApp [token path]
-  component/Lifecycle
-
-  (start [component]
-    (let [component (assoc component :channels (atom {}))]
-      (assoc component
-             :on-connect
-             (fn [exchange channel]
-               (log/debug "connect" channel)
-               (if-let [user (token/auth-by token (token-from-request exchange))]
-                 (do
-                   (swap! (:channels component)
-                          assoc-in [path channel] user)
-                   (broadcast-message component [:join  {:user/name (:user/name user)
-                                               :user/email (:user/email user)}]))))
-             :on-message
-             (fn [ch message]
-               (log/debug "message=" message)
-               (handle-command component
-                               (edn/read-string message) ch))
-
-             :on-close
-             (fn [ch close-reason]
-               (log/info "disconnect" ch "for" close-reason)
-               (swap! (:channels component) update-in [path] dissoc ch)
-               (handle-command component
-                               [:leave (find-user-by-channel component ch)] ch)))))
-
-  (stop [component]
-    (dissoc component :path :on-message :on-close :channels))
-
+(defrecord Socketapp [channels path]
   ISendMessage
   (broadcast-message [{:keys [channels path]} message]
     (doseq [[channel user] (get @channels path)]
@@ -82,7 +53,6 @@
                            (proxy [WebSocketCallback] []
                              (complete [channel context])
                              (onError [channel context throwable])))))
-
   (multicast-message [{:keys [channels path]} message users]
     (doseq [[channel user] (get @channels path)]
       (when (users user)
@@ -91,7 +61,22 @@
                                (complete [channel context])
                                (onError [channel context throwable]))))))
 
-)
+  (on-connect [{:keys [channels path cache] :as socketapp} exchange channel]
+    (if-let [user (tokens/auth-by cache (token-from-request exchange))]
+      (do
+        (swap! channels assoc-in [path channel] user)
+        (broadcast-message socketapp [:join {:user/name (:user/name user)
+                                             :user/email (:user/email user)}]))))
+  (on-message [socketapp ch message]
+    (handle-command socketapp (edn/read-string message) ch))
 
-(defn socketapp-component [options]
-  (map->SocketApp options))
+  (on-close [{:keys [channels path] :as socketapp} ch close-reason]
+    (swap! channels update-in [path] dissoc ch)
+    (handle-command socketapp
+                    [:leave (find-user-by-channel socketapp ch)] ch)))
+
+(defmethod ig/init-key :back-channeling.websocket/socketapp [_ {:keys [logger path cache]}]
+  (map->Socketapp {:logger logger
+                   :channels (atom {})
+                   :path path
+                   :cache cache}))
