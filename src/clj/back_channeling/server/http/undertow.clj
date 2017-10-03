@@ -5,6 +5,7 @@
             [back-channeling.websocket.socketapp :as socketapp]
             [compojure.core :refer [context]])
   (:import [java.util UUID]
+           [java.nio.file Paths]
            [org.xnio ByteBufferSlicePool]
            [io.undertow Undertow Handlers]
            [io.undertow.servlet Servlets]
@@ -34,11 +35,11 @@
       (socketapp/on-connect socketapp exchange channel))))
 
 
-(defn- run-server [ring-handler & {port :port websockets :websockets}]
+(defn- run-server [ring-handler & {:keys [port websockets prefix]}]
   (let [ring-servlet (servlet/servlet ring-handler)
         servlet-builder (.. (Servlets/deployment)
                             (setClassLoader (.getContextClassLoader (Thread/currentThread)))
-                            (setContextPath "")
+                            (setContextPath (or prefix ""))
                             (setDeploymentName "back-channeling")
                             (addServlets
                              (into-array
@@ -54,7 +55,7 @@
 
     (doseq [ws websockets]
       (.addPrefixPath handler
-                      (:path ws)
+                      (str (Paths/get (or prefix "") (into-array String [(:path ws)])))
                       (Handlers/websocket
                        (websocket-callback ws))))
     (let [server (.. (Undertow/builder)
@@ -67,7 +68,7 @@
 (defmethod ig/init-key :back-channeling.server.http/undertow [_ {:keys [logger port prefix] :as opts}]
   (let [handler (atom (delay (:handler opts)))
         logger  (atom logger)]
-    (log @logger :report ::starting-server (select-keys opts [:port]))
+    (log @logger :report ::starting-server (select-keys opts [:port :prefix]))
     {:handler handler
      :logger  logger
      :server  (run-server (context prefix [] @@handler)

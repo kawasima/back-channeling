@@ -7,6 +7,7 @@
   (find-by-thread [datomic thread-id])
   (count [datomic thread-id])
   (save [datomic comment])
+  (hide [datomic thread-id comment-no])
   (add-reaction [datomic reaction thread-id comment-no user]))
 
 (extend-protocol Comments
@@ -31,6 +32,18 @@
   (save [{:keys [connection]} comment]
     (-> (d/transact connection comment)
         deref))
+
+  (hide [{:keys [connection]} thread-id comment-no]
+    (when-let [comment (-> (d/q '{:find [[?c ...]]
+                                  :in [$ ?th]
+                                  :where [[?th :thread/comments ?c]]}
+                           (d/db connection)
+                           thread-id)
+                           (nth comment-no))]
+      (-> (d/transact connection
+                      [{:db/id comment
+                        :comment/public? false}])
+          deref)))
 
   (add-reaction [{:keys [connection]} reaction thread-id comment-no user]
     (let [comments (->> (d/pull (d/db connection)

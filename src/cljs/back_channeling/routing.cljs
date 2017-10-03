@@ -56,7 +56,10 @@
                                                  :article response)))}))
 
 (defn- setup-routing [app]
-  (sec/set-config! :prefix "#")
+  (let [prefix (some-> js/document
+                       (.querySelector "meta[property='bc:prefix']")
+                       (.getAttribute "content"))]
+    (sec/set-config! :prefix (str prefix "/#")))
   (sec/defroute "/" []
     (fetch-boards app))
   (sec/defroute "/board/:board-name" [board-name]

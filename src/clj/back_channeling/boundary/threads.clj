@@ -8,7 +8,10 @@
   (find-threads [datomic board-name q])
   (find-thread  [datomic thread-id])
   (find-watchers [datomic thread-id])
-  (save [datomic board-name th user]))
+
+  (add-watcher    [datomic thread-id user])
+  (remove-watcher [datomic thread-id user])
+  (save           [datomic board-name th user]))
 
 (extend-protocol Threads
   back_channeling.database.datomic.Boundary
@@ -59,6 +62,7 @@
             '[{:thread/watchers
                [:user/name :user/email]}]
             thread-id))
+
   (save [{:keys [connection]} board-name th user]
     (let [now (Date.)
           thread-id (d/tempid :db.part/user)
@@ -77,4 +81,14 @@
                                     :comment/content (:comment/content th)}])
                       deref
                       :tempids)]
-    [tempids thread-id])))
+      [tempids thread-id]))
+
+  (add-watcher [{:keys [connection]} th user]
+    (-> (d/transact connection
+                    [[:db/add th :thread/watchers user]])
+        deref))
+
+  (remove-watcher [{:keys [connection]} th user]
+    (-> (d/transact connection
+                    [[:db/retract th :thread/watchers user]])
+        deref)))

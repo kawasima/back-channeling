@@ -13,9 +13,9 @@
 (def date-format-m  (DateTimeFormat. goog.i18n.DateTimeFormat.Format.MEDIUM_DATETIME
                                      (aget goog.i18n (str "DateTimeSymbols_" (.-language js/navigator)))))
 
-(defn open-thread [thread owner]
+(defn open-thread [board-name thread owner]
   (when-let [thread-id (:db/id thread)]
-    (api/request (str "/api/thread/" thread-id)
+    (api/request (str "/api/board/" board-name "/thread/" thread-id)
                  {:handler (fn [response]
                            (om/set-state! owner [:thread :thread/comments] (:thread/comments response)))})))
 
@@ -61,7 +61,7 @@
                (str "```\n" (:curating-block/content %) "\n```\n")))
        (clojure.string/join "\n\n")))
 
-(defn article-page [article owner {:keys [user]}]
+(defn article-page [article owner {:keys [user board-name]}]
   (reify
     om/IInitState
     (init-state [_]
@@ -74,7 +74,7 @@
 
     om/IWillMount
     (will-mount [_]
-      (open-thread (om/get-state owner :thread) owner))
+      (open-thread board-name (om/get-state owner :thread) owner))
 
     om/IDidMount
     (did-mount [_]

@@ -43,17 +43,11 @@
                 :put  (has-permission? % #{:add-watcher :remove-watcher}))
 
    :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
-           (when-let [user (d/query datomic
-                                    '{:find [?u .]
-                                      :in [$ ?name]
-                                      :where [[?u :user/name ?name]]}
-                                    (get-in req [:identity :user/name]))]
+           (when-let [user (users/find-by-name datomic (get-in req [:identity :user/name]))]
              (when add-watcher
-               (d/transact datomic
-                           [[:db/add thread-id :thread/watchers user]]))
+               (threads/add-watcher datomic thread-id user))
              (when remove-watcher
-               (d/transact datomic
-                           [[:db/retract thread-id :thread/watchers user]]))))
+               (threads/remove-watcher datomic thread-id user))))
    :handle-created (fn [_]
                      {:status "ok"})
    :handle-ok (fn [_]

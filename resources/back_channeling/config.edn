@@ -9,24 +9,31 @@
                                           :cookie-attrs {:http-only true
                                                          :same-site :strict}}}
  :duct.module/cljs {:main back-channeling.core}
+ :duct.server/figwheel
+ {:builds
+  [{:id       "dev"
+    :figwheel true
+    :source-paths ["dev/src" "src"]
+    :build-options
+    {:main       back-channeling.core
+     :output-to  "target/resources/back_channeling/public/js/main.js"
+     :output-dir "target/resources/back_channeling/public/js"
+     :asset-path #ig/ref :back-channeling.path/asset-path
+     :closure-defines {'goog.DEBUG true}
+     :verbose    false
+     :preloads   [devtools.preload]
+     :optimizations :none}}]}
 
  :back-channeling.module/auth {}
+ :back-channeling.module/app  {}
 
  :duct.router/cascading
  [#ig/ref :back-channeling.handler/api
   #ig/ref :back-channeling.handler/chat-app]
 
- :back-channeling.handler/api
- {:datomic   #ig/ref :back-channeling.database/datomic
-  :socketapp #ig/ref :back-channeling.websocket/socketapp
-  :cache     #ig/ref :back-channeling.database/cache}
-
- :back-channeling.handler/chat-app
- {:datomic   #ig/ref :back-channeling.database/datomic
-  :login-enabled? true}
-
  :back-channeling.server.http/undertow
  {:port 3009
+  :prefix    #ig/ref :back-channeling.path/prefix
   :socketapp #ig/ref :back-channeling.websocket/socketapp}
 
  :back-channeling.middleware/authentication
@@ -39,13 +46,5 @@
   :logger #ig/ref :duct/logger}
 
  :back-channeling.database/cache {}
- :back-channeling.websocket/socketapp
- {:path "/ws"
-  :cache #ig/ref :back-channeling.database/cache
-  :logger #ig/ref :duct/logger}
 
- :back-channeling.auth.backend/token
- {:cache #ig/ref :back-channeling.database/cache
-  :logger #ig/ref :duct/logger}
- :back-channeling.auth.backend/session {}
  }

@@ -6,11 +6,17 @@
                                       [threads :as threads])
             (back-channeling.resource [base :refer [base-resource has-permission?]])))
 
+(def board-ng-names
+  #{"default"})
+
 (defn boards-resource [{:keys [datomic]}]
   (liberator/resource base-resource
    :allowed-methods [:get :post]
    :malformed? #(parse-request % {:board/name [[v/required]
-                                               [v/max-count 255]]})
+                                               [v/max-count 255]
+                                               [v/matches #"^[A-Za-z0-9_\-]+$"]
+                                               [v/every (fn [v]
+                                                          (not (contains? board-ng-names v)))]]})
 
    :post! (fn [{board :edn req :request}]
             {:db/id (boards/save datomic board)})

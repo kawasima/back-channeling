@@ -50,10 +50,13 @@
                               goog.net.ErrorCode/ABORT          (handle-each-type (:abort error-handler) res xhrio)
                               goog.net.ErrorCode/TIMEOUT        (handle-each-type (:timeout error-handler) res xhrio)
                               goog.net.ErrorCode/OFFLINE        (handle-each-type (:offline error-handler) res xhrio)))))))
-     (.send xhrio path (.toLowerCase (name method))
-            body
-            (case format
-              :xml (clj->js {:content-type "application/xml"})
-              :ogg (clj->js {:content-type "audio/ogg"})
-              :wav (clj->js {:content-type "audio/wav"})
-              (clj->js {:content-type "application/edn"}))))))
+     (let [prefix (some-> js/document
+                          (.querySelector "meta[property='bc:prefix']")
+                          (.getAttribute "content"))]
+       (.send xhrio (str prefix path) (.toLowerCase (name method))
+              body
+              (case format
+                :xml (clj->js {:content-type "application/xml"})
+                :ogg (clj->js {:content-type "audio/ogg"})
+                :wav (clj->js {:content-type "audio/wav"})
+                (clj->js {:content-type "application/edn"})))))))

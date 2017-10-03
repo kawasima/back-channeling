@@ -51,13 +51,13 @@ c1.53,0,3.096-1.14,3.566-2.596l2.5-7.75v10.466v0.503v29.166c0,2.757,2.243,5,5,5h
 c0,2.757,2.243,5,5,5h0.352c2.757,0,5-2.243,5-5V57.842v-0.503v-10.47l2.502,7.754c0.47,1.456,2.036,2.596,3.566,2.596h2.25
 c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
 
-(defn signup-view [{params :param error-map :error-map :as req}]
-  (layout req
+(defn signup-view [{params :param error-map :error-map :as req} {:keys [prefix]}]
+  (layout prefix req
    [:div.ui.middle.aligned.center.aligned.login.grid
     [:div.column
      [:h2.ui.header
       [:div.content
-       [:img.ui.image {:src "/img/logo.png"}]]]
+       [:img.ui.image {:src (str prefix "/img/logo.png") }]]]
      [:form.ui.large.login.form (merge {:method "post"}
                                        (when error-map {:class "error"}))
       [:div.ui.stacked.segment
@@ -93,7 +93,7 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
          [:button.ui.icon.button {:type "button"}
           [:i.refresh.icon]]]]
        [:button.ui.fluid.large.teal.submit.button {:type "submit"} "Sign up"]]]]]
-   (include-js "/js/signup.js")))
+   (include-js (str prefix "/js/signup.js"))))
 
 (defvalidator unique-email-validator
   {:default-message-format "%s is used by someone."}
@@ -132,10 +132,10 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
                               [v/max-count 20 :message "Username is too long."]
                               [unique-name-validator datomic]]))
 
-(defn signup [datomic user]
+(defn signup [user {:keys [datomic prefix] :as options}]
   (let [[result map] (validate-user datomic user)]
     (if-let [error-map (:bouncer.core/errors map)]
-      (signup-view {:error-map error-map :params user})
+      (signup-view {:error-map error-map :params user} options)
       (let [salt (nonce/random-nonce 16)
             password (some-> (not-empty (:password-credential/password user))
                              (.getBytes)
@@ -156,10 +156,9 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
                          :password-credential/password password
                          :password-credential/salt salt})]
                      (remove nil?))]
-          (println t)
           (-> (d/transact (:connection datomic) t)
               deref))
 
 
-        (-> (redirect "/")
+        (-> (redirect (str prefix "/"))
             (flash-response {:flash (str "Create account " (:user/name user))}))))))

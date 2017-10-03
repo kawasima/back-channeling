@@ -13,4 +13,7 @@
                       :page :boards}))
 
 (om/root root-view app-state
-         {:target (.getElementById js/document "app")})
+         {:target (.getElementById js/document "app")
+          :shared {:prefix (some-> js/document
+                                   (.querySelector "meta[property='bc:prefix']")
+                                   (.getAttribute "content"))}})

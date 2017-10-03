@@ -64,7 +64,12 @@
                            (om/set-state! owner :search-result results))}))
 
 (defn connect-socket [app token]
-  (socket/open (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://") (.-host js/location) "/ws?token=" token)
+  (socket/open (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://")
+                    (.-host js/location)
+                    (some-> js/document
+                            (.querySelector "meta[property='bc:prefix']")
+                            (.getAttribute "content"))
+                    "/ws?token=" token)
                  :on-message (fn [message]
                                (let [[cmd data] (read-string message)]
                                  (case cmd
@@ -133,7 +138,8 @@
         [:div.ui.fixed.site.menu
          [:div.item
           [:a {:href "#/"}
-           [:img.ui.logo.image {:src "/img/logo.png" :alt "Back Channeling"}]]]
+           [:img.ui.logo.image {:src (str (om/get-shared owner :prefix) "/img/logo.png")
+                                :alt "Back Channeling"}]]]
          [:div.center.menu
           (when (= (:page app) :board)
             [:a.item {:href "#/"}
@@ -193,4 +199,5 @@
                              {:init-state {:thread (->> (:threads app)
                                                         (filter #(= (:thread/active? %) true))
                                                         first)}
-                              :opts {:user user}}))]))))
+                              :opts {:user user
+                                     :board-name (get-in app [:board :board/name])}}))]))))

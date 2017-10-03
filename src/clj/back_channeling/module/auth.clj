@@ -7,7 +7,8 @@
             [buddy.auth.backends.token :refer [token-backend]]
             [buddy.auth.middleware :refer [wrap-authentication wrap-authorization]]
             [buddy.auth.accessrules :refer [wrap-access-rules]]
-            [buddy.auth.http :as http]))
+            [buddy.auth.http :as http])
+  (:import [java.nio.file Paths]))
 
 (defn wrap-same-origin-policy [handler console]
   (fn [req]
@@ -31,25 +32,28 @@
         (.contains accept "application/edn"))))
 
 
-(defmethod ig/init-key :back-channeling.auth/access-rules [_ options]
-  [{:pattern #"^(/|/api/(?!token).*)$"
+(defmethod ig/init-key :back-channeling.auth/access-rules [_ {:keys [prefix]
+                                                              :or {prefix ""}}]
+  [{:pattern (re-pattern (str "^" prefix "(/|/api/(?!token).*)$"))
     :handler authenticated?}])
 
 (defmethod ig/init-key :back-channeling.middleware/access-rules
   [_ {:keys [rules policy] :or {policy :allow}}]
   #(wrap-access-rules % {:rules rules :policy policy}))
 
-(defmethod ig/init-key :back-channeling.middleware/authorization [_ options]
+(defmethod ig/init-key :back-channeling.middleware/authorization [_ {:keys [prefix]
+                                                                     :or {prefix ""}}]
   #(wrap-authorization
     %
     (fn [req meta]
+      (println prefix)
       (if (api-access? req)
         (if (authenticated? req)
           (http/response "Permission denied" 403)
           (http/response "Unauthorized" 401))
         (if (authenticated? req)
-          (redirect "/login")
-          (redirect (str "/login?next=" (:uri req))))))))
+          (redirect (str (Paths/get prefix (into-array String ["/login"]))))
+          (redirect (str (Paths/get prefix (into-array String ["/login"])) "?next=" (:uri req))))))))
 
 (defmethod ig/init-key :back-channeling.middleware/authentication [_ {:keys [backends]}]
   #(apply wrap-authentication % backends))
@@ -60,17 +64,29 @@
 (defmethod ig/init-key :back-channeling.module/auth [_ options]
   {:req #{:duct/logger}
    :fn  (fn [config]
-          (core/merge-configs config
-                              options
-                              {:duct.core/handler
-                               {:middleware ^distinct
-                                [(ig/ref :back-channeling.middleware/access-rules)
-                                 (ig/ref :back-channeling.middleware/authorization)
-                                 (ig/ref :back-channeling.middleware/authentication)
-                                 (ig/ref :back-channeling.middleware/same-origin-policy)]}
-                               :back-channeling.auth/access-rules {}
-                               :back-channeling.middleware/authentication {}
-                               :back-channeling.middleware/authorization {}
-                               :back-channeling.middleware/access-rules
-                               {:rules (ig/ref :back-channeling.auth/access-rules)}
-                               :back-channeling.middleware/same-origin-policy {}}))})
+          (core/merge-configs
+           config
+           options
+           {:duct.core/handler
+            {:middleware ^distinct
+             [(ig/ref :back-channeling.middleware/access-rules)
+              (ig/ref :back-channeling.middleware/authorization)
+              (ig/ref :back-channeling.middleware/authentication)
+              (ig/ref :back-channeling.middleware/same-origin-policy)]}
+            :back-channeling.auth/access-rules
+            {:prefix (ig/ref :back-channeling.path/prefix)}
+            :back-channeling.middleware/authentication {}
+            :back-channeling.middleware/authorization
+            {:prefix (ig/ref :back-channeling.path/prefix)}
+
+            :back-channeling.middleware/access-rules
+            {:rules (ig/ref :back-channeling.auth/access-rules)}
+            :back-channeling.middleware/same-origin-policy {}
+
+            :back-channeling.auth.backend/token
+            {:cache  (ig/ref :back-channeling.database/cache)
+             :logger (ig/ref :duct/logger)}
+            :back-channeling.auth.backend/session {}
+
+            :back-channeling.auth.backend/bouncr
+            {:datomic (ig/ref :back-channeling.database/datomic)}}))})

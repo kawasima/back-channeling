@@ -26,7 +26,7 @@
   (-write [uuid out]
     (json/-write (.toString uuid) out)))
 
-(defmethod ig/init-key :back-channeling.handler/api [_ options]
+(defmethod ig/init-key :back-channeling.handler/api [_ {:keys [prefix] :as options}]
   (context "/api" []
     (ANY "/token" []  (token-resource options))
     (ANY "/boards" [] (boards-resource options))

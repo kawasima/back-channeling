@@ -49,18 +49,19 @@
                 (assoc :thread/resnum cnt)
                 (assoc :thread/readnum cn))))))
 
-  (save [{:keys [connection]} board]
-    (let [board-id (d/tempid :db.part/user)
-          tempids (-> (d/transact connection
-                                {:db/id board-id
-                                 :board/name (:board/name board)
-                                 :board/description (:board/description board)})
-                      deref
-                      :tempids)]
-      (d/resolve-tempid (d/db connection) tempids board-id)))
+  (save
+    ([{:keys [connection]} board]
+     (let [board-id (d/tempid :db.part/user)
+           tempids (-> (d/transact connection
+                                   [{:db/id board-id
+                                     :board/name (:board/name board)
+                                     :board/description (:board/description board)}])
+                       deref
+                       :tempids)]
+       (d/resolve-tempid (d/db connection) tempids board-id)))
 
-  (save [{:keys [connection]} board board-id]
-    (d/transact connection
-                {:db/id (:db/id board-id)
-                 :board/name (:board/name board)
-                 :board/description (:board/description board)})))
+    ([{:keys [connection]} board board-id]
+     @(d/transact connection
+                  [{:db/id (:db/id board-id)
+                    :board/name (:board/name board)
+                    :board/description (:board/description board)}]))))

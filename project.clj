@@ -13,13 +13,14 @@
                  [hiccup "1.0.5"]
                  [garden "1.3.2"]
                  [buddy "2.0.0"]
+                 [camel-snake-kebab "0.4.0"]
 
                  [org.clojure/core.async "0.3.443"]
                  [sablono "0.8.0"]
                  [bouncer "1.0.0"]
                  [secretary "1.2.3"]
                  [org.omcljs/om "1.0.0-beta1"]
-                 [io.undertow/undertow-websockets-jsr "1.3.23.Final"]
+                 [io.undertow/undertow-websockets-jsr "1.4.20.Final"]
                  ;;[com.google.guava/guava "19.0"]
                  [com.datomic/datomic-free "0.9.5385"
                   :exclusions [org.slf4j/slf4j-api
@@ -29,9 +30,7 @@
                                com.google.guava/guava]]
                  [liberator "0.15.1"]]
 
-  :plugins [[duct/lein-duct "0.10.2"]
-            [lein-cljsbuild "1.1.3"]
-            [lein-environ "1.0.3"]]
+  :plugins [[duct/lein-duct "0.10.2"]]
   :pom-plugins [[org.apache.maven.plugins/maven-assembly-plugin "2.5.5"
                  {:configuration [:descriptors [:descriptor "src/assembly/dist.xml"]]}]]
 

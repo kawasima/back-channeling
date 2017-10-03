@@ -29,21 +29,21 @@
          (d/db connection)
          username password)))
 
-(defn index-view [req env]
-  (layout req
+(defn index-view [req {:keys [prefix env]}]
+  (layout prefix req
    [:div#app.ui.page.full.height]
-   (include-js (if (= env :production)
-                 "/js/back-channeling.min.js"
-                 "/js/main.js"))))
+   (include-js (str prefix (if (= env :production)
+                             "/js/back-channeling.min.js"
+                             "/js/main.js")) )))
 
-(defn login-view [req]
-  (layout
+(defn login-view [req {:keys [prefix]}]
+  (layout prefix
    req
    [:div.ui.middle.aligned.center.aligned.login.grid
     [:div.column
      [:h2.ui.header
       [:div.content
-       [:img.ui.image {:src "/img/logo.png"}]]]
+       [:img.ui.image {:src (str prefix "/img/logo.png")}]]]
      [:form.ui.large.login.form
       (merge {:method "post"}
              (when (= (:request-method req) :post)
@@ -61,33 +61,33 @@
          [:input {:type "password" :name "password" :placeholder "Password"}]]]
        [:button.ui.fluid.large.teal.submit.button {:type "submit"} "Login"]]]
      [:div.ui.message
-      "New to us? " [:a {:href "/signup"} "Sign up"]]]]))
+      "New to us? " [:a {:href (str prefix "/signup")} "Sign up"]]]]))
 
-(defn login-routes [datomic]
+(defn login-routes [{:keys [datomic] :as options}]
   (routes
-   (GET "/login" req (login-view req))
+   (GET "/login" req (login-view req options))
    (POST "/login" {{:keys [username password]} :params :as req}
      (if-let [user (auth-by-password datomic username password)]
        (-> (redirect (get-in req [:query-params "next"] "/"))
            (assoc-in [:session :identity] (select-keys user [:user/name :user/email])))
-       (login-view req)))
+       (login-view req options)))
    (GET "/signup" req
-     (signup/signup-view req))
+     (signup/signup-view req options))
    (POST "/signup" req
-     (signup/signup datomic
-                    (select-keys (clojure.walk/keywordize-keys (:params req))
+     (signup/signup (select-keys (clojure.walk/keywordize-keys (:params req))
                                  [:user/email :user/name
                                   :password-credential/password
-                                  :token-credential/token])))
+                                  :token-credential/token])
+                    options))
    (GET "/logout" []
      (-> (redirect "/")
          (assoc :session {})))))
 
 (defmethod ig/init-key :back-channeling.handler/chat-app
-  [_ {:keys [datomic login-enabled? env]
+  [_ {:keys [datomic login-enabled? env prefix]
       :or   {login-enabled? true}}]
   (let [r (routes
-           (GET "/" req (index-view req env))
+           (GET "/" req (index-view req {:prefix prefix :env env}))
            (GET "/react/react.js" [] (-> (resource-response "cljsjs/development/react.inc.js")
                                          (content-type "text/javascript")))
            (GET "/react/react.min.js" [] (resource-response "cljsjs/production/react.min.inc.js"))
@@ -100,5 +100,5 @@
                {:headers {"content-type" content-type}
                 :body (FileInputStream. (str "voices/" thread-id "/" filename))})))]
     (if login-enabled?
-      (routes r (login-routes datomic))
+      (routes r (login-routes {:prefix prefix :datomic datomic}))
       r)))

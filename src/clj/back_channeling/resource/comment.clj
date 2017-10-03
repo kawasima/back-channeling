@@ -79,7 +79,7 @@
   {:pre [(integer? thread-id) (integer? comment-no)]}
   (liberator/resource
    base-resource
-   :allowed-methods [:post :put]
+   :allowed-methods [:post :put :delete]
    :authorized? #(case (get-in % [:request :request-method])
                    :post   (has-permission? % #{:write-thread})
                    :delete (has-permission? % #{:delete-comment}))
@@ -99,4 +99,5 @@
                                 :comments/from comment-no
                                 :comments/to   comment-no
                                 :board/name board-name}])))
-   :delete! (fn [_])))
+   :delete! (fn [_]
+              (comments/hide datomic thread-id comment-no))))
