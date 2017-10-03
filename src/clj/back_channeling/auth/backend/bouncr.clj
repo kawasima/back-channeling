@@ -27,7 +27,7 @@
                               (get-in [:headers "x-bouncr-permissions"])
                               (clojure.string/split #"\s*,\s*")
                               (#(map keywordize %))
-                              set)}))
+                              vec)}))
     (-authenticate [_ requst data]
       (authfn data))
 
