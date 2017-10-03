@@ -1,6 +1,6 @@
 # Back channeling
 
-![Back channeling](./resources/public/img/logo.png)
+![Back channeling](./resources/back_channeling/public/img/logo.png)
 
 Back channeling is a real-time BBS tool.
 
