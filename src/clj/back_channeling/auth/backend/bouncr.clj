@@ -3,6 +3,12 @@
             [buddy.auth :refer [authenticated?]]
             [buddy.auth.protocols :as proto]))
 
+(defn- keywordize [s]
+  (-> (clojure.string/lower-case s)
+      (clojure.string/replace "_" "-")
+      (clojure.string/replace "." "-")
+      (keyword)))
+
 (defn- handle-unauthorized-default
   "A default response constructor for an unauthorized request."
   [request]
@@ -17,10 +23,11 @@
     (-parse [_ request]
       (when-let [id (get-in request [:headers "x-bouncr-id"])]
         {:id id
-         :permissions (some->> request
-                               (get-in [:headers "x-bouncr-permissions"])
-                               (clojure.string/split #"\s*,\s*")
-                               vec)}))
+         :permissions (some-> request
+                              (get-in [:headers "x-bouncr-permissions"])
+                              (clojure.string/split #"\s*,\s*")
+                              (#(map keywordize %))
+                              set)}))
     (-authenticate [_ requst data]
       (authfn data))
 
