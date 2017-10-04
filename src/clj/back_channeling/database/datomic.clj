@@ -5,5 +5,6 @@
 (defrecord Boundary [connection])
 
 (defmethod ig/init-key :back-channeling.database/datomic [_ {:keys [uri]}]
-  (let [create? (d/create-database uri)]
-    (->Boundary (d/connect uri))))
+    (let [create? (d/create-database uri)]
+      (println "reload")
+      (->Boundary (d/connect uri))))

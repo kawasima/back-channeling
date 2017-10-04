@@ -18,7 +18,7 @@
                                                     [v/max-count 4000]]})
    :allowed? #(case (get-in % [:request :request-method])
                 :get  (has-permission? % #{:read-board})
-                :post (has-permission? % #{:create-thread}))
+                :post (has-permission? % #{:write-thread}))
 
    :handle-created (fn [ctx]
                      {:db/id (:db/id ctx)})
@@ -40,7 +40,7 @@
 
    :allowed? #(case (get-in % [:request :request-method])
                 :get  (has-permission? % #{:read-thread})
-                :put  (has-permission? % #{:add-watcher :remove-watcher}))
+                :put  (has-permission? % #{:read-thread}))
 
    :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
            (when-let [user (users/find-by-name datomic (get-in req [:identity :user/name]))]

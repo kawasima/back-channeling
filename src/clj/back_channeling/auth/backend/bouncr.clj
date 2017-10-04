@@ -1,5 +1,7 @@
 (ns back-channeling.auth.backend.bouncr
   (:require [integrant.core :as ig]
+            [ring.util.response :refer [redirect]]
+
             [datomic.api :as d]
             [buddy.auth :refer [authenticated?]]
             [buddy.auth.protocols :as proto]
@@ -11,12 +13,17 @@
                   (assoc m :none {:signer   (fn [_ _ ] "")
                                   :verifier (fn [_ _ _] true)})))
 
+(defn api-access? [req]
+  (if-let [accept (get-in req [:headers "accept"])]
+    (or (.contains accept "application/json")
+        (.contains accept "application/edn"))))
+
 (defn- handle-unauthorized-default
   "A default response constructor for an unauthorized request."
   [request]
-  (if (authenticated? request)
-    {:status 403 :headers {} :body "Permission denied"}
-    {:status 401 :headers {} :body "Unauthorized"}))
+  (if (api-access? request)
+    {:status 401 :headers {} :body "Unauthorized"}
+    (redirect (str "/my/signIn?url=" (:uri request)))))
 
 (defn register-user [{:keys [connection]} user-name email]
   (-> (d/transact connection

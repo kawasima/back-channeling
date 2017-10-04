@@ -37,14 +37,13 @@
   :main ^:skip-aot back-channeling.main
   :target-path "target/%s"
   :uberjar-name "back-channeling-standalone.jar"
-  :prep-tasks [["javac"] ["cljsbuild" "once"] ["compile"]]
+  :prep-tasks ["javac" "compile" ["run" ":duct/compiler"]]
 
   :profiles
   {:dev  [:project/dev  :profiles/dev]
    :test [:project/test :profiles/test]
    :repl {:prep-tasks ^:replace ["javac" "compile"]
-          :repl-options {:init-ns user
-                         :nrepl-middleware [cemerick.piggieback/wrap-cljs-repl]}}
+          :repl-options {:init-ns user}}
    :uberjar {:aot :all}
    :profiles/dev   {}
    :profiles/test  {}

@@ -85,10 +85,10 @@
 
   (add-watcher [{:keys [connection]} th user]
     (-> (d/transact connection
-                    [[:db/add th :thread/watchers user]])
+                    [[:db/add th :thread/watchers (:db/id user)]])
         deref))
 
   (remove-watcher [{:keys [connection]} th user]
     (-> (d/transact connection
-                    [[:db/retract th :thread/watchers user]])
+                    [[:db/retract th :thread/watchers (:db/id user)]])
         deref)))

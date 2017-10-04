@@ -112,7 +112,8 @@
                       (connect-socket app (:access-token response)))
                     :error-handler
                     (fn [response error-code]
-                      (set! (.. js/document -location -href) "/"))})
+                      (.error js/console "Can't connect websocket (;;)")
+                      #_(set! (.. js/document -location -href) "/"))})
 
       (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
         (.removeEventListener js/document "mousedown" on-click-outside)))

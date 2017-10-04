@@ -5,12 +5,12 @@
 (defmethod ig/init-key :back-channeling.path/prefix [_ options]
   (if (string? options)
     options
-    ""))
+    (str "")))
 
 (defmethod ig/init-key :back-channeling.path/asset-path [_ options]
   (if (string? options)
     options
-    "/js"))
+    (str "/js")))
 
 (defmethod ig/init-key :back-channeling.module/app [_ options]
   {:req #{:duct/logger}

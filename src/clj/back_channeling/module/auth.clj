@@ -41,19 +41,10 @@
   [_ {:keys [rules policy] :or {policy :allow}}]
   #(wrap-access-rules % {:rules rules :policy policy}))
 
-(defmethod ig/init-key :back-channeling.middleware/authorization [_ {:keys [prefix]
-                                                                     :or {prefix ""}}]
-  #(wrap-authorization
-    %
-    (fn [req meta]
-      (println prefix)
-      (if (api-access? req)
-        (if (authenticated? req)
-          (http/response "Permission denied" 403)
-          (http/response "Unauthorized" 401))
-        (if (authenticated? req)
-          (redirect (str (Paths/get prefix (into-array String ["/login"]))))
-          (redirect (str (Paths/get prefix (into-array String ["/login"])) "?next=" (:uri req))))))))
+(defmethod ig/init-key :back-channeling.middleware/authorization
+  [_ {:keys [prefix backend]
+      :or {prefix ""}}]
+  #(wrap-authorization % backend))
 
 (defmethod ig/init-key :back-channeling.middleware/authentication [_ {:keys [backends]}]
   #(apply wrap-authentication % backends))
