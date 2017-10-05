@@ -55,7 +55,9 @@
 
     (doseq [ws websockets]
       (.addPrefixPath handler
-                      (str (Paths/get (or prefix "") (into-array String [(:path ws)])))
+                      (-> (Paths/get (or prefix "") (into-array String [(:path ws)]))
+                          str
+                          (clojure.string/replace #"\\" "/"))
                       (Handlers/websocket
                        (websocket-callback ws))))
     (let [server (.. (Undertow/builder)
