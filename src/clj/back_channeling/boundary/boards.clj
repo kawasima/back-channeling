@@ -8,9 +8,9 @@
   (find-threads [datomic board-id identity])
   (save [datomic board] [datomic board board-id]))
 
-(defn read-comment [db e user-name]
+(defn find-readnum [db e user-name]
   (let [res (d/q '{:find [?cn .]
-                   :in [$ ?e]
+                   :in [$ ?e ?name]
                    :where [[?rc :read-comment/thread ?e]
                            [?rc :read-comment/user ?u]
                            [?rc :read-comment/comment-no ?cn]
@@ -39,7 +39,7 @@
                 :in [$ ?bd ?name]
                 :where [[?bd :board/threads ?th]
                         [?th :thread/comments ?c]
-                        [(back-channeling.boundary.boards/read-comment $ ?th ?name) ?cn]]}
+                        [(back-channeling.boundary.boards/find-readnum $ ?th ?name) ?cn]]}
               (d/db connection)
               board-id
               (:user/name identity))

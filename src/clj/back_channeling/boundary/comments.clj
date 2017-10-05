@@ -13,7 +13,7 @@
 (extend-protocol Comments
   back_channeling.database.datomic.Boundary
   (find-by-thread [{:keys [connection]} thread-id]
-    (d/pull (d/db connection)
+    (-> (d/pull (d/db connection)
             '[{:thread/comments
                [:*
                 {:comment/format [:db/ident]
@@ -21,7 +21,8 @@
                  :comment/reactions
                  [{:comment-reaction/reaction [:reaction/label]
                    :comment-reaction/reaction-by [:user/name :user/email]}]}]}]
-            thread-id))
+            thread-id)
+        :thread/comments))
 
   (count [{:keys [connection]} thread-id]
     (d/q '{:find [(count ?comment) .]

@@ -66,29 +66,33 @@
   (save [{:keys [connection]} board-name th user]
     (let [now (Date.)
           thread-id (d/tempid :db.part/user)
-          tempids (-> (d/transact connection
-                                  [[:db/add [:board/name board-name]
-                                    :board/threads thread-id]
-                                   {:db/id thread-id
-                                    :thread/title (:thread/title th)
-                                    :thread/since now
-                                    :thread/last-updated now}
-                                   [:db/add thread-id :thread/comments #db/id[:db.part/user -2]]
-                                   {:db/id #db/id[:db.part/user -2]
-                                    :comment/posted-at now
-                                    :comment/posted-by user
-                                    :comment/format (get th :comment/format :comment.format/plain)
-                                    :comment/content (:comment/content th)}])
+          tempids (-> (d/transact
+                       connection
+                       [[:db/add [:board/name board-name]
+                         :board/threads thread-id]
+                        {:db/id thread-id
+                         :thread/title (:thread/title th)
+                         :thread/since now
+                         :thread/last-updated now
+                         :thread/public? (get th :thread/public? true)}
+                        [:db/add thread-id :thread/comments #db/id[:db.part/user -2]]
+                        {:db/id #db/id[:db.part/user -2]
+                         :comment/posted-at now
+                         :comment/posted-by user
+                         :comment/format (get th :comment/format :comment.format/plain)
+                         :comment/content (:comment/content th)}])
                       deref
                       :tempids)]
       [tempids thread-id]))
 
-  (add-watcher [{:keys [connection]} th user]
+  (add-watcher [{:keys [connection]} th identity]
     (-> (d/transact connection
-                    [[:db/add th :thread/watchers (:db/id user)]])
+                    [[:db/add th
+                      :thread/watchers [:user/name (:user/name identity)]]])
         deref))
 
   (remove-watcher [{:keys [connection]} th user]
     (-> (d/transact connection
-                    [[:db/retract th :thread/watchers (:db/id user)]])
+                    [[:db/retract th
+                      :thread/watchers [:user/name (:user/name identity)]]])
         deref)))

@@ -4,6 +4,7 @@
             (back-channeling [util :refer [parse-request]])
             [back-channeling.websocket.socketapp :refer [broadcast-message multicast-message]]
             (back-channeling.boundary [comments :as comments]
+                                      [read-comments :as read-comments]
                                       [threads :as threads]
                                       [reactions :as reactions]
                                       [users :as users])
@@ -66,12 +67,16 @@
                            :comment/content (:comment/content comment)
                            :comment/format (get :comment/format comment :comment.format/plain)}]
                  watchers))))
-   :handle-ok (fn [_]
-                (->> (comments/find-by-thread datomic thread-id)
-                     :thread/comments
-                     (map-indexed #(assoc %2 :comment/no (inc %1)))
-                     (drop (dec from))
-                     vec))))
+   :handle-ok
+   (fn [{identity :identity}]
+     (let [comments (->> (comments/find-by-thread datomic thread-id)
+                         (map-indexed #(assoc %2 :comment/no (inc %1)))
+                         (drop (dec from))
+                         (map #(if (:comment/public? %) %
+                                   (assoc % :comment/content "")))
+                         vec)]
+       (read-comments/save datomic thread-id identity (count comments))
+       comments))))
 
 (defn comment-resource
   "Returns a resource that react to a comment"

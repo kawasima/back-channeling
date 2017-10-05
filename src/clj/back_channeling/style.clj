@@ -9,7 +9,8 @@
     [:.emoji {:height "1.2em"}]
     [:.login.grid {:height "100%"
                    :background {:color "#F8FBF8"}}
-     [:.column {:max-width (px 450)}]]]
+     [:.column {:max-width (px 450)}]]
+    [:tr.unread {:font-weight "bold"}]]
    [:img.ui.logo.image {:width (px 240)}]
 
    [:.preview {:white-space "pre-wrap"}]

@@ -390,10 +390,14 @@
                              (map #(if (:thread/watchers %) % (assoc % :thread/watchers #{})))
                              (sort-by (first sort-key) (case (second sort-key)
                                                          :asc < :desc >)))]
-             [:tr {:key (str "t-" (:db/id thread))}
-              (om/build thread-watch-icon thread {:init-state {:watching? (boolean ((:thread/watchers thread) (:user/name user)))
-                                                               :user user}
-                                                  :opts {:board-name (:board/name board)}})
+             [:tr (merge {:key (str "t-" (:db/id thread))}
+                         (when (> (:thread/resnum thread) (:thread/readnum thread))
+                           {:class "unread"}))
+              (om/build thread-watch-icon thread
+                        {:init-state
+                         {:watching? (boolean ((:thread/watchers thread) (:user/name user)))
+                          :user user}
+                         :opts {:board-name (:board/name board)}})
               [:td
                [:a {:href (str "#/board/" (:board/name board) "/" (:db/id thread))}
                 (:thread/title thread)]]

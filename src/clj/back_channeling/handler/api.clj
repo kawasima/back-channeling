@@ -35,7 +35,7 @@
         (board-resource options board-name))
       (ANY "/threads" []
         (threads-resource options board-name))
-      (ANY "/thread/:thread-id" [board-name thread-id :<< as-int]
+      (ANY "/thread/:thread-id" [thread-id :<< as-int]
         (thread-resource options board-name thread-id))
       (ANY "/thread/:thread-id/comments" [thread-id :<< as-int]
         (comments-resource options board-name thread-id 1 nil))
@@ -47,7 +47,7 @@
                              thread-id
                              (when from (Long/parseLong from))
                              (when to (Long/parseLong to)))))
-      (ANY "/thread/:thread-id/voices" [board-name thread-id :<< as-int]
+      (ANY "/thread/:thread-id/voices" [thread-id :<< as-int]
         (voices-resource options board-name thread-id))
       (ANY "/thread/:thread-id/comment/:comment-no"
         [thread-id :<< as-int comment-no :<< as-int]

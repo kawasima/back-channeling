@@ -43,11 +43,11 @@
                 :put  (has-permission? % #{:read-thread}))
 
    :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
-           (when-let [user (users/find-by-name datomic (get-in req [:identity :user/name]))]
-             (when add-watcher
-               (threads/add-watcher datomic thread-id user))
-             (when remove-watcher
-               (threads/remove-watcher datomic thread-id user))))
+           (when add-watcher
+             (threads/add-watcher datomic thread-id identity))
+           (when remove-watcher
+             (threads/remove-watcher datomic thread-id identity)))
+
    :handle-created (fn [_]
                      {:status "ok"})
    :handle-ok (fn [_]
