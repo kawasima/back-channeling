@@ -7,6 +7,7 @@
     [:meta {:charset "utf-8"}]
     [:title "Back Channeling"]
     [:meta {:http-equiv "X-UA-Compatible" :content "IE=edge,chrome=1"}]
+    [:link {:rel "icon" :href (str prefix "/favicon.ico")}]
     [:meta {:name "viewport" :content "width=device-width, initial-scale=1, maximum-scale=1"}]
     [:meta {:property "bc:prefix" :content prefix}]
     (when-let [user (:identity req)]
