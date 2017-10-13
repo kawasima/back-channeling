@@ -42,6 +42,6 @@
    :put! (fn [{old ::board board :edn}]
            (boards/save datomic board (:db/id old)))
 
-   :handle-ok (fn [{board :board {identity :identity} :request}]
+   :handle-ok (fn [{board :board identity :identity}]
                 (->> (boards/find-threads datomic (:db/id board) identity)
                      ((fn [threads] (assoc board :board/threads threads)))))))

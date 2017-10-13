@@ -1,5 +1,6 @@
 (ns back-channeling.routing
   (:require [om.core :as om :include-macros true]
+            [medley.core :as m]
             [clojure.browser.net :as net]
             [secretary.core :as sec :include-macros true]
             [goog.events :as events]
@@ -15,16 +16,14 @@
    "/api/boards"
    {:handler
     (fn [response]
-      (om/transact! app #(assoc % :boards response :page :boards)))}))
+      (om/transact! app #(assoc % :boards response)))}))
 
 (defn fetch-board [board-name app]
   (api/request
    (str "/api/board/" board-name)
    {:handler
     (fn [response]
-      (om/transact! app #(assoc %
-                                :page :board
-                                :board response)))}))
+      (om/transact! app #(assoc % :board response)))}))
 
 (defn fetch-thread [thread-id comment-no board-name app]
   (when (> thread-id 0)
@@ -35,6 +34,10 @@
         (fn [response]
           (om/transact! app
                         #(-> (assoc % :page :board)
+                             (update :threads (fn [ths]
+                                                (m/map-vals
+                                                  (fn [th] (assoc th :thread/active? false))
+                                                  ths)))
                              (assoc-in  [:threads thread-id :db/id] thread-id)
                              (update-in [:threads thread-id :thread/comments] concat response)
                              (assoc-in  [:threads thread-id :thread/active?] true)
@@ -61,12 +64,21 @@
                        (.getAttribute "content"))]
     (sec/set-config! :prefix (str prefix "/#")))
   (sec/defroute "/" []
+    (om/transact! app #(assoc % :page :boards))
     (fetch-boards app))
   (sec/defroute "/board/:board-name" [board-name]
+    (om/transact! app (fn [app]
+                        (if (= board-name (get-in app [:board :board/name]))
+                          (assoc app :page :board)
+                          (assoc app :page :board :threads {} :board {}))))
     (fetch-board board-name app))
   (sec/defroute "/board/:board-name/:thread-id" [board-name thread-id]
+    (when (empty (:board @app))
+      (fetch-board board-name app))
     (fetch-thread (js/parseInt thread-id) nil board-name app))
   (sec/defroute "/board/:board-name/:thread-id/:comment-no" [board-name thread-id comment-no]
+    (when (empty (:board @app))
+      (fetch-board board-name app))
     (fetch-thread (js/parseInt thread-id) comment-no board-name app))
   (sec/defroute "/articles/new" [query-params]
     (om/transact! app #(assoc %

@@ -475,7 +475,7 @@
         (om/set-state! owner :sticky-thread-content? true)
         (om/set-state! owner :sticky-thread-content? false)))))
 
-(defn board-view [threads owner {:keys [reactions board]}]
+(defn board-view [app owner {:keys [reactions]}]
   (reify
     om/IInitState
     (init-state [_]
@@ -489,61 +489,63 @@
 
     om/IRenderState
     (render-state [_ {:keys [tabs channel sticky-thread-content?]}]
-      (doseq [th (vals threads)]
-        (when-not (not-empty (filter #(= (:db/id th) (:id %)) tabs))
-          (om/update-state!
-           owner :tabs
-           (fn [tabs]
-             (conj tabs {:id (:db/id th)
-                         :name (->> (:board/threads board)
-                                    (filter #(= (:db/id th) (:db/id %)))
-                                    first
-                                    :thread/title)})) )))
+      (let [threads (:threads app)
+            board (:board app)]
+        (doseq [th (vals threads)]
+          (when-not (not-empty (filter #(= (:db/id th) (:id %)) tabs))
+            (om/update-state!
+             owner :tabs
+             (fn [tabs]
+               (conj tabs {:id (:db/id th)
+                           :name (->> (:board/threads board)
+                                      (filter #(= (:db/id th) (:db/id %)))
+                                      first
+                                      :thread/title)})) )))
 
-      (html
-       [:div.main.content.full.height
-        (om/build thread-list-view board)
-        [:div.ui.top.attached.thread.content.segment
-         [:div.ui.top.attached.tabular.sticky.menu
-          (when sticky-thread-content? {:class "fixed"})
-          [:a.item (merge {:on-click (fn [_]
-                                       (om/transact! threads (fn [ths]
-                                                               (m/map-vals #(assoc % :thread/active? false) ths)))
-                                       (set! (.-href js/location)
-                                             (str "#/board/" (:board/name board))))}
-                          (when (every? #(not (:thread/active? %)) (vals threads))
-                            {:class "active"}))
-           [:span.tab-name "New"]]
-          (for [tab tabs]
-            [:a.item (merge {:key (str "tab-" (:id tab))
-                             :on-click (fn [_]
+        (html
+         [:div.main.content.full.height
+          (om/build thread-list-view board)
+          [:div.ui.top.attached.thread.content.segment
+           [:div.ui.top.attached.tabular.sticky.menu
+            (when sticky-thread-content? {:class "fixed"})
+            [:a.item (merge {:on-click (fn [_]
                                          (om/transact! threads (fn [ths]
-                                                                 (m/map-vals #(assoc % :thread/active? (= (:db/id %) (:id tab))) ths)))
+                                                                 (m/map-vals #(assoc % :thread/active? false) ths)))
                                          (set! (.-href js/location)
-                                               (str "#/board/" (:board/name board) "/" (:id tab))))}
-                            (when (get-in threads [(:id tab) :thread/active?])
+                                               (str "#/board/" (:board/name board))))}
+                            (when (every? #(not (:thread/active? %)) (vals threads))
                               {:class "active"}))
-             [:span.tab-name (:name tab)]
-             [:span
-              [:i.close.icon
-               {:on-click (fn [e]
-                            (om/transact! threads #(dissoc % (:id tab)))
-                            (om/update-state! owner [:tabs]
-                                              #(remove (fn [t] (= (:id t) (:id tab))) %))
-                            (set! (.. js/location -href) (str "#/board/" (:board/name board)))
-                            (.stopPropagation e))}]]])]
-         [:div.ui.bottom.attached.tab.full.height.segment
-          (when (every? #(not (:thread/active? %)) (vals threads))
-            {:class "active"})
-          (om/build thread-new-view board)]
-         (for [tab tabs]
+             [:span.tab-name "New"]]
+            (for [tab tabs]
+              [:a.item (merge {:key (str "tab-" (:id tab))
+                               :on-click (fn [_]
+                                           (om/transact! threads (fn [ths]
+                                                                   (m/map-vals #(assoc % :thread/active? (= (:db/id %) (:id tab))) ths)))
+                                           (set! (.-href js/location)
+                                                 (str "#/board/" (:board/name board) "/" (:id tab))))}
+                              (when (get-in threads [(:id tab) :thread/active?])
+                                {:class "active"}))
+               [:span.tab-name (:name tab)]
+               [:span
+                [:i.close.icon
+                 {:on-click (fn [e]
+                              (om/transact! threads #(dissoc % (:id tab)))
+                              (om/update-state! owner [:tabs]
+                                                #(remove (fn [t] (= (:id t) (:id tab))) %))
+                              (set! (.. js/location -href) (str "#/board/" (:board/name board)))
+                              (.stopPropagation e))}]]])]
            [:div.ui.bottom.attached.tab.full.height.segment
-            (merge {:key (str "tab-content-" (:id tab))}
-                   (when (get-in threads [(:id tab) :thread/active?]) {:class "active"}))
-            (om/build thread-view (get threads (:id tab))
-                      {:state {:target-comment (get-in threads [(:id tab) :thread/last-comment-no])}
-                       :opts {:board-name (:board/name board)
-                              :reactions reactions}})])]]))))
+            (when (every? #(not (:thread/active? %)) (vals threads))
+              {:class "active"})
+            (om/build thread-new-view board)]
+           (for [tab tabs]
+             [:div.ui.bottom.attached.tab.full.height.segment
+              (merge {:key (str "tab-content-" (:id tab))}
+                     (when (get-in threads [(:id tab) :thread/active?]) {:class "active"}))
+              (om/build thread-view (get threads (:id tab))
+                        {:state {:target-comment (get-in threads [(:id tab) :thread/last-comment-no])}
+                         :opts {:board-name (:board/name board)
+                                :reactions reactions}})])]])))))
 
 (defn boards-view [boards owner]
   (reify

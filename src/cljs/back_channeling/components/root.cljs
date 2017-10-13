@@ -12,14 +12,6 @@
         [back-channeling.component-helper :only [make-click-outside-fn]]
         [cljs.reader :only [read-string]]))
 
-(defn refresh-boards [app]
-  (api/request "/api/boards"
-               {:handler (fn [response]
-                           (let [boards (->> response
-                                             (map #(assoc % :board/threads {}))
-                                             (reduce #(assoc %1 (:board/name %2) {:value %2}) {}))]
-                             (om/update! app :boards boards)))}))
-
 (defn refresh-board [app board-name]
   (api/request (str "/api/board/" board-name)
                {:handler (fn [response]
@@ -35,7 +27,7 @@
     (str "/api/board/" name "/thread/" id "/comments/" from "-" to)
     {:handler (fn [fetched-comments]
                 (om/transact!
-                 app [:thread id :thread/comments]
+                 app [:threads id :thread/comments]
                  #(concat % fetched-comments)))})))
 
 (defn find-thread [threads id]
@@ -54,8 +46,7 @@
     (when (get-in @app [:threads (:db/id thread) :thread/active?])
       (fetch-comments app thread
                       (or (:comments/from thread)
-                          (inc (count
-                                (or (get-in @app [:threads (:db/id thread) :thread/comments]) 0))))
+                          (inc (count (get-in @app [:threads (:db/id thread) :thread/comments]))))
                       (:comments/to thread)))))
 
 (defn search-threads [owner board-name query]
@@ -144,7 +135,7 @@
          [:div.center.menu
           (when (= (:page app) :board)
             [:a.item {:href "#/"}
-             [:h2.ui.header [:i.block.layout.icon] [:div.content (:target-board-name app)]]])
+             [:h2.ui.header [:i.block.layout.icon] [:div.content (get-in app [:board :board/name])]]])
           [:div.item
            [:div.ui.search
             [:div.ui.icon.input
@@ -191,10 +182,9 @@
             [:a.item {:href "/logout"} "Logout"]]]]]
         (case (:page app)
           :boards (om/build boards-view (:boards app))
-          :board (om/build board-view (:threads app)
+          :board (om/build board-view app
                            {:init-state {:channel board-channel}
                             :opts {:user user
-                                   :board (:board app)
                                    :reactions (:reactions app)}})
           :article (om/build article-page (:article app)
                              {:init-state {:thread (->> (:threads app)
