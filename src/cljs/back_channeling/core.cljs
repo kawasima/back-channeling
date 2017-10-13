@@ -6,8 +6,7 @@
 (set! js/md (js/markdownit))
 
 (def app-state (atom {:boards []
-                      :board {:name "default"
-                              :threads []}
+                      :board {}
                       :threads {}
                       :users #{}
                       :page :boards}))
