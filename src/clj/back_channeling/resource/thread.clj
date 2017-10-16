@@ -42,7 +42,7 @@
                 :get  (has-permission? % #{:read-thread})
                 :put  (has-permission? % #{:read-thread}))
 
-   :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
+   :put! (fn [{{:keys [add-watcher remove-watcher]} :edn identity :identity}]
            (when add-watcher
              (threads/add-watcher datomic thread-id identity))
            (when remove-watcher
