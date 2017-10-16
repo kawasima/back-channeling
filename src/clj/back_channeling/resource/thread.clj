@@ -42,11 +42,15 @@
                 :get  (has-permission? % #{:read-thread})
                 :put  (has-permission? % #{:read-thread}))
 
-   :put! (fn [{{:keys [add-watcher remove-watcher]} :edn req :request}]
+   :put! (fn [{{:keys [add-watcher remove-watcher open-thread close-thread]} :edn identity :identity}]
            (when add-watcher
              (threads/add-watcher datomic thread-id identity))
            (when remove-watcher
-             (threads/remove-watcher datomic thread-id identity)))
+             (threads/remove-watcher datomic thread-id identity))
+           (when open-thread
+             (threads/open-thread datomic thread-id))
+           (when close-thread
+             (threads/close-thread datomic thread-id)))
 
    :handle-created (fn [_]
                      {:status "ok"})
