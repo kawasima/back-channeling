@@ -400,6 +400,8 @@
                          :opts {:board-name (:board/name board)}})
               [:td
                [:a {:href (str "#/board/" (:board/name board) "/" (:db/id thread))}
+                (when-not (:thread/public? thread) [:i.icon.lock])
+                (when (> (:thread/writenum thread) 0) [:i.icon.write.square])
                 (:thread/title thread)]]
               [:td (:thread/resnum thread)]
               [:td (.format date-format-m (:thread/last-updated thread))]
@@ -408,8 +410,7 @@
 (defn thread-new-view [board owner]
   (reify
     om/IInitState
-    (init-state [_] {:thread {:board/name (:board/name @board)
-                              :thread/title ""
+    (init-state [_] {:thread {:thread/title ""
                               :comment/content ""
                               :comment/format "comment.format/plain"}})
 
@@ -444,7 +445,8 @@
              [:div.field
               [:button.ui.blue.labeled.submit.icon.button
                {:on-click (fn [_]
-                            (let [thread (om/get-state owner :thread)
+                            (let [thread (-> (om/get-state owner :thread)
+                                             (assoc :board/name (:board/name board)))
                                   [result map] (b/validate thread
                                                            :thread/title v/required
                                                            :comment/content v/required)]

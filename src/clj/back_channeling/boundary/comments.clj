@@ -6,7 +6,7 @@
 (defprotocol Comments
   (find-by-thread [datomic thread-id])
   (count [datomic thread-id])
-  (count-by-identity [datomic thread-id identity])
+  (count-writenum [datomic thread-id identity])
   (save [datomic comment])
   (hide [datomic thread-id comment-no])
   (add-reaction [datomic reaction thread-id comment-no user]))
@@ -31,7 +31,7 @@
            :where [[?thread :thread/comments ?comment]]}
          (d/db connection) thread-id))
 
-  (count-by-identity [{:keys [connection]} thread-id identity]
+  (count-writenum [{:keys [connection]} thread-id identity]
     (d/q '{:find [(count ?comment) .]
            :in [$ ?thread ?user-name]
            :where [[?thread :thread/comments ?comment]

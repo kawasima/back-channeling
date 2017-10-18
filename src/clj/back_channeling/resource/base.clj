@@ -17,4 +17,4 @@
 (defn thread-allowed? [ctx datomic permissions thread-id]
   (or (has-permission? ctx #{:write-any-thread})
       (:thread/public? (threads/pull datomic thread-id))
-      (> (comments/count-by-identity datomic thread-id (:identity ctx)) 0)))
+      (> (or (comments/count-writenum datomic thread-id (:identity ctx)) 0) 0)))

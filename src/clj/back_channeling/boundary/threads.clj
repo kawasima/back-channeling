@@ -82,7 +82,8 @@
                          :comment/posted-at now
                          :comment/posted-by user
                          :comment/format (get th :comment/format :comment.format/plain)
-                         :comment/content (:comment/content th)}])
+                         :comment/content (:comment/content th)
+                         :comment/public? true}])
                       deref
                       :tempids)]
       [tempids thread-id]))
