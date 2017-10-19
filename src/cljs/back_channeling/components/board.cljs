@@ -387,6 +387,9 @@
                   :desc [:i.caret.down.icon]))]]]]
           [:tbody
            (for [thread (->> (:board/threads board)
+                             (filter #(or (:thread/public? %)
+                                          (> (:thread/writenum %) 0)
+                                          (#{:read-any-thread} (:user/permissions board))))
                              (map #(if (:thread/watchers %) % (assoc % :thread/watchers #{})))
                              (sort-by (first sort-key) (case (second sort-key)
                                                          :asc < :desc >)))]
