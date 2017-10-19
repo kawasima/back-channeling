@@ -101,4 +101,4 @@
                 :body (FileInputStream. (str "voices/" thread-id "/" filename))})))]
     (if login-enabled?
       (routes r (login-routes {:prefix prefix :datomic datomic}))
-      (if logout-route (routes r (logout-route)) r))))
+      (routes r logout-route))))

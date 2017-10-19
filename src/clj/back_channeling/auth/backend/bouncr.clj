@@ -67,7 +67,7 @@
         (handle-unauthorized-default request)))))
 
 (defmethod ig/init-key :back-channeling.route.logout/bouncr
-  [_]
+  [_ _]
   (routes
    (POST "/logout" []
      (redirect "/my/signOut" 308))))
