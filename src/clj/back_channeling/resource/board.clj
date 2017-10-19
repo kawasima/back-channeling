@@ -3,7 +3,8 @@
             [bouncer.validators :as v]
             (back-channeling [util :refer [parse-request]])
             (back-channeling.boundary [boards :as boards]
-                                      [threads :as threads])
+                                      [threads :as threads]
+                                      [comments :as comments])
             (back-channeling.resource [base :refer [base-resource has-permission?]])))
 
 (def board-ng-names
@@ -44,4 +45,6 @@
 
    :handle-ok (fn [{board :board identity :identity}]
                 (->> (boards/find-threads datomic (:db/id board) identity)
-                     ((fn [threads] (assoc board :board/threads threads)))))))
+                     (map #(assoc % :thread/writenum (comments/count-writenum datomic (:db/id %) identity)))
+                     ((fn [threads] (assoc board :board/threads (vec threads))))
+                     ((fn [board] (assoc board :user/permissions (:user/permissions identity))))))))

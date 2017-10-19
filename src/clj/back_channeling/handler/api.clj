@@ -51,7 +51,10 @@
         (voices-resource options board-name thread-id))
       (ANY "/thread/:thread-id/comment/:comment-no"
         [thread-id :<< as-int comment-no :<< as-int]
-        (comment-resource options board-name thread-id comment-no)))
+        (comment-resource options board-name thread-id comment-no))
+      ;; get board realm permissions
+      (ANY "/user/:user-name" [user-name]
+        (user-resource options user-name)))
 
     (ANY "/articles" []
       (articles-resource options))
