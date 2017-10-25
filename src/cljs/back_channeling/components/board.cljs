@@ -271,7 +271,12 @@
          [:div.ui.icon.reaction.buttons {:style {:top reaction-top}}
           [:button.ui.button {:on-click (fn [e]
                                           (om/set-state! owner :open-reactions? true))}
-           [:i.smile.icon]]]
+           [:i.smile.icon]]
+          [:button.ui.button {:on-click (fn [e]
+                                          (api/request (str "/api/board/" board-name "/thread/" (:db/id thread)
+                                                            "/comment/" selected)
+                                                       :DELETE {}))}
+           [:i.remove.icon]]]
          [:div.ui.reactions.raised.segment
           {:style (if open-reactions?
                     {:visibility 'visible

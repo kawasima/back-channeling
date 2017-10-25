@@ -44,14 +44,17 @@
         deref))
 
   (hide [{:keys [connection]} thread-id comment-no]
-    (when-let [comment (-> (d/q '{:find [[?c ...]]
-                                  :in [$ ?th]
-                                  :where [[?th :thread/comments ?c]]}
-                           (d/db connection)
-                           thread-id)
-                           (nth comment-no))]
+    (let [comments (->> (d/pull (d/db connection)
+                                '[{:thread/comments [:db/id]}]
+                                thread-id)
+                        :thread/comments)
+          comment-id (->> comments
+                          (drop (dec comment-no))
+                          (take 1)
+                          first
+                          :db/id)]
       (-> (d/transact connection
-                      [{:db/id comment
+                      [{:db/id comment-id
                         :comment/public? false}])
           deref)))
 
