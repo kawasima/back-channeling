@@ -62,7 +62,9 @@
     [:.comment
      {:padding (px 1)}
      [:&:hover {:background-color "#efe"}]
-     [:.text {:white-space "pre-wrap"}]]
+     [:.text {:white-space "pre-wrap"}]
+     [:.deleted
+      [:.text {:color "#999"}]]]
     [:.comment.selected {:background-color "#f4b3c2"}]]
    [:.comment.curating-block
      [:.ui.basic.buttons {:position "absolute"

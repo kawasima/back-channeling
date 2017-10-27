@@ -409,7 +409,6 @@
               [:td
                [:a {:href (str "#/board/" (:board/name board) "/" (:db/id thread))}
                 (when-not (:thread/public? thread) [:i.icon.lock])
-                (when (> (:thread/writenum thread) 0) [:i.icon.write.square])
                 (:thread/title thread)]]
               [:td (:thread/resnum thread)]
               [:td (.format date-format-m (:thread/last-updated thread))]
@@ -498,7 +497,7 @@
                          (sticky-thread-content-fn owner)))
 
     om/IRenderState
-    (render-state [_ {:keys [tabs channel sticky-thread-content?]}]
+    (render-state [_ {:keys [tabs sticky-thread-content?]}]
       (let [threads (:threads app)
             board (:board app)]
         (doseq [th (vals threads)]

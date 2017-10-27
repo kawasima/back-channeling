@@ -78,7 +78,8 @@
                            (drop (dec from))
                            (take (- (or to 1000) (dec from)))
                            (map #(if (or (:comment/public? %) (has-permission? ctx #{:read-any-thread})) %
-                                     (assoc % :comment/content "")))
+                                     (assoc % :comment/content "このコメントは削除されました"
+                                              :comment/format {:db/ident :comment.format/plain})))
                            vec)]
          (when-let [comment-no (-> comments last :comment/no)]
            (read-comments/save datomic thread-id identity comment-no))
