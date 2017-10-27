@@ -217,10 +217,6 @@
   (let [comment-no (or (om/get-state owner :target-comment) (count (:thread/comments thread)))
         comment-dom (.. (om/get-node owner)
                         (querySelector (str "[data-comment-no='" comment-no "']")))
-        offset (.. (om/get-node owner)
-                   (querySelector "[data-comment-no='1']")
-                   getBoundingClientRect
-                   -top)
         scroll-pane (.. (om/get-node owner)
                            (querySelector "div.scroll-pane"))]
     (when comment-dom
@@ -480,6 +476,7 @@
 (defn sticky-thread-content-fn [owner]
   (let [thread-content (.. (om/get-node owner) (querySelector "div.thread.content"))]
     (fn [e]
+
       (if (< (.. thread-content getBoundingClientRect -top) 70)
         (om/set-state! owner :sticky-thread-content? true)
         (om/set-state! owner :sticky-thread-content? false)))))
