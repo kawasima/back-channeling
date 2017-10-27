@@ -64,7 +64,7 @@
      [:&:hover {:background-color "#efe"}]
      [:.text {:white-space "pre-wrap"}]
      [:.deleted
-      [:.text {:color "#999"}]]]
+      [:.text {:color "#ccc"}]]]
     [:.comment.selected {:background-color "#f4b3c2"}]]
    [:.comment.curating-block
      [:.ui.basic.buttons {:position "absolute"

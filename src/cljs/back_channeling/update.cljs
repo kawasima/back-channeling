@@ -16,14 +16,13 @@
 
 (defn fetch-comments
   ([msgbox thread]
-   (fetch-comments thread 1 nil))
+   (fetch-comments msgbox thread 1 nil))
   ([msgbox thread from]
-   (fetch-comments thread from nil))
+   (fetch-comments msgbox thread from nil))
   ([msgbox {:keys [board/name db/id] :as thread} from to]
    (api/request
     (str "/api/board/" name "/thread/" id "/comments/" from "-" to)
     {:handler (fn [fetched-comments]
-
                 (if (= from to)
                   (put! msgbox [:refresh-comment
                                 {:thread thread
