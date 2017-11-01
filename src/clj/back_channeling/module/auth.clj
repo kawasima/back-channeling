@@ -7,8 +7,7 @@
             [buddy.auth.backends.token :refer [token-backend]]
             [buddy.auth.middleware :refer [wrap-authentication wrap-authorization]]
             [buddy.auth.accessrules :refer [wrap-access-rules]]
-            [buddy.auth.http :as http])
-  (:import [java.nio.file Paths]))
+            [buddy.auth.http :as http]))
 
 (defn wrap-same-origin-policy [handler console]
   (fn [req]
