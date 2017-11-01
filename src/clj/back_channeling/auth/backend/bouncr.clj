@@ -6,6 +6,7 @@
             [buddy.auth :refer [authenticated?]]
             [buddy.auth.protocols :as proto]
             [buddy.sign.jwt :as jwt]
+            [compojure.core :refer [POST routes]]
             [camel-snake-kebab.core :refer :all]))
 
 (alter-var-root #'buddy.sign.jws/+signers-map+
@@ -64,3 +65,9 @@
       (if unauthorized-handler
         (unauthorized-handler request metadata)
         (handle-unauthorized-default request)))))
+
+(defmethod ig/init-key :back-channeling.route.logout/bouncr
+  [_ _]
+  (routes
+   (POST "/logout" []
+     (redirect "/my/signOut" 308))))

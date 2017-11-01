@@ -178,8 +178,11 @@
                               (om/set-state! owner :open-profile? (not open-profile?)))}
             (om/build avatar user)
             [:span (:user/name user)] ]
-           [:div.menu.transition {:class (if open-profile? "visible" "hidden")}
-            [:a.item {:href "/logout"} "Logout"]]]]]
+           [:form.menu.transition {:class (if open-profile? "visible" "hidden")
+                                   :action (str (om/get-shared owner :prefix) "/logout")
+                                   :method :post
+                                   :name "logout"}
+            [:a.item {:on-click (fn [_] (.. js/document -logout submit))} "Logout"]]]]]
         (case (:page app)
           :boards (om/build boards-view (:boards app))
           :board (om/build board-view app
