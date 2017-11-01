@@ -6,6 +6,7 @@
 (defprotocol Comments
   (find-by-thread [datomic thread-id])
   (count [datomic thread-id])
+  (count-writenum [datomic thread-id identity])
   (save [datomic comment])
   (hide [datomic thread-id comment-no])
   (add-reaction [datomic reaction thread-id comment-no user]))
@@ -30,19 +31,30 @@
            :where [[?thread :thread/comments ?comment]]}
          (d/db connection) thread-id))
 
+  (count-writenum [{:keys [connection]} thread-id identity]
+    (d/q '{:find [(count ?comment) .]
+           :in [$ ?thread ?user-name]
+           :where [[?thread :thread/comments ?comment]
+                   [?comment :comment/posted-by ?user]
+                   [?user :user/name ?user-name]]}
+         (d/db connection) thread-id (:user/name identity)))
+
   (save [{:keys [connection]} comment]
     (-> (d/transact connection comment)
         deref))
 
   (hide [{:keys [connection]} thread-id comment-no]
-    (when-let [comment (-> (d/q '{:find [[?c ...]]
-                                  :in [$ ?th]
-                                  :where [[?th :thread/comments ?c]]}
-                           (d/db connection)
-                           thread-id)
-                           (nth comment-no))]
+    (let [comments (->> (d/pull (d/db connection)
+                                '[{:thread/comments [:db/id]}]
+                                thread-id)
+                        :thread/comments)
+          comment-id (->> comments
+                          (drop (dec comment-no))
+                          (take 1)
+                          first
+                          :db/id)]
       (-> (d/transact connection
-                      [{:db/id comment
+                      [{:db/id comment-id
                         :comment/public? false}])
           deref)))
 

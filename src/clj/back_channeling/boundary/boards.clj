@@ -45,7 +45,8 @@
               (:user/name identity))
          (mapv
           (fn [[th cnt cn]]
-            (-> (d/pull (d/db connection) '[:db/id :thread/title :thread/since :thread/last-updated] th)
+            (-> (d/pull (d/db connection) '[:db/id :thread/title :thread/since
+                                            :thread/last-updated :thread/public?] th)
                 (assoc :thread/resnum cnt)
                 (assoc :thread/readnum cn))))))
 

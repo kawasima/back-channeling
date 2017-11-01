@@ -1,75 +1,19 @@
 (ns back-channeling.components.root
   (:require [om.core :as om :include-macros true]
             [sablono.core :as html :refer-macros [html]]
-            [cljs.core.async :refer [put! <! chan timeout]]
-            [back-channeling.routing :as routing]
+            [cljs.core.async :refer [put!]]
             [back-channeling.api :as api]
             [back-channeling.socket :as socket]
-            [back-channeling.notification :as notification]
+            [back-channeling.update :as update]
             [back-channeling.components.avatar :refer [avatar]])
   (:use [back-channeling.components.board :only [board-view boards-view]]
         [back-channeling.components.curation :only [article-page]]
-        [back-channeling.component-helper :only [make-click-outside-fn]]
-        [cljs.reader :only [read-string]]))
-
-(defn refresh-board [app board-name]
-  (api/request (str "/api/board/" board-name)
-               {:handler (fn [response]
-                           (om/update! app [:board] response))}))
-
-(defn fetch-comments
-  ([app thread]
-   (fetch-comments app thread 1 nil))
-  ([app thread from]
-   (fetch-comments app thread from nil))
-  ([app {:keys [board/name db/id]} from to]
-   (api/request
-    (str "/api/board/" name "/thread/" id "/comments/" from "-" to)
-    {:handler (fn [fetched-comments]
-                (om/transact!
-                 app [:threads id :thread/comments]
-                 #(concat % fetched-comments)))})))
-
-(defn find-thread [threads id]
-  (->> (map-indexed vector threads)
-       (filter #(= (:db/id (second %)) id))
-       (map first)
-       first))
-
-(defn refresh-thread [app thread]
-  (when (= (:board/name thread) (get-in @app [:board :board/name]))
-    (om/transact! app [:board :board/threads]
-                  #(update-in % [(find-thread % (:db/id thread))]
-                              assoc
-                              :thread/last-updated (:thread/last-updated thread)
-                              :thread/resnum (:thread/resnum thread)))
-    (when (get-in @app [:threads (:db/id thread) :thread/active?])
-      (fetch-comments app thread
-                      (or (:comments/from thread)
-                          (inc (count (get-in @app [:threads (:db/id thread) :thread/comments]))))
-                      (:comments/to thread)))))
+        [back-channeling.component-helper :only [make-click-outside-fn]]))
 
 (defn search-threads [owner board-name query]
   (api/request (str "/api/board/" board-name "/threads?q=" (js/encodeURIComponent query))
                {:handler (fn [results]
                            (om/set-state! owner :search-result results))}))
-
-(defn connect-socket [app token]
-  (socket/open (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://")
-                    (.-host js/location)
-                    (some-> js/document
-                            (.querySelector "meta[property='bc:prefix']")
-                            (.getAttribute "content"))
-                    "/ws?token=" token)
-                 :on-message (fn [message]
-                               (let [[cmd data] (read-string message)]
-                                 (case cmd
-                                   :notify (notification/show data)
-                                   :update-board (refresh-board app (:board/name data))
-                                   :update-thread (refresh-thread app data)
-                                   :join  (om/transact! app [:users] #(conj % data))
-                                   :leave (om/transact! app [:users] #(disj % data))
-                                   :call  (js/alert (:message data)))))))
 
 (defn root-view [app owner]
   (reify
@@ -78,7 +22,6 @@
       {:open-profile? false
        :open-users? false
        :search-result nil
-       :board-channel (chan)
        :user {:user/name (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))
               :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}
        :called-message nil
@@ -86,28 +29,20 @@
 
     om/IWillMount
     (will-mount [_]
-      (routing/init app owner)
-      (api/request "/api/reactions"
-                   {:handler
-                    (fn [response]
-                      (om/update! app :reactions response))})
+      (let [msgbox (om/get-shared owner :msgbox)]
+        (update/init msgbox app)
+        (api/request "/api/reactions"
+                     {:handler
+                      (fn [response]
+                        (om/update! app :reactions response))})
 
-      (api/request "/api/users"
-                   {:handler
-                    (fn [response]
-                      (om/update! app :users (apply hash-set response)))})
+        (api/request "/api/users"
+                     {:handler
+                      (fn [response]
+                        (om/update! app :users (apply hash-set response)))})
 
-      (api/request "/api/token" :POST
-                   {:handler
-                    (fn [response]
-                      (connect-socket app (:access-token response)))
-                    :error-handler
-                    (fn [response error-code]
-                      (.error js/console "Can't connect websocket (;;)")
-                      #_(set! (.. js/document -location -href) "/"))})
-
-      (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
-        (.removeEventListener js/document "mousedown" on-click-outside)))
+        (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
+          (.removeEventListener js/document "mousedown" on-click-outside))))
 
     om/IDidMount
     (did-mount [_]
@@ -186,12 +121,13 @@
         (case (:page app)
           :boards (om/build boards-view (:boards app))
           :board (om/build board-view app
-                           {:init-state {:channel board-channel}
-                            :opts {:user user
+                           {:opts {:user user
                                    :reactions (:reactions app)}})
           :article (om/build article-page (:article app)
                              {:init-state {:thread (->> (:threads app)
                                                         (filter #(= (:thread/active? %) true))
                                                         first)}
                               :opts {:user user
-                                     :board-name (get-in app [:board :board/name])}}))]))))
+                                     :board-name (get-in app [:board :board/name])}})
+          [:div.main.content.full.height
+           [:div.ui.active.centered.inline.text.loader "Loading..."]])]))))
