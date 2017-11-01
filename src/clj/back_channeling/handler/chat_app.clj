@@ -79,12 +79,12 @@
                                   :password-credential/password
                                   :token-credential/token])
                     options))
-   (GET "/logout" []
+   (POST "/logout" []
      (-> (redirect "/")
          (assoc :session {})))))
 
 (defmethod ig/init-key :back-channeling.handler/chat-app
-  [_ {:keys [datomic login-enabled? env prefix]
+  [_ {:keys [datomic login-enabled? env prefix logout-route]
       :or   {login-enabled? true}}]
   (let [r (routes
            (GET "/" req (index-view req {:prefix prefix :env env}))
@@ -101,4 +101,4 @@
                 :body (FileInputStream. (str "voices/" thread-id "/" filename))})))]
     (if login-enabled?
       (routes r (login-routes {:prefix prefix :datomic datomic}))
-      r)))
+      (if logout-route (routes r logout-route) r))))

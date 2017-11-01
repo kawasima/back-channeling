@@ -217,10 +217,6 @@
   (let [comment-no (or (om/get-state owner :target-comment) (count (:thread/comments thread)))
         comment-dom (.. (om/get-node owner)
                         (querySelector (str "[data-comment-no='" comment-no "']")))
-        offset (.. (om/get-node owner)
-                   (querySelector "[data-comment-no='1']")
-                   getBoundingClientRect
-                   -top)
         scroll-pane (.. (om/get-node owner)
                            (querySelector "div.scroll-pane"))]
     (when comment-dom
@@ -271,7 +267,12 @@
          [:div.ui.icon.reaction.buttons {:style {:top reaction-top}}
           [:button.ui.button {:on-click (fn [e]
                                           (om/set-state! owner :open-reactions? true))}
-           [:i.smile.icon]]]
+           [:i.smile.icon]]
+          [:button.ui.button {:on-click (fn [e]
+                                          (api/request (str "/api/board/" board-name "/thread/" (:db/id thread)
+                                                            "/comment/" selected)
+                                                       :DELETE {}))}
+           [:i.remove.icon]]]
          [:div.ui.reactions.raised.segment
           {:style (if open-reactions?
                     {:visibility 'visible
@@ -387,6 +388,10 @@
                   :desc [:i.caret.down.icon]))]]]]
           [:tbody
            (for [thread (->> (:board/threads board)
+                             (filter #(or (:thread/public? %)
+                                          (> (:thread/writenum %) 0)
+                                          (when-let [permissions (:user/permissions board)]
+                                            (#{:read-any-thread} permissions))))
                              (map #(if (:thread/watchers %) % (assoc % :thread/watchers #{})))
                              (sort-by (first sort-key) (case (second sort-key)
                                                          :asc < :desc >)))]
@@ -400,6 +405,7 @@
                          :opts {:board-name (:board/name board)}})
               [:td
                [:a {:href (str "#/board/" (:board/name board) "/" (:db/id thread))}
+                (when-not (:thread/public? thread) [:i.icon.lock])
                 (:thread/title thread)]]
               [:td (:thread/resnum thread)]
               [:td (.format date-format-m (:thread/last-updated thread))]
@@ -408,8 +414,7 @@
 (defn thread-new-view [board owner]
   (reify
     om/IInitState
-    (init-state [_] {:thread {:board/name (:board/name @board)
-                              :thread/title ""
+    (init-state [_] {:thread {:thread/title ""
                               :comment/content ""
                               :comment/format "comment.format/plain"}})
 
@@ -444,7 +449,8 @@
              [:div.field
               [:button.ui.blue.labeled.submit.icon.button
                {:on-click (fn [_]
-                            (let [thread (om/get-state owner :thread)
+                            (let [thread (-> (om/get-state owner :thread)
+                                             (assoc :board/name (:board/name board)))
                                   [result map] (b/validate thread
                                                            :thread/title v/required
                                                            :comment/content v/required)]
@@ -471,6 +477,7 @@
 (defn sticky-thread-content-fn [owner]
   (let [thread-content (.. (om/get-node owner) (querySelector "div.thread.content"))]
     (fn [e]
+
       (if (< (.. thread-content getBoundingClientRect -top) 70)
         (om/set-state! owner :sticky-thread-content? true)
         (om/set-state! owner :sticky-thread-content? false)))))
@@ -488,7 +495,7 @@
                          (sticky-thread-content-fn owner)))
 
     om/IRenderState
-    (render-state [_ {:keys [tabs channel sticky-thread-content?]}]
+    (render-state [_ {:keys [tabs sticky-thread-content?]}]
       (let [threads (:threads app)
             board (:board app)]
         (doseq [th (vals threads)]

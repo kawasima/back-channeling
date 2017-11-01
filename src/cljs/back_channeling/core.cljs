@@ -1,5 +1,6 @@
 (ns back-channeling.core
-  (:require [om.core :as om :include-macros true])
+  (:require [om.core :as om :include-macros true]
+            [cljs.core.async :refer [chan]])
   (:use [back-channeling.components.root :only [root-view]]))
 
 (.initHighlightingOnLoad js/hljs)
@@ -9,10 +10,11 @@
                       :board {}
                       :threads {}
                       :users #{}
-                      :page :boards}))
+                      :page :initializing}))
 
 (om/root root-view app-state
          {:target (.getElementById js/document "app")
           :shared {:prefix (some-> js/document
                                    (.querySelector "meta[property='bc:prefix']")
-                                   (.getAttribute "content"))}})
+                                   (.getAttribute "content"))
+                   :msgbox (chan)}})

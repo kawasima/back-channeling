@@ -25,7 +25,7 @@
                             comment-attrs
                             (when selected? {:class "selected"}))
         (om/build avatar (get-in comment [:comment/posted-by]))
-        [:div.content
+        [:div.content (when-not (:comment/public? comment) {:class "deleted"})
          [:a.number (:comment/no comment)] ": "
          [:a.author (get-in comment [:comment/posted-by :user/name])]
          [:div.metadata

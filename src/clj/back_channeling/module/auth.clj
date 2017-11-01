@@ -79,4 +79,5 @@
             :back-channeling.auth.backend/session {}
 
             :back-channeling.auth.backend/bouncr
-            {:datomic (ig/ref :back-channeling.database/datomic)}}))})
+            {:datomic (ig/ref :back-channeling.database/datomic)}
+            :back-channeling.route.logout/bouncr {}}))})

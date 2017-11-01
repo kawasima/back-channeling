@@ -9,8 +9,10 @@
   (find-thread  [datomic thread-id])
   (find-watchers [datomic thread-id])
 
-  (add-watcher    [datomic thread-id user])
-  (remove-watcher [datomic thread-id user])
+  (add-watcher    [datomic thread-id identity])
+  (remove-watcher [datomic thread-id identity])
+  (open-thread    [datomic thread-id])
+  (close-thread   [datomic thread-id])
   (save           [datomic board-name th user]))
 
 (extend-protocol Threads
@@ -80,7 +82,8 @@
                          :comment/posted-at now
                          :comment/posted-by user
                          :comment/format (get th :comment/format :comment.format/plain)
-                         :comment/content (:comment/content th)}])
+                         :comment/content (:comment/content th)
+                         :comment/public? true}])
                       deref
                       :tempids)]
       [tempids thread-id]))
@@ -91,8 +94,20 @@
                       :thread/watchers [:user/name (:user/name identity)]]])
         deref))
 
-  (remove-watcher [{:keys [connection]} th user]
+  (remove-watcher [{:keys [connection]} th identity]
     (-> (d/transact connection
                     [[:db/retract th
                       :thread/watchers [:user/name (:user/name identity)]]])
+        deref))
+
+  (open-thread [{:keys [connection]} th]
+    (-> (d/transact connection
+                    [[:db/add th
+                      :thread/public? true]])
+        deref))
+
+  (close-thread [{:keys [connection]} th]
+    (-> (d/transact connection
+                    [[:db/add th
+                      :thread/public? false]])
         deref)))
