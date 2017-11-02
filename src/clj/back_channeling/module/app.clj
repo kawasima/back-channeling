@@ -25,6 +25,7 @@
             :back-channeling.handler/chat-app
             ^:demote {:datomic   (ig/ref :back-channeling.database/datomic)
                       :prefix    (ig/ref :back-channeling.path/prefix)
+                      :env       (ig/ref :duct.core/environment)
                       :login-enabled? true}
 
             :back-channeling.websocket/socketapp

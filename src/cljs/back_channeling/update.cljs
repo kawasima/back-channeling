@@ -100,10 +100,10 @@
                                       (assoc :page :board)
                                       (update-in [:threads id :thread/comments] #(concat % comments))
                                       (update-in [:board :board/threads]
-                                                   #(update-in % [(find-thread % id)]
-                                                      (fn [thread] (if (> (:thread/readnum thread) readnum)
-                                                                     thread
-                                                                     (assoc thread :thread/readnum readnum)))))))))
+                                                 #(update-in % [(find-thread % id)]
+                                                             (fn [thread] (if (> (:thread/readnum thread) readnum)
+                                                                            thread
+                                                                            (assoc thread :thread/readnum readnum)))))))))
 
             :move-to-thread
             (let [{thread-id :db/id board-name :board/name :as thread} body

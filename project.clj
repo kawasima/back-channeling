@@ -3,7 +3,7 @@
   :java-source-paths ["src/java"]
   :test-paths ["test/clj"]
   :min-lein-version "2.0.0"
-  :dependencies [[org.clojure/clojure "1.9.0-alpha19"]
+  :dependencies [[org.clojure/clojure "1.9.0-beta4"]
                  [duct/core "0.6.1"]
                  [duct/module.logging "0.3.1"]
                  [duct/module.web "0.6.2"]
@@ -11,18 +11,17 @@
                  [org.clojure/data.json "0.2.6"]
 
                  [hiccup "1.0.5"]
-                 [garden "1.3.2"]
+                 [garden "1.3.3"]
                  [buddy "2.0.0"]
                  [camel-snake-kebab "0.4.0"]
 
                  [org.clojure/core.async "0.3.443"]
-                 [sablono "0.8.0"]
-                 [bouncer "1.0.0"]
+                 [sablono "0.8.1"]
+                 [bouncer "1.0.1"]
                  [secretary "1.2.3"]
                  [org.omcljs/om "1.0.0-beta1"]
                  [io.undertow/undertow-websockets-jsr "1.4.20.Final"]
-                 ;;[com.google.guava/guava "19.0"]
-                 [com.datomic/datomic-free "0.9.5385"
+                 [com.datomic/datomic-free "0.9.5561.62"
                   :exclusions [org.slf4j/slf4j-api
                                org.slf4j/slf4j-nop
                                joda-time
@@ -30,7 +29,7 @@
                                com.google.guava/guava]]
                  [liberator "0.15.1"]]
 
-  :plugins [[duct/lein-duct "0.10.2"]]
+  :plugins [[duct/lein-duct "0.10.3"]]
   :pom-plugins [[org.apache.maven.plugins/maven-assembly-plugin "2.5.5"
                  {:configuration [:descriptors [:descriptor "src/assembly/dist.xml"]]}]]
 
@@ -48,8 +47,8 @@
    :profiles/dev   {}
    :profiles/test  {}
    :project/dev    {:dependencies [[integrant/repl "0.2.0"]
-                                   [eftest "0.3.1"]
+                                   [eftest "0.4.0"]
                                    [kerodon "0.8.0"]]
                     :source-paths   ["dev/src"]
-                    :resource-paths ["resources" "dev/resources" "target/resources"]}
+                    :resource-paths ["target/resources" "dev/resources" "resources"]}
    :project/test   {}})

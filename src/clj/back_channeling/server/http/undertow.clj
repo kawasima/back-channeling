@@ -5,7 +5,7 @@
             [back-channeling.websocket.socketapp :as socketapp]
             [compojure.core :refer [context]])
   (:import [java.util UUID]
-           [java.nio.file Paths]
+           [java.net URI]
            [org.xnio ByteBufferSlicePool]
            [io.undertow Undertow Handlers]
            [io.undertow.servlet Servlets]
@@ -55,9 +55,13 @@
 
     (doseq [ws websockets]
       (.addPrefixPath handler
-                      (-> (Paths/get (or prefix "") (into-array String [(:path ws)]))
-                          str
-                          (clojure.string/replace #"\\" "/"))
+                      (.. (URI. "ws" "localhost"
+                                (str "/"
+                                     (or prefix "")
+                                     "/"
+                                     (:path ws)) nil)
+                          normalize
+                          getPath)
                       (Handlers/websocket
                        (websocket-callback ws))))
     (let [server (.. (Undertow/builder)

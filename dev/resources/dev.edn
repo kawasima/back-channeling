@@ -1,2 +1,18 @@
 {:duct.core/environment :development
- :duct.core/include ["back_channeling/config"]}
+ :duct.core/include ["back_channeling/config"]
+
+ :duct.compiler/cljs ^:replace {}
+ :duct.server/figwheel
+ {:builds
+  [{:id       "dev"
+    :figwheel true
+    :source-paths ["dev/src" "src/clj" "src/cljs"]
+    :build-options
+    {:main       back-channeling.core
+     :output-to  "target/resources/back_channeling/public/js/main.js"
+     :output-dir "target/resources/back_channeling/public/js"
+     :asset-path #ig/ref :back-channeling.path/asset-path
+     :closure-defines {'goog.DEBUG true}
+     :verbose    false
+     :preloads   [devtools.preload]
+     :optimizations :none}}]}}

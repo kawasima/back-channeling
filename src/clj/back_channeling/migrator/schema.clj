@@ -4,8 +4,7 @@
             [clojure.edn :as edn]
             [duct.logger :refer [log]]
             [datomic.api :as d])
-  (:import [com.google.common.reflect ClassPath]
-           [java.util Date]))
+  (:import [java.util Date]))
 
 (defn find-migration-files []
   (let [loader (.getContextClassLoader (Thread/currentThread))]

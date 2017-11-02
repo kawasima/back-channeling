@@ -67,23 +67,27 @@
 
   (save [{:keys [connection]} board-name th user]
     (let [now (Date.)
-          thread-id (d/tempid :db.part/user)
+          thread-id  (d/tempid :db.part/user -1)
+          comment-id (d/tempid :db.part/user -2)
           tempids (-> (d/transact
                        connection
-                       [[:db/add [:board/name board-name]
-                         :board/threads thread-id]
-                        {:db/id thread-id
+                       [{:db/id thread-id
                          :thread/title (:thread/title th)
                          :thread/since now
                          :thread/last-updated now
                          :thread/public? (get th :thread/public? true)}
-                        [:db/add thread-id :thread/comments #db/id[:db.part/user -2]]
-                        {:db/id #db/id[:db.part/user -2]
+                        [:db/add [:board/name board-name]
+                         :board/threads thread-id]
+
+                        {:db/id comment-id
                          :comment/posted-at now
                          :comment/posted-by user
-                         :comment/format (get th :comment/format :comment.format/plain)
+                         :comment/format (keyword (get th :comment/format
+                                                       :comment.format/plain))
                          :comment/content (:comment/content th)
-                         :comment/public? true}])
+                         :comment/public? true}
+
+                        [:db/add thread-id :thread/comments comment-id]])
                       deref
                       :tempids)]
       [tempids thread-id]))
