@@ -7,8 +7,10 @@
                  [duct/core "0.6.1"]
                  [duct/module.logging "0.3.1"]
                  [duct/module.web "0.6.2"]
-                 [duct/module.cljs "0.3.1"]
+                 [duct/module.cljs "0.3.1"
+                  :exclusions [org.clojure/clojurescript]]
                  [org.clojure/data.json "0.2.6"]
+                 [org.clojure/clojurescript "1.9.946" :scope "provided"]
 
                  [hiccup "1.0.5"]
                  [garden "1.3.3"]
@@ -27,6 +29,7 @@
                                joda-time
                                com.amazonaws/aws-java-sdk
                                com.google.guava/guava]]
+                 [com.google.guava/guava "23.0"]
                  [liberator "0.15.1"]]
 
   :plugins [[duct/lein-duct "0.10.3"]]

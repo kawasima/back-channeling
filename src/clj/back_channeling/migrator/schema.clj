@@ -4,16 +4,17 @@
             [clojure.edn :as edn]
             [duct.logger :refer [log]]
             [datomic.api :as d])
-  (:import [java.util Date]))
+  (:import [java.util Date]
+           [com.google.common.reflect ClassPath]))
+
 
 (defn find-migration-files []
-  (let [loader (.getContextClassLoader (Thread/currentThread))]
-    (when-let [in (.getResourceAsStream loader "back_channeling/migration")]
-      (->> (io/reader in)
-           line-seq
-           (filter #(.endsWith % ".edn"))
-           sort
-           (map #(.getResource loader (str "back_channeling/migration/" %)))))))
+  (let [all-resources (.getResources (ClassPath/from
+                                      (.getContextClassLoader (Thread/currentThread))))]
+    (->> all-resources
+             (filter #(.startsWith (.getResourceName %) "back_channeling/migration/"))
+             (sort-by #(.getResourceName %))
+             (map #(.url %)))))
 
 (def schema-version
   [{:db/id #db/id[:db.part/db]
