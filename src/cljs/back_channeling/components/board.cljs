@@ -391,7 +391,7 @@
                              (filter #(or (:thread/public? %)
                                           (> (:thread/writenum %) 0)
                                           (when-let [permissions (:user/permissions board)]
-                                            (#{:read-any-thread} permissions))))
+                                            (:read-any-thread permissions))))
                              (map #(if (:thread/watchers %) % (assoc % :thread/watchers #{})))
                              (sort-by (first sort-key) (case (second sort-key)
                                                          :asc < :desc >)))]
