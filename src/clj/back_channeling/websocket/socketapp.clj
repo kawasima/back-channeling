@@ -62,11 +62,11 @@
                                (onError [channel context throwable]))))))
 
   (on-connect [{:keys [channels path cache] :as socketapp} exchange channel]
-    (if-let [user (tokens/auth-by cache (token-from-request exchange))]
+    (if-let [user (some-> (tokens/auth-by cache (token-from-request exchange))
+                          (select-keys [:user/name :user/email]))]
       (do
         (swap! channels assoc-in [path channel] user)
-        (broadcast-message socketapp [:join {:user/name (:user/name user)
-                                             :user/email (:user/email user)}]))))
+        (broadcast-message socketapp [:join user]))))
   (on-message [socketapp ch message]
     (handle-command socketapp (edn/read-string message) ch))
 

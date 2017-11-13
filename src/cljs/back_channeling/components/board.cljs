@@ -400,7 +400,7 @@
                            {:class "unread"}))
               (om/build thread-watch-icon thread
                         {:init-state
-                         {:watching? (boolean ((:thread/watchers thread) (:user/name user)))
+                         {:watching? (boolean ((:thread/watchers thread) user))
                           :user user}
                          :opts {:board-name (:board/name board)}})
               [:td
