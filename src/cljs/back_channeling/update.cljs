@@ -70,6 +70,48 @@
                                  :leave (om/transact! app [:users] #(disj % data))
                                  :call  (js/alert (:message data)))))))
 
+(defmulti update-app (fn [key body ch app] key))
+
+(defmethod update-app :default [key body ch app]
+  (println (str "Unknown key:" key)))
+
+(defmethod update-app :log [_ {:keys [message]} ch app]
+  (println (str "MsgBox log:" message)))
+
+(defmethod update-app :refresh-comment [_ {:keys [comment/no comment] {id :db/id} :thread} ch app]
+  (om/transact! app [:threads id :thread/comments]
+                (fn [comments]
+                  (map #(if (= (:db/id comment) (:db/id %)) comment %) comments))))
+
+(defmethod update-app :add-comments [_ {:keys [comment/from comment/to comments] {id :db/id} :thread} ch app]
+  (let [readnum (-> comments last (:comment/no 0))]
+    (om/transact! app (fn [app]
+                        (-> app
+                            (assoc :page :board)
+                            (update-in [:threads id :thread/comments] #(concat % comments))
+                            (update-in [:board :board/threads]
+                                       #(update-in % [(find-thread % id)]
+                                                   (fn [thread] (if (> (:thread/readnum thread) readnum)
+                                                                  thread
+                                                                  (assoc thread :thread/readnum readnum))))))))))
+
+(defmethod update-app :move-to-thread [_ {thread-id :db/id board-name :board/name :as thread} ch app]
+  (let [page (:page @app)
+        from (-> (get-in @app [:threads thread-id :thread/comments]) count inc)]
+    (when (= page :initializing) (refresh-board app board-name))
+    (om/transact! app #(-> %
+                           (update :threads (fn [ths]
+                                              (m/map-vals
+                                                (fn [th] (assoc th :thread/active? false))
+                                                ths)))
+                           (assoc-in [:threads thread-id :thread/active?] true)
+                           (assoc-in [:threads thread-id :db/id] thread-id)
+                           (assoc-in [:threads thread-id :thread/title]
+                                     (let [threads (get-in app [:board :board/threads])]
+                                       (get-in app [:board :board/threads (find-thread threads thread-id) :thread/title])))
+                           (assoc-in [:threads thread-id :thread/last-comment-no] from)))
+    (fetch-comments ch thread from nil)))
+
 (defn init [ch app]
   (api/request "/api/token" :POST
                      {:handler
@@ -80,49 +122,7 @@
                         (.error js/console "Can't connect websocket (;;)")
                         #_(set! (.. js/document -location -href) "/"))})
   (go-loop []
-    (let [[msg body] (<! ch)]
-      (case msg
-            :log
-            (let [{:keys [message]} body]
-              (println (str "MsgBox log : " message)))
-
-            :refresh-comment
-            (let [{:keys [comment/no comment] {id :db/id} :thread} body]
-              (om/transact! app [:threads id :thread/comments]
-                            (fn [comments]
-                              (map #(if (= (:db/id comment) (:db/id %)) comment %) comments))))
-
-            :add-comments
-            (let [{:keys [comment/from comment/to comments] {id :db/id} :thread} body
-                  readnum (-> comments last (:comment/no 0))]
-              (om/transact! app (fn [app]
-                                  (-> app
-                                      (assoc :page :board)
-                                      (update-in [:threads id :thread/comments] #(concat % comments))
-                                      (update-in [:board :board/threads]
-                                                 #(update-in % [(find-thread % id)]
-                                                             (fn [thread] (if (> (:thread/readnum thread) readnum)
-                                                                            thread
-                                                                            (assoc thread :thread/readnum readnum)))))))))
-
-            :move-to-thread
-            (let [{thread-id :db/id board-name :board/name :as thread} body
-                  page (:page @app)
-                  from (-> (get-in @app [:threads thread-id :thread/comments]) count inc)]
-              (when (= page :initializing) (refresh-board app board-name))
-              (om/transact! app #(-> %
-                                     (update :threads (fn [ths]
-                                                        (m/map-vals
-                                                          (fn [th] (assoc th :thread/active? false))
-                                                          ths)))
-                                     (assoc-in [:threads thread-id :thread/active?] true)
-                                     (assoc-in [:threads thread-id :db/id] thread-id)
-                                     (assoc-in [:threads thread-id :thread/title]
-                                               (let [threads (get-in app [:board :board/threads])]
-                                                 (get-in app [:board :board/threads (find-thread threads thread-id) :thread/title])))
-                                     (assoc-in [:threads thread-id :thread/last-comment-no] from)))
-              (fetch-comments ch thread from nil))
-
-            (println "Unknown Msg"))
+    (let [[key body] (<! ch)]
+      (update-app key body ch app)
       (recur)))
   (routing/init app ch))
