@@ -94,20 +94,20 @@
                    [:div.title (:thread/title res)]]])])]]]
 
          [:div.right.menu
-          [:a.item
-           [:div {:on-click (fn [_]
-                              (om/set-state! owner :open-users? (not open-users?)))}
-            [:i.users.icon]
-            [:div.ui.label (count (:users app))]]
-           (when open-users?
-             [:div.ui.flowing.popup.right.bottom.transition.visible {:style {:top "60px" :width "200px"}}
-              [:div.ui.four.column.grid
-               (for [member (:users app)]
-                 [:column {:on-click (fn [_]
-                                       (socket/send :call {:from user
-                                                           :to #{member}
-                                                           :message (str (:user/name user) " is calling!!")}))}
-                  (om/build avatar member)])]])]
+          ; [:a.item
+          ;  [:div {:on-click (fn [_]
+          ;                     (om/set-state! owner :open-users? (not open-users?)))}
+          ;   [:i.users.icon]
+          ;   [:div.ui.label (count (:users app))]]
+          ;  (when open-users?
+          ;    [:div.ui.flowing.popup.right.bottom.transition.visible {:style {:top "60px" :width "200px"}}
+          ;     [:div.ui.four.column.grid
+          ;      (for [member (:users app)]
+          ;        [:column {:on-click (fn [_]
+          ;                              (socket/send :call {:from user
+          ;                                                  :to #{member}
+          ;                                                  :message (str (:user/name user) " is calling!!")}))}
+          ;         (om/build avatar member)])]])]
           [:div.ui.dropdown.item
            [:div {:on-click (fn [_]
                               (om/set-state! owner :open-profile? (not open-profile?)))}
