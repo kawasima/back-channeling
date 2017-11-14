@@ -554,7 +554,7 @@
                          :opts {:board-name (:board/name board)
                                 :reactions reactions}})])]])))))
 
-(defn boards-view [boards owner]
+(defn boards-view [app owner]
   (reify
     om/IInitState
     (init-state [_] {:board {:board/name ""
@@ -565,7 +565,7 @@
       (html
        [:div.main.content.full.height
         [:div.ui.cards
-         (for [b boards]
+         (for [b (:boards app)]
            [:a.card.link
             {:key (str "b-" (:board/name b))
              :on-click (fn [e]
@@ -574,33 +574,36 @@
              [:div.header (:board/name b)]
              [:div.description
               [:p (:board/description b)]]]])]
-        [:h4.ui.horizontal.divider.header [:i.icon.edit] "New"]
-        [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
-         [:div.field  (when (:board/name error-map) {:class "error"})
-          [:label "Board Name"]
-          [:input {:type "text" :name "name" :value (:board/name board)
-                   :on-change (fn [e] (om/set-state! owner [:board :board/name] (.. e -target -value)))}]]
-         [:div.field
-          [:label "Description"]
-          [:textarea {:name "description"
-                      :value (:board/description board)
-                      :on-change (fn [e]
-                                   (om/set-state! owner [:board :board/description] (.. e -target -value)))
-                      :on-key-up (fn [e]
-                                   (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
-                                     (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
-                                       (.click btn))))}]]
-         [:div.field
-          [:button.ui.blue.labeled.submit.icon.button
-           {:on-click (fn [_]
-                        (let [board (om/get-state owner :board)
-                              [result map] (b/validate board
-                                                       :board/name v/required)]
-                          (if result
-                            (om/set-state! owner :error-map (:bouncer.core/errors map))
-                            (do (save-board board)
-                                (om/update-state! owner [:board]
-                                                  #(assoc %
-                                                          :board/name ""
-                                                          :board/description ""))))))}
-           [:i.icon.edit] "Create board"]]]]))))
+        (when (or (nil? (get-in app [:identity :user/permissions]))
+                  (:create-board (get-in app [:identity :user/permissions])))
+          [:div.ui.content
+           [:h4.ui.horizontal.divider.header [:i.icon.edit] "New"]
+           [:form.ui.reply.form {:on-submit (fn [e] (.preventDefault e))}
+            [:div.field  (when (:board/name error-map) {:class "error"})
+             [:label "Board Name"]
+             [:input {:type "text" :name "name" :value (:board/name board)
+                      :on-change (fn [e] (om/set-state! owner [:board :board/name] (.. e -target -value)))}]]
+            [:div.field
+             [:label "Description"]
+             [:textarea {:name "description"
+                         :value (:board/description board)
+                         :on-change (fn [e]
+                                      (om/set-state! owner [:board :board/description] (.. e -target -value)))
+                         :on-key-up (fn [e]
+                                      (when (and (= (.-which e) 0x0d) (.-ctrlKey e))
+                                        (let [btn (.. (om/get-node owner) (querySelector "button.submit.button"))]
+                                          (.click btn))))}]]
+            [:div.field
+             [:button.ui.blue.labeled.submit.icon.button
+              {:on-click (fn [_]
+                           (let [board (om/get-state owner :board)
+                                 [result map] (b/validate board
+                                                          :board/name v/required)]
+                             (if result
+                               (om/set-state! owner :error-map (:bouncer.core/errors map))
+                               (do (save-board board)
+                                   (om/update-state! owner [:board]
+                                                     #(assoc %
+                                                             :board/name ""
+                                                             :board/description ""))))))}
+              [:i.icon.edit] "Create board"]]]])]))))

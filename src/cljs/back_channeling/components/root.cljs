@@ -120,7 +120,7 @@
                                    :on-click (fn [e] (.. e -currentTarget submit))}
             [:a.item "Logout"]]]]]
         (case (:page app)
-          :boards (om/build boards-view (:boards app))
+          :boards (om/build boards-view app)
           :board (om/build board-view app
                            {:opts {:user user
                                    :reactions (:reactions app)}})

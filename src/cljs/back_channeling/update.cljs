@@ -114,13 +114,20 @@
 
 (defn init [ch app]
   (api/request "/api/token" :POST
-                     {:handler
-                      (fn [response]
-                        (connect-socket app ch (:access-token response)))
-                      :error-handler
-                      (fn [response error-code]
-                        (.error js/console "Can't connect websocket (;;)")
-                        #_(set! (.. js/document -location -href) "/"))})
+               {:handler
+                (fn [response]
+                  (connect-socket app ch (:access-token response)))
+                :error-handler
+                (fn [response error-code]
+                  (.error js/console "Can't connect websocket (;;)")
+                  #_(set! (.. js/document -location -href) "/"))})
+
+  (when-let [user-name (some-> js/document
+                               (.querySelector "meta[property='bc:user:name']")
+                               (.getAttribute "content"))]
+    (api/request (str "/api/user/" user-name) :GET
+                 {:handler #(om/update! app [:identity] %)}))
+
   (go-loop []
     (let [[key body] (<! ch)]
       (update-app key body ch app)
