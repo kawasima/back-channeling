@@ -46,5 +46,9 @@
    :handle-ok (fn [{board :board identity :identity}]
                 (->> (boards/find-threads datomic (:db/id board) identity)
                      (map #(assoc % :thread/writenum (comments/count-writenum datomic (:db/id %) identity)))
+                     (map #(update % :thread/watchers
+                        (fn [watchers] (apply hash-set watchers))
+
+                        ))
                      ((fn [threads] (assoc board :board/threads (vec threads))))
                      ((fn [board] (assoc board :user/permissions (:user/permissions identity))))))))
