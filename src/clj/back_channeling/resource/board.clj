@@ -19,6 +19,10 @@
                                                [v/every (fn [v]
                                                           (not (contains? board-ng-names v)))]]})
 
+   :allowed? #(case (get-in % [:request :request-method])
+                :get  true
+                :post (has-permission? % #{:create-board}))
+
    :post! (fn [{board :edn req :request}]
             {:db/id (boards/save datomic board)})
 
