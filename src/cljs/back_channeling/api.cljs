@@ -55,8 +55,10 @@
                           (.getAttribute "content"))]
        (.send xhrio (str prefix path) (.toLowerCase (name method))
               body
-              (case format
-                :xml (clj->js {:content-type "application/xml"})
-                :ogg (clj->js {:content-type "audio/ogg"})
-                :wav (clj->js {:content-type "audio/wav"})
-                (clj->js {:content-type "application/edn"})))))))
+              (-> (case format
+                    :xml {:content-type "application/xml"}
+                    :ogg {:content-type "audio/ogg"}
+                    :wav {:content-type "audio/wav"}
+                    {:content-type "application/edn"})
+                  (assoc :accept "application/edn")
+                  clj->js))))))
