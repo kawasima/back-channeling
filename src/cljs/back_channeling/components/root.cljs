@@ -68,9 +68,9 @@
            [:img.ui.logo.image {:src (str (om/get-shared owner :prefix) "/img/logo.png")
                                 :alt "Back Channeling"}]]]
          [:div.center.menu
-          (when (= (:page app) :board)
+          (when (= (get-in app [:page :type]) :board)
             [:a.item {:href "#/"}
-             [:h2.ui.header [:i.block.layout.icon] [:div.content (get-in app [:board :board/name])]]])
+             [:h2.ui.header [:i.list.olive.icon] [:div.content (get-in app [:board :board/name])]]])
           [:div.item
            [:div.ui.search
             [:div.ui.icon.input
@@ -119,16 +119,15 @@
                                    :name "logout"
                                    :on-click (fn [e] (.. e -currentTarget submit))}
             [:a.item "Logout"]]]]]
-        (case (:page app)
+        (case (get-in app [:page :type])
           :boards (om/build boards-view app)
-          :board (om/build board-view app
-                           {:opts {:user user
-                                   :reactions (:reactions app)}})
+          :board (om/build board-view app)
           :article (om/build article-page (:article app)
                              {:init-state {:thread (->> (:threads app)
                                                         (filter #(= (:thread/active? %) true))
                                                         first)}
                               :opts {:user user
                                      :board-name (get-in app [:board :board/name])}})
+          ; :initializing, :loading
           [:div.main.content.full.height
            [:div.ui.active.centered.inline.text.loader "Loading..."]])]))))

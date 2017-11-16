@@ -11,6 +11,7 @@
             [back-channeling.audio :as audio]
             [back-channeling.components.avatar :refer [avatar]]
             [back-channeling.components.comment :refer [comment-view]]
+            [back-channeling.helper :refer [find-thread]]
             [back-channeling.comment-helper :refer [format-plain]]
             [back-channeling.component-helper :refer [make-click-outside-fn]]
             [goog.i18n.DateTimeSymbols_ja])
@@ -49,13 +50,6 @@
                {:handler (fn [response]
                            (on-success response))})))
 
-(defn save-thread [thread]
-  (api/request (str "/api/board/" (:board/name thread) "/threads")
-               :POST
-               thread
-               {:handler (fn [response]
-                           (set! (.-href js/location) (str "#/board/" (:board/name thread) "/" (:db/id response))))}))
-
 (defn watch-thread [board-name thread user owner]
   (api/request (str "/api/board/" board-name "/thread/" (:db/id thread))
                :PUT
@@ -71,7 +65,7 @@
                {:handler (fn [response]
                            (om/set-state! owner :watching? false))}))
 
-(defn comment-new-view [thread owner {:keys [board-name]}]
+(defn comment-new-view [{:keys [app thread]} owner]
   (reify
     om/IInitState
     (init-state [_]
@@ -178,7 +172,7 @@
                                 (om/set-state! owner :error-map (:bouncer.core/errors map))
                                 (do
                                   (om/set-state! owner :saving? true)
-                                  (save-comment board-name
+                                  (save-comment (get-in app [:board :board/name])
                                                 (update-in comment [:comment/format] keyword)
                                                 (fn [_]
                                                   (om/update-state!
@@ -195,7 +189,7 @@
             [:div.ui.top.right.attached.label "Preview"]
             (case (:comment/format comment)
               "comment.format/plain"
-              [:div.attached (format-plain (:comment/content comment) :board-name board-name :thread-id (:db/id thread))]
+              [:div.attached (format-plain (:comment/content comment) :board-name (get-in app [:board :board/name]) :thread-id (:db/id thread))]
 
               "comment.format/markdown"
               [:div.attached {:key "preview-markdown"
@@ -230,7 +224,7 @@
       (when-let [parent (.-parentNode el)]
         (recur parent)))))
 
-(defn thread-view [thread owner {:keys [board-name reactions] :as opts}]
+(defn thread-view [{:keys [app thread] :as state} owner]
   (reify
     om/IInitState
     (init-state [_]
@@ -260,18 +254,22 @@
     (render-state [_ {:keys [reaction-top selected open-reactions?]}]
       (html
        [:div.ui.full.height.thread.comments
-        [:h3.ui.dividing.header (:thread/title thread)]
-        [:a.curation.link {:href (str "#/articles/new?thread-id=" (:db/id thread))}
-         [:i.external.share.big.icon]]
+        [:h3.ui.dividing.header
+         (-> (get-in app [:board :board/threads
+                          (find-thread (get-in app [:board :board/threads]) (:db/id thread))])
+             :thread/title)]
+        ; [:a.curation.link {:href (str "#/articles/new?thread-id=" (:db/id thread))}
+        ;  [:i.external.share.big.icon]]
         [:div.scroll-pane
          [:div.ui.icon.reaction.buttons {:style {:top reaction-top}}
           [:button.ui.button {:on-click (fn [e]
                                           (om/set-state! owner :open-reactions? true))}
            [:i.smile.icon]]
           [:button.ui.button {:on-click (fn [e]
-                                          (api/request (str "/api/board/" board-name "/thread/" (:db/id thread)
-                                                            "/comment/" selected)
-                                                       :DELETE {}))}
+                                          (put! (om/get-shared owner :msgbox)
+                                                [:delete-comment {:board/name (get-in app [:board :board/name])
+                                                                  :thread/id (:db/id thread)
+                                                                  :comment/no selected}]))}
            [:i.remove.icon]]]
          [:div.ui.reactions.raised.segment
           {:style (if open-reactions?
@@ -280,11 +278,12 @@
                     {:visibility 'hidden})}
 
           [:div.ui.grid.container
-           (for [reaction reactions]
+           (for [reaction (:reactions app)]
              [:.four.wide.column {:key (str "reaction-" (:db/id reaction))}
               [:button.ui.tiny.basic.button
                {:on-click (fn [e]
-                            (api/request (str "/api/board/" board-name "/thread/" (:db/id thread)
+                            (api/request (str "/api/board/" (get-in app [:board :board/name])
+                                              "/thread/" (:db/id thread)
                                               "/comment/" selected)
                                          :POST
                                          (select-keys reaction [:reaction/name])
@@ -293,10 +292,8 @@
                (:reaction/label reaction)]])]]
 
          (for [comment (:thread/comments thread)]
-           (om/build comment-view comment
-                     {:opts {:thread thread
-                             :board-name board-name
-                             :comment-attrs
+           (om/build comment-view {:app app :comment comment :thread thread}
+                     {:opts {:comment-attrs
                              {:on-mouse-enter
                               (fn [e]
                                 (let [el (find-element (.-target e) "data-comment-no")
@@ -311,7 +308,7 @@
         (if (>= (count (:thread/comments thread)) 1000)
           [:div.ui.error.message
            [:div.header "Over 1000 comments. You can't add any comment to this thread."]]
-          (om/build comment-new-view thread {:opts opts}))]))))
+          (om/build comment-new-view state))]))))
 
 (defn toggle-sort-key [owner sort-key]
   (let [[col direction] (om/get-state owner :sort-key)]
@@ -449,14 +446,12 @@
              [:div.field
               [:button.ui.blue.labeled.submit.icon.button
                {:on-click (fn [_]
-                            (let [thread (-> (om/get-state owner :thread)
-                                             (assoc :board/name (:board/name board)))
-                                  [result map] (b/validate thread
+                            (let [[result map] (b/validate thread
                                                            :thread/title v/required
                                                            :comment/content v/required)]
                               (if result
                                 (om/set-state! owner :error-map (:bouncer.core/errors map))
-                                (do (save-thread thread)
+                                (do (put! (om/get-shared owner :msgbox) [:save-thread {:thread thread :board board}])
                                     (om/update-state! owner [:thread]
                                                       #(assoc %
                                                               :comment/content ""
@@ -482,7 +477,7 @@
         (om/set-state! owner :sticky-thread-content? true)
         (om/set-state! owner :sticky-thread-content? false)))))
 
-(defn board-view [app owner {:keys [reactions]}]
+(defn board-view [app owner]
   (reify
     om/IInitState
     (init-state [_]
@@ -516,43 +511,38 @@
            [:div.ui.top.attached.tabular.sticky.menu
             (when sticky-thread-content? {:class "fixed"})
             [:a.item (merge {:on-click (fn [_]
-                                         (om/transact! threads (fn [ths]
-                                                                 (m/map-vals #(assoc % :thread/active? false) ths)))
                                          (set! (.-href js/location)
                                                (str "#/board/" (:board/name board))))}
-                            (when (every? #(not (:thread/active? %)) (vals threads))
+                            (when-not (get-in app [:page :thread/id])
                               {:class "active"}))
              [:span.tab-name "New"]]
-            (for [tab tabs]
-              [:a.item (merge {:key (str "tab-" (:id tab))
+            (for [{thread-id :db/id} (vals threads)]
+              [:a.item (merge {:key (str "tab-" thread-id)
                                :on-click (fn [_]
-                                           (om/transact! threads (fn [ths]
-                                                                   (m/map-vals #(assoc % :thread/active? (= (:db/id %) (:id tab))) ths)))
                                            (set! (.-href js/location)
-                                                 (str "#/board/" (:board/name board) "/" (:id tab))))}
-                              (when (get-in threads [(:id tab) :thread/active?])
+                                                 (str "#/board/" (:board/name board) "/" thread-id)))}
+                              (when (= (get-in app [:page :thread/id]) thread-id)
                                 {:class "active"}))
-               [:span.tab-name (:name tab)]
+               [:span.tab-name (-> (get-in app [:board :board/threads
+                                                (find-thread (get-in app [:board :board/threads]) thread-id)])
+                                   :thread/title)]
                [:span
                 [:i.close.icon
                  {:on-click (fn [e]
-                              (om/transact! threads #(dissoc % (:id tab)))
-                              (om/update-state! owner [:tabs]
-                                                #(remove (fn [t] (= (:id t) (:id tab))) %))
-                              (set! (.. js/location -href) (str "#/board/" (:board/name board)))
+                              (put! (om/get-shared owner :msgbox)
+                                    [:remove-thread {:thread/id thread-id
+                                                     :board/name (get-in app [:board :board/name])}])
                               (.stopPropagation e))}]]])]
            [:div.ui.bottom.attached.tab.full.height.segment
-            (when (every? #(not (:thread/active? %)) (vals threads))
-              {:class "active"})
+            (when-not (get-in app [:page :thread/id]) {:class "active"})
             (om/build thread-new-view board)]
-           (for [tab tabs]
+           (for [{thread-id :db/id :as thread} (vals threads)]
              [:div.ui.bottom.attached.tab.full.height.segment
-              (merge {:key (str "tab-content-" (:id tab))}
-                     (when (get-in threads [(:id tab) :thread/active?]) {:class "active"}))
-              (om/build thread-view (get threads (:id tab))
-                        {:state {:target-comment (get-in threads [(:id tab) :thread/last-comment-no])}
-                         :opts {:board-name (:board/name board)
-                                :reactions reactions}})])]])))))
+              (merge {:key (str "tab-content-" thread-id)}
+                     (when (= (get-in app [:page :thread/id]) thread-id)
+                       {:class "active"}))
+              (om/build thread-view {:app app :thread thread}
+                        {:state {:target-comment (get-in threads [thread-id :thread/last-comment-no])}})])]])))))
 
 (defn boards-view [app owner]
   (reify

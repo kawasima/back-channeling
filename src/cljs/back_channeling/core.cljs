@@ -10,7 +10,7 @@
                       :board {}
                       :threads {}
                       :users #{}
-                      :page :initializing}))
+                      :page {:type :initializing}}))
 
 (om/root root-view app-state
          {:target (.getElementById js/document "app")
