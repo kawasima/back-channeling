@@ -70,7 +70,7 @@
          [:div.center.menu
           (when (= (get-in app [:page :type]) :board)
             [:a.item {:href "#/"}
-             [:h2.ui.header [:i.block.layout.icon] [:div.content (get-in app [:board :board/name])]]])
+             [:h2.ui.header [:i.list.olive.icon] [:div.content (get-in app [:board :board/name])]]])
           [:div.item
            [:div.ui.search
             [:div.ui.icon.input

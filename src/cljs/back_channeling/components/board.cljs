@@ -50,13 +50,6 @@
                {:handler (fn [response]
                            (on-success response))})))
 
-(defn save-thread [thread]
-  (api/request (str "/api/board/" (:board/name thread) "/threads")
-               :POST
-               thread
-               {:handler (fn [response]
-                           (set! (.-href js/location) (str "#/board/" (:board/name thread) "/" (:db/id response))))}))
-
 (defn watch-thread [board-name thread user owner]
   (api/request (str "/api/board/" board-name "/thread/" (:db/id thread))
                :PUT
@@ -453,14 +446,12 @@
              [:div.field
               [:button.ui.blue.labeled.submit.icon.button
                {:on-click (fn [_]
-                            (let [thread (-> (om/get-state owner :thread)
-                                             (assoc :board/name (:board/name board)))
-                                  [result map] (b/validate thread
+                            (let [[result map] (b/validate thread
                                                            :thread/title v/required
                                                            :comment/content v/required)]
                               (if result
                                 (om/set-state! owner :error-map (:bouncer.core/errors map))
-                                (do (save-thread thread)
+                                (do (put! (om/get-shared owner :msgbox) [:save-thread {:thread thread :board board}])
                                     (om/update-state! owner [:thread]
                                                       #(assoc %
                                                               :comment/content ""

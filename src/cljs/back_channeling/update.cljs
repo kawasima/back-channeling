@@ -139,6 +139,17 @@
                     "/thread/" thread-id
                     "/comment/" comment-no) :DELETE {}))
 
+(defmethod update-app :save-thread [_ {:keys [thread board]} ch app]
+  (api/request (str "/api/board/" (:board/name board) "/threads")
+               :POST
+               thread
+               {:handler (fn [response]
+                             (let [thread (assoc response :thread/title (:thread/title thread)
+                                                          :thread/readnum 1)]
+                             (om/transact! app [:board :board/threads] #(conj % thread))
+                             (set! (.-href js/location)
+                                   (str "#/board/" (:board/name board) "/" (:db/id thread)))))}))
+
 (defn init [ch app]
   (go-loop []
     (let [[key body] (<! ch)]
