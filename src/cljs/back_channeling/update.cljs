@@ -6,7 +6,8 @@
             [back-channeling.api :as api]
             [back-channeling.routing :as routing]
             [back-channeling.notification :as notification]
-            [back-channeling.socket :as socket])
+            [back-channeling.socket :as socket]
+            [back-channeling.helper :refer [find-thread]])
   (:use [cljs.reader :only [read-string]]))
 
 (defn refresh-board [app board-name]
@@ -19,12 +20,6 @@
    (api/request
     (str "/api/board/" name "/thread/" id "/comments/" from "-" to)
     {:handler handler}))
-
-(defn find-thread [threads id]
-  (->> (map-indexed vector threads)
-       (filter #(= (:db/id (second %)) id))
-       (map first)
-       first))
 
 (defn refresh-thread [app msgbox thread]
   (when (= (:board/name thread) (get-in @app [:board :board/name]))
@@ -42,7 +37,7 @@
                                         :comment (first %)}]))
         (let [from (-> (get-in @app [:threads (:db/id thread) :thread/comments]) count inc)]
           (fetch-comments thread from nil
-                          #(put! msgbox [:refresh-comment
+                          #(put! msgbox [:add-comments
                                          {:thread thread
                                           :comment/from from
                                           :comments %}])))))))
@@ -97,11 +92,17 @@
     (om/transact! app #(assoc % :page {:type :board :thread/id thread-id :loading? true}))
     (fetch-comments thread from nil
                     (fn [fetched-comments]
-                      (put! ch [:refresh-comment
+                      (put! ch [:add-comments
                                 {:thread thread
                                  :comment/from from
                                  :comments fetched-comments}])
                       (om/transact! app #(assoc % :page {:type :board :thread/id thread-id}))))))
+
+(defmethod update-app :remove-thread [_ {thread-id :thread/id board-name :board/name} ch app]
+  (om/transact! app [:threads] #(dissoc % thread-id))
+  (if-let [id (-> (:threads @app) first first)]
+    (set! (.-href js/location) (str "#/board/" board-name "/" id))
+    (set! (.-href js/location) (str "#/board/" board-name))))
 
 (defn fetch-boards [app]
   (api/request
@@ -130,6 +131,13 @@
                                 (assoc app :threads {}))
                               (assoc :page {:type :board :loading? true}))))
   (fetch-board board-name app))
+
+(defmethod update-app :delete-comment [_ {board-name :board/name
+                                          thread-id :thread/id
+                                          comment-no :comment/no} ch app]
+  (api/request (str "/api/board/" board-name
+                    "/thread/" thread-id
+                    "/comment/" comment-no) :DELETE {}))
 
 (defn init [ch app]
   (go-loop []

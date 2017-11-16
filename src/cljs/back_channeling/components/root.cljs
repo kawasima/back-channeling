@@ -121,14 +121,13 @@
             [:a.item "Logout"]]]]]
         (case (get-in app [:page :type])
           :boards (om/build boards-view app)
-          :board (om/build board-view app
-                           {:opts {:user user
-                                   :reactions (:reactions app)}})
+          :board (om/build board-view app)
           :article (om/build article-page (:article app)
                              {:init-state {:thread (->> (:threads app)
                                                         (filter #(= (:thread/active? %) true))
                                                         first)}
                               :opts {:user user
                                      :board-name (get-in app [:board :board/name])}})
+          ; :initializing, :loading
           [:div.main.content.full.height
            [:div.ui.active.centered.inline.text.loader "Loading..."]])]))))
