@@ -25,9 +25,11 @@
 
    :post! (fn [{th :edn identity :identity}]
             (let [user (users/find-by-name datomic (:user/name identity))
-                  [tempids thread-id] (threads/save datomic board-name th user)]
+                  [tempids temp-thread-id] (threads/save datomic board-name th user)
+                  thread-id (d/resolve-tempid (d/db (:connection datomic)) tempids temp-thread-id)]
+              (threads/add-watcher datomic thread-id identity)
               (broadcast-message socketapp [:update-board {:board/name board-name}])
-              {:db/id (d/resolve-tempid (d/db (:connection datomic)) tempids thread-id)}))
+              {:db/id thread-id}))
 
    :handle-ok (fn [{{{:keys [q]} :params} :request}]
                 (when q
