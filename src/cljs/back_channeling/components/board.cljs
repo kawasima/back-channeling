@@ -403,6 +403,7 @@
               [:td
                [:a {:href (str "#/board/" (:board/name board) "/" (:db/id thread))}
                 (when-not (:thread/public? thread) [:i.icon.lock])
+                (when (> (:thread/writenum thread) 0) [:i.icon.comments.outline])
                 (:thread/title thread)]]
               [:td (:thread/resnum thread)]
               [:td (.format date-format-m (:thread/last-updated thread))]
@@ -523,9 +524,12 @@
                                                  (str "#/board/" (:board/name board) "/" thread-id)))}
                               (when (= (get-in app [:page :thread/id]) thread-id)
                                 {:class "active"}))
-               [:span.tab-name (-> (get-in app [:board :board/threads
-                                                (find-thread (get-in app [:board :board/threads]) thread-id)])
-                                   :thread/title)]
+               [:span.tab-name
+                (let [threads (get-in app [:board :board/threads])
+                      thread (get threads (find-thread threads thread-id))]
+                  [:p (when (< (:thread/readnum thread) (:thread/resnum thread))
+                        [:i.icon.asterisk.green])
+                      (:thread/title thread)])]
                [:span
                 [:i.close.icon
                  {:on-click (fn [e]
