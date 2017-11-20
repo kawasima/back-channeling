@@ -107,8 +107,7 @@
                  [:update-thread {:db/id thread-id
                                   :thread/last-updated (Date.)
                                   :thread/resnum (comments/count datomic thread-id)
-                                  :comments/from comment-no
-                                  :comments/to   comment-no
+                                  :comments/no comment-no
                                   :board/name board-name}]))))
    :delete! (fn [{identity :identity :as ctx}]
               (when (or (has-permission? ctx #{:delete-any-comment})
@@ -121,6 +120,5 @@
                  [:update-thread {:db/id thread-id
                                   :thread/last-updated (Date.)
                                   :thread/resnum (comments/count datomic thread-id)
-                                  :comments/from comment-no
-                                  :comments/to   comment-no
+                                  :comments/no comment-no
                                   :board/name board-name}])))))

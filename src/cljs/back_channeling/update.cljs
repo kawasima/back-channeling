@@ -6,7 +6,8 @@
             [back-channeling.api :as api]
             [back-channeling.routing :as routing]
             [back-channeling.notification :as notification]
-            [back-channeling.socket :as socket])
+            [back-channeling.socket :as socket]
+            [back-channeling.helper :refer [find-thread]])
   (:use [cljs.reader :only [read-string]]))
 
 (defn refresh-board [app board-name]
@@ -15,30 +16,10 @@
                            (om/update! app [:board] response))}))
 
 (defn fetch-comments
-  ([msgbox thread]
-   (fetch-comments msgbox thread 1 nil))
-  ([msgbox thread from]
-   (fetch-comments msgbox thread from nil))
-  ([msgbox {:keys [board/name db/id] :as thread} from to]
+  [{:keys [board/name db/id] :as thread} from to handler]
    (api/request
     (str "/api/board/" name "/thread/" id "/comments/" from "-" to)
-    {:handler (fn [fetched-comments]
-                (if (= from to)
-                  (put! msgbox [:refresh-comment
-                                {:thread thread
-                                 :comment/no from
-                                 :comment (first fetched-comments)}])
-                  (put! msgbox [:add-comments
-                                {:thread thread
-                                 :comment/from from
-                                 :comment/to to
-                                 :comments fetched-comments}])))})))
-
-(defn find-thread [threads id]
-  (->> (map-indexed vector threads)
-       (filter #(= (:db/id (second %)) id))
-       (map first)
-       first))
+    {:handler handler}))
 
 (defn refresh-thread [app msgbox thread]
   (when (= (:board/name thread) (get-in @app [:board :board/name]))
@@ -47,19 +28,40 @@
                               assoc
                               :thread/last-updated (:thread/last-updated thread)
                               :thread/resnum (:thread/resnum thread)))
-    (when (get-in @app [:threads (:db/id thread) :thread/active?])
-      (fetch-comments msgbox thread
-                      (or (:comments/from thread)
-                          (inc (count (get-in @app [:threads (:db/id thread) :thread/comments]))))
-                      (:comments/to thread)))))
+    (when (= (get-in @app [:page :thread/id]) (:db/id thread))
+      (if-let [comment-no (:comments/no thread)]
+        (fetch-comments thread comment-no comment-no
+                        #(put! msgbox [:refresh-comment
+                                       {:thread thread
+                                        :comment/no comment-no
+                                        :comment (first %)}]))
+        (let [from (-> (get-in @app [:threads (:db/id thread) :thread/comments]) count inc)]
+          (fetch-comments thread from nil
+                          #(put! msgbox [:add-comments
+                                         {:thread thread
+                                          :comment/from from
+                                          :comments %}])))))))
 
-(defn connect-socket [app msgbox token]
+(defn open-socket [app msgbox token]
   (socket/open (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://")
                     (.-host js/location)
                     (some-> js/document
                             (.querySelector "meta[property='bc:prefix']")
                             (.getAttribute "content"))
                     "/ws?token=" token)
+               :on-open (fn []
+                          (when (= (:socket @app) :disconnect)
+                            (when-let [thread-id (get-in @app [:page :thread/id])]
+                              (let [from (-> (get-in @app [:threads thread-id :thread/comments]) count inc)
+                                    thread {:db/id thread-id :board/name (get-in @app [:page :board/name])}]
+                                (fetch-comments thread from nil
+                                                #(put! msgbox [:add-comments
+                                                               {:thread thread
+                                                                :comment/from from
+                                                                :comments %}])))))
+                          (om/update! app [:socket] :connect))
+               :on-close (fn [e]
+                           (om/update! app [:socket] :disconnect))
                :on-message (fn [message]
                              (let [[cmd data] (read-string message)]
                                (case cmd
@@ -69,6 +71,16 @@
                                  :join  (om/transact! app [:users] #(conj % data))
                                  :leave (om/transact! app [:users] #(disj % data))
                                  :call  (js/alert (:message data)))))))
+
+(defn connect-socket [app msgbox]
+  (when (= (:socket @app) :disconnect)
+    (api/request "/api/token" :POST
+                 {:handler
+                  (fn [response]
+                    (open-socket app msgbox (:access-token response)))
+                  :error-handler
+                  (fn [response error-code]
+                    (.error js/console "Can't connect websocket (;;)"))})))
 
 (defmulti update-app (fn [key body ch app] key))
 
@@ -83,44 +95,101 @@
                 (fn [comments]
                   (map #(if (= (:db/id comment) (:db/id %)) comment %) comments))))
 
-(defmethod update-app :add-comments [_ {:keys [comment/from comment/to comments] {id :db/id} :thread} ch app]
-  (let [readnum (-> comments last (:comment/no 0))]
-    (om/transact! app (fn [app]
+(defmethod update-app :add-comments [_ {:keys [comment/from comment/to comments]
+                                        {:keys [db/id board/name]} :thread} ch app]
+  (let [lastnum (-> comments last (:comment/no 0))
+        readnum (some-> (get-in @app [:board :board/threads])
+                (find-thread id)
+                (#(get-in @app [:board :board/threads % :thread/readnum]))
+                (max lastnum))]
+     (om/transact! app (fn [app]
                         (-> app
-                            (assoc :page :board)
-                            (update-in [:threads id :thread/comments] #(concat % comments))
+                            (assoc :page {:type :board :thread/id id :board/name name})
+                            (assoc-in [:threads id :db/id] id)
+                            (update-in [:threads id :thread/comments]
+                                       #(->> (concat % comments)
+                                             (map (fn [comment] [(:comment/no comment) comment]))
+                                             (into {})
+                                             vals))
                             (update-in [:board :board/threads]
-                                       #(update-in % [(find-thread % id)]
-                                                   (fn [thread] (if (> (:thread/readnum thread) readnum)
-                                                                  thread
-                                                                  (assoc thread :thread/readnum readnum))))))))))
+                                       #(if readnum
+                                          (assoc-in % [(find-thread % id) :thread/readnum] readnum)
+                                          %)))))))
 
 (defmethod update-app :move-to-thread [_ {thread-id :db/id board-name :board/name :as thread} ch app]
-  (let [page (:page @app)
+  (let [page (get-in @app [:page :type])
         from (-> (get-in @app [:threads thread-id :thread/comments]) count inc)]
     (when (= page :initializing) (refresh-board app board-name))
-    (om/transact! app #(-> %
-                           (update :threads (fn [ths]
-                                              (m/map-vals
-                                                (fn [th] (assoc th :thread/active? false))
-                                                ths)))
-                           (assoc-in [:threads thread-id :thread/active?] true)
-                           (assoc-in [:threads thread-id :db/id] thread-id)
-                           (assoc-in [:threads thread-id :thread/title]
-                                     (let [threads (get-in app [:board :board/threads])]
-                                       (get-in app [:board :board/threads (find-thread threads thread-id) :thread/title])))
-                           (assoc-in [:threads thread-id :thread/last-comment-no] from)))
-    (fetch-comments ch thread from nil)))
+    (om/transact! app #(assoc % :page {:type :board :thread/id thread-id :board/name board-name :loading? true}))
+    (fetch-comments thread from nil
+                    (fn [fetched-comments]
+                      (put! ch [:add-comments
+                                {:thread thread
+                                 :comment/from from
+                                 :comments fetched-comments}])
+                      (om/transact! app #(assoc % :page {:type :board :thread/id thread-id :board/name board-name}))))))
+
+(defmethod update-app :remove-thread [_ {thread-id :thread/id board-name :board/name :as ooo} ch app]
+  (om/transact! app [:threads] #(dissoc % thread-id))
+  (if-let [id (-> (:threads @app) first first)]
+    (set! (.-href js/location) (str "#/board/" board-name "/" id))
+    (set! (.-href js/location) (str "#/board/" board-name))))
+
+(defn fetch-boards [app]
+  (api/request
+   "/api/boards"
+   {:handler
+    (fn [response]
+      (om/transact! app #(assoc % :page {:type :boards}))
+      (om/transact! app #(assoc % :boards response)))}))
+
+(defmethod update-app :move-to-boards [_ _ ch app]
+  (om/transact! app #(assoc % :page {:type :loading}))
+  (fetch-boards app))
+
+(defn fetch-board [board-name app]
+  (api/request
+   (str "/api/board/" board-name)
+   {:handler
+    (fn [response]
+      (om/transact! app #(assoc % :page {:type :board}
+                                  :board response)))}))
+
+(defmethod update-app :move-to-board [_ {board-name :board/name} ch app]
+  (om/transact! app (fn [app]
+                          (-> (if (= board-name (get-in app [:board :board/name]))
+                                app
+                                (assoc app :threads {}))
+                              (assoc :page {:type :board :loading? true}))))
+  (fetch-board board-name app))
+
+(defmethod update-app :delete-comment [_ {board-name :board/name
+                                          thread-id :thread/id
+                                          comment-no :comment/no} ch app]
+  (api/request (str "/api/board/" board-name
+                    "/thread/" thread-id
+                    "/comment/" comment-no) :DELETE {}))
+
+(defmethod update-app :save-thread [_ {:keys [thread board]} ch app]
+  (api/request (str "/api/board/" (:board/name board) "/threads")
+               :POST
+               thread
+               {:handler (fn [response]
+                             (let [thread (assoc response :thread/title (:thread/title thread)
+                                                          :thread/readnum 1)]
+                             (set! (.-href js/location)
+                                   (str "#/board/" (:board/name board) "/" (:db/id thread)))))}))
+
+(defmethod update-app :reconnect-socket [_ _ ch app]
+  (connect-socket app ch))
 
 (defn init [ch app]
-  (api/request "/api/token" :POST
-               {:handler
-                (fn [response]
-                  (connect-socket app ch (:access-token response)))
-                :error-handler
-                (fn [response error-code]
-                  (.error js/console "Can't connect websocket (;;)")
-                  #_(set! (.. js/document -location -href) "/"))})
+  (go-loop []
+    (let [[key body] (<! ch)]
+      (update-app key body ch app)
+      (recur)))
+
+  (connect-socket app ch)
 
   (when-let [user-name (some-> js/document
                                (.querySelector "meta[property='bc:user:name']")
@@ -128,8 +197,4 @@
     (api/request (str "/api/user/" user-name) :GET
                  {:handler #(om/update! app [:identity] %)}))
 
-  (go-loop []
-    (let [[key body] (<! ch)]
-      (update-app key body ch app)
-      (recur)))
   (routing/init app ch))

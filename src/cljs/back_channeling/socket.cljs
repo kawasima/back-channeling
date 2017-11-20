@@ -12,9 +12,9 @@
              [goog.net.WebSocket EventType]
              [goog.net WebSocket]))
 
-(def ws (WebSocket. true (fn [] 10)))
+(def ws (WebSocket. true))
 
-(defn open [url & {:keys [on-message on-open]}]
+(defn open [url & {:keys [on-message on-open on-close]}]
   (events/listen ws EventType.OPENED
                  (fn [e]
                    (when on-open
@@ -25,6 +25,8 @@
                      (on-message (.-message e)))))
   (events/listen ws EventType.CLOSED
                  (fn [e]
+                   (when on-close
+                     (on-close e))
                    #_(.log js/console "Websocket closed.")))
   (events/listen ws EventType.ERROR
                  (fn [e]
