@@ -112,13 +112,23 @@
            [:div {:on-click (fn [_]
                               (om/set-state! owner :open-profile? (not open-profile?)))}
             (om/build avatar user)
-            [:span (:user/name user)] ]
-           [:form.menu.transition {:class (if open-profile? "visible" "hidden")
-                                   :action (str (om/get-shared owner :prefix) "/logout")
-                                   :method :post
-                                   :name "logout"
-                                   :on-click (fn [e] (.. e -currentTarget submit))}
-            [:a.item "Logout"]]]]]
+            [:span
+             [:i.icon.circle.large
+              {:class (case (:socket app) :connect "teal" :disconnect "red")}]
+             (:user/name user)]]
+           [:div.menu.transition {:class (if open-profile? "visible" "hidden")}
+            [:div.item {:on-click (fn [_]
+                                    (when (= (:socket app) :disconnect)
+                                      (put! (om/get-shared owner :msgbox) [:reconnect-socket])))}
+             [:i.icon.circle {:class (case (:socket app) :connect "teal" :disconnect "red")}]
+             (case (:socket app) :connect "connecting" :disconnect "reconnect")]
+            [:div.divider]
+            [:form.item {:action (str (om/get-shared owner :prefix) "/logout")
+                         :method :post
+                         :name "logout"
+                         :on-click (fn [e] (.. e -currentTarget submit))}
+             [:i.icon.sign.out]
+             "Logout"]]]]]
         (case (get-in app [:page :type])
           :boards (om/build boards-view app)
           :board (om/build board-view app)

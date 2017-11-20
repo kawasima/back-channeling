@@ -6,11 +6,12 @@
 (.initHighlightingOnLoad js/hljs)
 (set! js/md (js/markdownit))
 
-(def app-state (atom {:boards []
-                      :board {}
-                      :threads {}
-                      :users #{}
-                      :page {:type :initializing}}))
+(defonce app-state (atom {:boards []
+                          :board {}
+                          :threads {}
+                          :socket :disconnect
+                          :users #{}
+                          :page {:type :initializing}}))
 
 (om/root root-view app-state
          {:target (.getElementById js/document "app")

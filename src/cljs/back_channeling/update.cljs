@@ -42,13 +42,26 @@
                                           :comment/from from
                                           :comments %}])))))))
 
-(defn connect-socket [app msgbox token]
+(defn open-socket [app msgbox token]
   (socket/open (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://")
                     (.-host js/location)
                     (some-> js/document
                             (.querySelector "meta[property='bc:prefix']")
                             (.getAttribute "content"))
                     "/ws?token=" token)
+               :on-open (fn []
+                          (when (= (:socket @app) :disconnect)
+                            (when-let [thread-id (get-in @app [:page :thread/id])]
+                              (let [from (-> (get-in @app [:threads thread-id :thread/comments]) count inc)
+                                    thread {:db/id thread-id :board/name (get-in @app [:page :board/name])}]
+                                (fetch-comments thread from nil
+                                                #(put! msgbox [:add-comments
+                                                               {:thread thread
+                                                                :comment/from from
+                                                                :comments %}])))))
+                          (om/update! app [:socket] :connect))
+               :on-close (fn [e]
+                           (om/update! app [:socket] :disconnect))
                :on-message (fn [message]
                              (let [[cmd data] (read-string message)]
                                (case cmd
@@ -58,6 +71,16 @@
                                  :join  (om/transact! app [:users] #(conj % data))
                                  :leave (om/transact! app [:users] #(disj % data))
                                  :call  (js/alert (:message data)))))))
+
+(defn connect-socket [app msgbox]
+  (when (= (:socket @app) :disconnect)
+    (api/request "/api/token" :POST
+                 {:handler
+                  (fn [response]
+                    (open-socket app msgbox (:access-token response)))
+                  :error-handler
+                  (fn [response error-code]
+                    (.error js/console "Can't connect websocket (;;)"))})))
 
 (defmulti update-app (fn [key body ch app] key))
 
@@ -72,33 +95,41 @@
                 (fn [comments]
                   (map #(if (= (:db/id comment) (:db/id %)) comment %) comments))))
 
-(defmethod update-app :add-comments [_ {:keys [comment/from comment/to comments] {id :db/id} :thread} ch app]
-  (let [readnum (-> comments last (:comment/no 0))]
-    (om/transact! app (fn [app]
+(defmethod update-app :add-comments [_ {:keys [comment/from comment/to comments]
+                                        {:keys [db/id board/name]} :thread} ch app]
+  (let [lastnum (-> comments last (:comment/no 0))
+        readnum (some-> (get-in @app [:board :board/threads])
+                (find-thread id)
+                (#(get-in @app [:board :board/threads % :thread/readnum]))
+                (max lastnum))]
+     (om/transact! app (fn [app]
                         (-> app
-                            (assoc :page {:type :board :thread/id id})
+                            (assoc :page {:type :board :thread/id id :board/name name})
                             (assoc-in [:threads id :db/id] id)
-                            (update-in [:threads id :thread/comments] #(concat % comments))
+                            (update-in [:threads id :thread/comments]
+                                       #(->> (concat % comments)
+                                             (map (fn [comment] [(:comment/no comment) comment]))
+                                             (into {})
+                                             vals))
                             (update-in [:board :board/threads]
-                                       #(update-in % [(find-thread % id)]
-                                                   (fn [thread] (if (> (:thread/readnum thread) readnum)
-                                                                  thread
-                                                                  (assoc thread :thread/readnum readnum))))))))))
+                                       #(if readnum
+                                          (assoc-in % [(find-thread % id) :thread/readnum] readnum)
+                                          %)))))))
 
 (defmethod update-app :move-to-thread [_ {thread-id :db/id board-name :board/name :as thread} ch app]
   (let [page (get-in @app [:page :type])
         from (-> (get-in @app [:threads thread-id :thread/comments]) count inc)]
     (when (= page :initializing) (refresh-board app board-name))
-    (om/transact! app #(assoc % :page {:type :board :thread/id thread-id :loading? true}))
+    (om/transact! app #(assoc % :page {:type :board :thread/id thread-id :board/name board-name :loading? true}))
     (fetch-comments thread from nil
                     (fn [fetched-comments]
                       (put! ch [:add-comments
                                 {:thread thread
                                  :comment/from from
                                  :comments fetched-comments}])
-                      (om/transact! app #(assoc % :page {:type :board :thread/id thread-id}))))))
+                      (om/transact! app #(assoc % :page {:type :board :thread/id thread-id :board/name board-name}))))))
 
-(defmethod update-app :remove-thread [_ {thread-id :thread/id board-name :board/name} ch app]
+(defmethod update-app :remove-thread [_ {thread-id :thread/id board-name :board/name :as ooo} ch app]
   (om/transact! app [:threads] #(dissoc % thread-id))
   (if-let [id (-> (:threads @app) first first)]
     (set! (.-href js/location) (str "#/board/" board-name "/" id))
@@ -146,9 +177,11 @@
                {:handler (fn [response]
                              (let [thread (assoc response :thread/title (:thread/title thread)
                                                           :thread/readnum 1)]
-                             (om/transact! app [:board :board/threads] #(conj % thread))
                              (set! (.-href js/location)
                                    (str "#/board/" (:board/name board) "/" (:db/id thread)))))}))
+
+(defmethod update-app :reconnect-socket [_ _ ch app]
+  (connect-socket app ch))
 
 (defn init [ch app]
   (go-loop []
@@ -156,14 +189,7 @@
       (update-app key body ch app)
       (recur)))
 
-  (api/request "/api/token" :POST
-               {:handler
-                (fn [response]
-                  (connect-socket app ch (:access-token response)))
-                :error-handler
-                (fn [response error-code]
-                  (.error js/console "Can't connect websocket (;;)")
-                  #_(set! (.. js/document -location -href) "/"))})
+  (connect-socket app ch)
 
   (when-let [user-name (some-> js/document
                                (.querySelector "meta[property='bc:user:name']")
