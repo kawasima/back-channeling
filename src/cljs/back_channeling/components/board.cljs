@@ -207,16 +207,6 @@
             [:i.edit.icon]
             [:input {:type "text" :value (:comment/content comment) :on-focus (fn [_] (om/set-state! owner :focus? true))}]]]])]]))))
 
-(defn scroll-to-comment [owner thread]
-  (let [comment-no (or (om/get-state owner :target-comment) (count (:thread/comments thread)))
-        comment-dom (.. (om/get-node owner)
-                        (querySelector (str "[data-comment-no='" comment-no "']")))
-        scroll-pane (.. (om/get-node owner)
-                           (querySelector "div.scroll-pane"))]
-    (when comment-dom
-      (.scrollTo js/window 0
-                 (- (+ (.. js/document -body -scrollTop) (some->> (.getBoundingClientRect comment-dom) (.-top))) 70)))))
-
 (defn- find-element [orig-el attr-name]
   (loop [el orig-el]
     (if (.hasAttribute el attr-name)
@@ -239,8 +229,7 @@
 
     om/IDidMount
     (did-mount [_]
-      (when thread
-        (scroll-to-comment owner thread))
+      (put! (om/get-shared owner :msgbox) [:scroll-to-comment {:comment/no (or (get-in app [:page :comment/no]) (count (:thread/comments thread)))}])
       (when-not (om/get-state owner :click-outside-fn)
         (om/set-state! owner :click-outside-fn
                        (make-click-outside-fn
@@ -517,11 +506,12 @@
                             (when-not (get-in app [:page :thread/id])
                               {:class "active"}))
              [:span.tab-name "New"]]
-            (for [{thread-id :db/id} (vals threads)]
+            (for [{thread-id :db/id comments :thread/comments} (vals threads)]
               [:a.item (merge {:key (str "tab-" thread-id)
                                :on-click (fn [_]
                                            (set! (.-href js/location)
-                                                 (str "#/board/" (:board/name board) "/" thread-id)))}
+                                                 (str "#/board/" (:board/name board) "/" thread-id))
+                                           (put! (om/get-shared owner :msgbox) [:scroll-to-comment {:comment/no (count comments)}]))}
                               (when (= (get-in app [:page :thread/id]) thread-id)
                                 {:class "active"}))
                [:span.tab-name
@@ -545,8 +535,7 @@
               (merge {:key (str "tab-content-" thread-id)}
                      (when (= (get-in app [:page :thread/id]) thread-id)
                        {:class "active"}))
-              (om/build thread-view {:app app :thread thread}
-                        {:state {:target-comment (get-in threads [thread-id :thread/last-comment-no])}})])]])))))
+              (om/build thread-view {:app app :thread thread})])]])))))
 
 (defn boards-view [app owner]
   (reify

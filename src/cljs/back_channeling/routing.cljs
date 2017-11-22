@@ -39,7 +39,9 @@
   (sec/defroute "/board/:board-name/:thread-id" [board-name thread-id]
     (put! msgbox [:move-to-thread {:db/id (js/parseInt thread-id) :board/name board-name}]))
   (sec/defroute "/board/:board-name/:thread-id/:comment-no" [board-name thread-id comment-no]
-    (put! msgbox [:move-to-thread {:db/id (js/parseInt thread-id) :board/name board-name}]))
+    (put! msgbox [:move-to-thread {:db/id (js/parseInt thread-id)
+                                   :board/name board-name
+                                   :comment/no (js/parseInt comment-no)}]))
   (sec/defroute "/articles/new" [query-params]
     (om/transact! app #(assoc %
                               :page {:type :article}

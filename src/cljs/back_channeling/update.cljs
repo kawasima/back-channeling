@@ -96,15 +96,14 @@
                   (map #(if (= (:db/id comment) (:db/id %)) comment %) comments))))
 
 (defmethod update-app :add-comments [_ {:keys [comment/from comment/to comments]
-                                        {:keys [db/id board/name]} :thread} ch app]
+                                        {:keys [db/id]} :thread} ch app]
   (let [lastnum (-> comments last (:comment/no 0))
         readnum (some-> (get-in @app [:board :board/threads])
                 (find-thread id)
                 (#(get-in @app [:board :board/threads % :thread/readnum]))
                 (max lastnum))]
-     (om/transact! app (fn [app]
+    (om/transact! app (fn [app]
                         (-> app
-                            (assoc :page {:type :board :thread/id id :board/name name})
                             (assoc-in [:threads id :db/id] id)
                             (update-in [:threads id :thread/comments]
                                        #(->> (concat % comments)
@@ -116,18 +115,25 @@
                                           (assoc-in % [(find-thread % id) :thread/readnum] readnum)
                                           %)))))))
 
-(defmethod update-app :move-to-thread [_ {thread-id :db/id board-name :board/name :as thread} ch app]
+(defmethod update-app :move-to-thread [_ {thread-id :db/id
+                                          board-name :board/name
+                                          comment-no :comment/no :as thread} ch app]
   (let [page (get-in @app [:page :type])
         from (-> (get-in @app [:threads thread-id :thread/comments]) count inc)]
     (when (= page :initializing) (refresh-board app board-name))
-    (om/transact! app #(assoc % :page {:type :board :thread/id thread-id :board/name board-name :loading? true}))
+    (om/transact! app #(assoc % :page {:type :board
+                                       :thread/id thread-id
+                                       :board/name board-name
+                                       :comment/no comment-no
+                                       :loading? true}))
+    (put! ch [:scroll-to-comment {:comment/no comment-no}])
     (fetch-comments thread from nil
                     (fn [fetched-comments]
                       (put! ch [:add-comments
                                 {:thread thread
                                  :comment/from from
                                  :comments fetched-comments}])
-                      (om/transact! app #(assoc % :page {:type :board :thread/id thread-id :board/name board-name}))))))
+                      (om/transact! app #(update % :page dissoc :loading?))))))
 
 (defmethod update-app :remove-thread [_ {thread-id :thread/id board-name :board/name :as ooo} ch app]
   (om/transact! app [:threads] #(dissoc % thread-id))
@@ -152,15 +158,15 @@
    (str "/api/board/" board-name)
    {:handler
     (fn [response]
-      (om/transact! app #(assoc % :page {:type :board}
-                                  :board response)))}))
+      (om/transact! app #(-> (assoc % :board response)
+                             (update :page dissoc :loading?))))}))
 
 (defmethod update-app :move-to-board [_ {board-name :board/name} ch app]
   (om/transact! app (fn [app]
                           (-> (if (= board-name (get-in app [:board :board/name]))
                                 app
                                 (assoc app :threads {}))
-                              (assoc :page {:type :board :loading? true}))))
+                              (assoc :page {:type :board :board/name board-name :loading? true}))))
   (fetch-board board-name app))
 
 (defmethod update-app :delete-comment [_ {board-name :board/name
@@ -182,6 +188,19 @@
 
 (defmethod update-app :reconnect-socket [_ _ ch app]
   (connect-socket app ch))
+
+(defn scroll-to-comment [comment-no]
+  (when-let [comment-dom (.. js/document
+                             -body
+                             (querySelector (str "[data-comment-no='" comment-no "']")))]
+    (when comment-dom
+      (.scrollTo js/window 0
+                 (- (+ (.-scrollY js/window)
+                       (some->> (.getBoundingClientRect comment-dom) (.-top)))
+                    200)))))
+
+(defmethod update-app :scroll-to-comment [_ {comment-no :comment/no} ch app]
+  (scroll-to-comment comment-no))
 
 (defn init [ch app]
   (go-loop []
