@@ -12,58 +12,18 @@
   (:use [cljs.reader :only [read-string]])
   (:import [goog.History]))
 
-(defn fetch-boards [app]
-  (api/request
-   "/api/boards"
-   {:handler
-    (fn [response]
-      (om/transact! app #(assoc % :boards response)))}))
-
-(defn fetch-board [board-name app]
-  (api/request
-   (str "/api/board/" board-name)
-   {:handler
-    (fn [response]
-      (om/transact! app #(assoc % :board response)))}))
-
-(defn fetch-thread [thread-id board-name app]
-  (when (> thread-id 0)
-    (let [from (inc (count (get-in @app [:threads thread-id :thread/comments])))]
-      (api/request
-       (str "/api/board/" board-name "/thread/" thread-id "/comments/" from "-")
-       {:handler
-        (fn [response]
-          (om/transact! app
-                        #(-> %
-                             (update :threads (fn [ths]
-                                                (m/map-vals
-                                                  (fn [th] (assoc th :thread/active? false))
-                                                  ths)))
-                             (assoc-in  [:threads thread-id :db/id] thread-id)
-                             (update-in [:threads thread-id :thread/comments] concat response)
-                             (assoc-in  [:threads thread-id :thread/active?] true)
-                             (assoc-in  [:threads thread-id :thread/last-comment-no] 0)
-                             (update-in [:board :board/threads]
-                                        (fn [threads]
-                                          (->> threads
-                                               (map (fn [thread]
-                                                  (if (= (:db/id thread) thread-id)
-                                                         (assoc thread :thread/readnum (-> response last :comment/no))
-                                                         thread)))
-                                               vec))))))}))))
-
 (defn fetch-articles [app]
   (api/request (str "/api/articles")
                {:handler (fn [response]
                            (om/transact! app
-                                         #(assoc % :page :article :articles response)))}))
+                                         #(assoc % :page {:type :article} :articles response)))}))
 
 (defn fetch-article [id app]
   (api/request (str "/api/article/" id)
                {:handler (fn [response]
                            (om/transact! app
                                          #(assoc %
-                                                 :page :article
+                                                 :page {:type :article}
                                                  :target-thread (js/parseInt (get-in response [:article/thread :db/id]))
                                                  :article response)))}))
 
@@ -73,21 +33,18 @@
                        (.getAttribute "content"))]
     (sec/set-config! :prefix (str prefix "/#")))
   (sec/defroute "/" []
-    (om/transact! app #(assoc % :page :boards))
-    (fetch-boards app))
+    (put! msgbox [:move-to-boards {}]))
   (sec/defroute "/board/:board-name" [board-name]
-    (om/transact! app (fn [app]
-                        (if (= board-name (get-in app [:board :board/name]))
-                          (assoc app :page :board)
-                          (assoc app :page :board :threads {} :board {}))))
-    (fetch-board board-name app))
+    (put! msgbox [:move-to-board {:board/name board-name}]))
   (sec/defroute "/board/:board-name/:thread-id" [board-name thread-id]
     (put! msgbox [:move-to-thread {:db/id (js/parseInt thread-id) :board/name board-name}]))
   (sec/defroute "/board/:board-name/:thread-id/:comment-no" [board-name thread-id comment-no]
-    (put! msgbox [:move-to-thread {:db/id (js/parseInt thread-id) :board/name board-name}]))
+    (put! msgbox [:move-to-thread {:db/id (js/parseInt thread-id)
+                                   :board/name board-name
+                                   :comment/no (js/parseInt comment-no)}]))
   (sec/defroute "/articles/new" [query-params]
     (om/transact! app #(assoc %
-                              :page :article
+                              :page {:type :article}
                               :target-thread (js/parseInt (:thread-id query-params))
                               :article {:article/name nil :article/blocks []})))
   (sec/defroute "/articles" []
