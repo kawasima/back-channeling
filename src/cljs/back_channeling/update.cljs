@@ -108,7 +108,7 @@
                             (update-in [:threads id :thread/comments]
                                        #(->> (concat % comments)
                                              (map (fn [comment] [(:comment/no comment) comment]))
-                                             (into {})
+                                             (into (sorted-map))
                                              vals))
                             (update-in [:board :board/threads]
                                        #(if readnum
