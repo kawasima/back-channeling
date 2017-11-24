@@ -17,7 +17,7 @@
                                   :comment/content [[v/required]
                                                     [v/max-count 4000]]})
    :allowed? #(case (get-in % [:request :request-method])
-                :get  (has-permission? % #{:read-board})
+                :get  (has-permission? % #{:read-thread :read-any-thread})
                 :post (has-permission? % #{:write-thread :write-any-thread}))
 
    :handle-created (fn [ctx]
