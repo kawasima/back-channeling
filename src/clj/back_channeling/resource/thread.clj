@@ -31,9 +31,10 @@
               (broadcast-message socketapp [:update-board {:board/name board-name}])
               {:db/id thread-id}))
 
-   :handle-ok (fn [{{{:keys [q]} :params} :request}]
+   :handle-ok (fn [{{{:keys [q]} :params} :request :as ctx}]
                 (when q
-                  (threads/find-threads datomic board-name q)))))
+                  (->> (threads/find-threads datomic board-name q)
+                       (filter #(thread-allowed? ctx datomic #{:read-any-thread} (:db/id %))))))))
 
 (defn thread-resource [{:keys [datomic]} board-name thread-id]
   (liberator/resource base-resource
