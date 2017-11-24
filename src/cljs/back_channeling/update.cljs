@@ -146,11 +146,12 @@
    "/api/boards"
    {:handler
     (fn [response]
-      (om/transact! app #(assoc % :page {:type :boards}))
-      (om/transact! app #(assoc % :boards response)))}))
+      (om/transact! app #(assoc % :page {:type :boards} :boards response)))}))
 
 (defmethod update-app :move-to-boards [_ _ ch app]
-  (om/transact! app #(assoc % :page {:type :loading}))
+  (om/transact! app #(assoc % :page (if (not-empty (:boards %))
+                                      {:type :boards}
+                                      {:type :loading})))
   (fetch-boards app))
 
 (defn fetch-board [board-name app]
@@ -165,7 +166,7 @@
   (om/transact! app (fn [app]
                           (-> (if (= board-name (get-in app [:board :board/name]))
                                 app
-                                (assoc app :threads {}))
+                                (assoc app :board {} :threads {}))
                               (assoc :page {:type :board :board/name board-name :loading? true}))))
   (fetch-board board-name app))
 
