@@ -29,7 +29,7 @@
 
 (def app-state (atom {:boards {}
                       :users #{}
-                      :page :boards}))
+                      :page {:type :boards}}))
 
 (om/root root-view app-state
          {:target (.getElementById js/document "app")})

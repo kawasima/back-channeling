@@ -14,8 +14,8 @@
        (reduce str)))
 
 (defn comment-view
-  [comment owner {:keys [thread board-name comment-attrs show-reactions?]
-                  :or   {show-reactions? false}}]
+  [{:keys [app thread comment]} owner {:keys [comment-attrs show-reactions?]
+                                       :or {show-reactions? false}}]
   (reify
     om/IRenderState
     (render-state [_ {:keys [selected?]}]
@@ -40,7 +40,7 @@
 
                       (format-plain (:comment/content comment)
                                     :thread-id (:db/id thread)
-                                    :board-name board-name))]]
+                                    :board-name (get-in app [:board :board/name])))]]
         (when show-reactions?
           (when-let [reactions (not-empty (:comment/reactions comment))]
             [:div.content
