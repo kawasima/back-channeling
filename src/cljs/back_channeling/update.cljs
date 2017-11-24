@@ -7,7 +7,7 @@
             [back-channeling.routing :as routing]
             [back-channeling.notification :as notification]
             [back-channeling.socket :as socket]
-            [back-channeling.helper :refer [find-thread]])
+            [back-channeling.helper :refer [find-thread find-board]])
   (:use [cljs.reader :only [read-string]]))
 
 (defn refresh-board [app board-name]
@@ -141,12 +141,28 @@
     (set! (.-href js/location) (str "#/board/" board-name "/" id))
     (set! (.-href js/location) (str "#/board/" board-name))))
 
+(defn fetch-board-permissions [app {board-name :board/name}]
+  (api/request
+    (str "/api/board/" board-name "/user/" (get-in @app [:identity :user/name]))
+    {:handler
+     (fn [{:keys [:user/permissions]}]
+       (when permissions
+         (om/update! app [:boards (find-board (:boards @app) board-name) :user/permissions]
+                         permissions)))
+     :error-handler
+      (fn [response xhrio]
+        (when (= (.getStatus xhrio) 404)
+          (om/update! app [:boards (find-board (:boards @app) board-name) :user/permissions]
+                          #{})))}))
+
 (defn fetch-boards [app]
   (api/request
    "/api/boards"
    {:handler
     (fn [response]
-      (om/transact! app #(assoc % :page {:type :boards} :boards response)))}))
+      (om/transact! app #(assoc % :page {:type :boards} :boards response))
+      (doseq [board response]
+        (fetch-board-permissions app board)))}))
 
 (defmethod update-app :move-to-boards [_ _ ch app]
   (om/transact! app #(assoc % :page (if (not-empty (:boards %))

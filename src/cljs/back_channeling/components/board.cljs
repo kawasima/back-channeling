@@ -548,7 +548,9 @@
       (html
        [:div.main.content.full.height
         [:div.ui.cards
-         (for [b (:boards app)]
+         (for [b (filter #(let [permissions (:user/permissions %)]
+                            (or (nil? permissions) (:read-board permissions)))
+                         (:boards app))]
            [:a.card.link
             {:key (str "b-" (:board/name b))
              :on-click (fn [e]
