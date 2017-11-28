@@ -67,31 +67,33 @@
           [:a {:href "#/"}
            [:img.ui.logo.image {:src (str (om/get-shared owner :prefix) "/img/logo.png")
                                 :alt "Back Channeling"}]]]
-         [:div.center.menu
-          (when (= (:page app) :board)
+         (when (= (get-in app [:page :type]) :board)
+           [:div.center.menu
             [:a.item {:href "#/"}
-             [:h2.ui.header [:i.block.layout.icon] [:div.content (get-in app [:board :board/name])]]])
-          [:div.item
-           [:div.ui.search
-            [:div.ui.icon.input
-             [:input#search.prompt
-              {:type "text"
-               :placeholder "Keyword"
-               :on-key-up (fn [_]
-                            (if-let [query (.. js/document (getElementById "search") -value)]
-                              (if (> (count query) 2)
-                                (search-threads owner (get-in app [:board :board/name]) query)
-                                (om/set-state! owner :search-result nil))))}]
-             [:i.search.icon]]
-            (when (not-empty search-result)
-              [:div.results.transition.visible
-               (for [res search-result]
-                 [:a.result {:on-click
-                             (fn [_]
-                               (om/set-state! owner :search-result nil)
-                               (set! (.-href js/location) (str "#/board/" (:board/name res) "/" (:db/id res))))}
-                  [:div.content
-                   [:div.title (:thread/title res)]]])])]]]
+             [:h2.ui.header [:i.list.olive.icon] [:div.content (get-in app [:board :board/name])]]]
+            [:div.item
+             [:div.ui.search
+              [:div.ui.icon.input
+               [:input.prompt
+                {:type "text"
+                 :placeholder "Keyword"
+                 :on-key-up (fn [e]
+                             (if-let [query (.. e -target -value)]
+                                (if (> (count query) 2)
+                                  (search-threads owner (get-in app [:board :board/name]) query)
+                                  (om/set-state! owner :search-result nil))))}]
+               [:i.search.icon]]
+              (when (not-empty search-result)
+                [:div.results.transition.visible
+                 (for [res search-result]
+                   [:a.result {:on-click
+                               (fn [_]
+                                 (om/set-state! owner :search-result nil)
+                                 (set! (.-href js/location) (str "#/board/" (:board/name res)
+                                                                 "/" (:db/id res)
+                                                                 "/" (:comment/no res))))}
+                    [:div.content
+                     [:div.title (:thread/title res)]]])])]]])
 
          [:div.right.menu
           ; [:a.item
@@ -112,23 +114,32 @@
            [:div {:on-click (fn [_]
                               (om/set-state! owner :open-profile? (not open-profile?)))}
             (om/build avatar user)
-            [:span (:user/name user)] ]
-           [:form.menu.transition {:class (if open-profile? "visible" "hidden")
-                                   :action (str (om/get-shared owner :prefix) "/logout")
-                                   :method :post
-                                   :name "logout"
-                                   :on-click (fn [e] (.. e -currentTarget submit))}
-            [:a.item "Logout"]]]]]
-        (case (:page app)
+            [:span
+             [:i.icon.circle.large
+              {:class (case (:socket app) :connect "teal" :disconnect "red")}]
+             (:user/name user)]]
+           [:div.menu.transition {:class (if open-profile? "visible" "hidden")}
+            [:div.item {:on-click (fn [_]
+                                    (when (= (:socket app) :disconnect)
+                                      (put! (om/get-shared owner :msgbox) [:reconnect-socket])))}
+             [:i.icon.circle {:class (case (:socket app) :connect "teal" :disconnect "red")}]
+             (case (:socket app) :connect "connecting" :disconnect "reconnect")]
+            [:div.divider]
+            [:form.item {:action (str (om/get-shared owner :prefix) "/logout")
+                         :method :post
+                         :name "logout"
+                         :on-click (fn [e] (.. e -currentTarget submit))}
+             [:i.icon.sign.out]
+             "Logout"]]]]]
+        (case (get-in app [:page :type])
           :boards (om/build boards-view app)
-          :board (om/build board-view app
-                           {:opts {:user user
-                                   :reactions (:reactions app)}})
+          :board (om/build board-view app)
           :article (om/build article-page (:article app)
                              {:init-state {:thread (->> (:threads app)
                                                         (filter #(= (:thread/active? %) true))
                                                         first)}
                               :opts {:user user
                                      :board-name (get-in app [:board :board/name])}})
+          ; :initializing, :loading
           [:div.main.content.full.height
            [:div.ui.active.centered.inline.text.loader "Loading..."]])]))))

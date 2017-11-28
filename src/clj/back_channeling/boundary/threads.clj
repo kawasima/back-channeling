@@ -36,12 +36,19 @@
          (map (fn [[board-name thread-id comment-id score]]
                 (let [thread (d/pull (d/db connection)
                                      '[:db/id :thread/title
-                                       {:thread/watchers [:user/name]}]
+                                       {:thread/watchers [:user/name]}
+                                       {:thread/comments
+                                        [:db/id :comment/content :comment/public?]}]
                                      thread-id)
-                      comment (d/pull (d/db connection) '[:comment/content] comment-id)]
-                  (merge thread comment
+                      comment (->> (:thread/comments thread)
+                                   (map-indexed #(assoc %2 :comment/no (inc %1)))
+                                   (filter #(= comment-id (:db/id %)))
+                                   first)]
+                  (merge (dissoc thread :thread/comments)
+                         (dissoc comment :db/id)
                          {:score/value score}
                          {:board/name board-name}))))
+         (filter #(:comment/public? %))
          (group-by :db/id)
          (map (fn [[k v]]
                 (apply max-key :score/value v)))
@@ -57,7 +64,7 @@
                     {:comment/posted-by [:user/name :user/email]}]}]
                 thread-id)
         (update-in [:thread/comments]
-                   (partial map-indexed #(assoc %2  :comment/no (inc %1))))))
+                   (partial map-indexed #(assoc %2 :comment/no (inc %1))))))
 
   (find-watchers [{:keys [connection]} thread-id]
     (d/pull (d/db connection)

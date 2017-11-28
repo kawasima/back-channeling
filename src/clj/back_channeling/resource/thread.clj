@@ -17,7 +17,7 @@
                                   :comment/content [[v/required]
                                                     [v/max-count 4000]]})
    :allowed? #(case (get-in % [:request :request-method])
-                :get  (has-permission? % #{:read-board})
+                :get  (has-permission? % #{:read-thread :read-any-thread})
                 :post (has-permission? % #{:write-thread :write-any-thread}))
 
    :handle-created (fn [ctx]
@@ -25,13 +25,16 @@
 
    :post! (fn [{th :edn identity :identity}]
             (let [user (users/find-by-name datomic (:user/name identity))
-                  [tempids thread-id] (threads/save datomic board-name th user)]
+                  [tempids temp-thread-id] (threads/save datomic board-name th user)
+                  thread-id (d/resolve-tempid (d/db (:connection datomic)) tempids temp-thread-id)]
+              (threads/add-watcher datomic thread-id identity)
               (broadcast-message socketapp [:update-board {:board/name board-name}])
-              {:db/id (d/resolve-tempid (d/db (:connection datomic)) tempids thread-id)}))
+              {:db/id thread-id}))
 
-   :handle-ok (fn [{{{:keys [q]} :params} :request}]
+   :handle-ok (fn [{{{:keys [q]} :params} :request :as ctx}]
                 (when q
-                  (threads/find-threads datomic board-name q)))))
+                  (->> (threads/find-threads datomic board-name q)
+                       (filter #(thread-allowed? ctx datomic #{:read-any-thread} (:db/id %))))))))
 
 (defn thread-resource [{:keys [datomic]} board-name thread-id]
   (liberator/resource base-resource
