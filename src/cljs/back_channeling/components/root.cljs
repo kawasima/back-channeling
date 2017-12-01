@@ -70,7 +70,7 @@
          (when (= (get-in app [:page :type]) :board)
            [:div.center.menu
             [:a.item {:href "#/"}
-             [:h2.ui.header [:i.list.olive.icon] [:div.content (get-in app [:board :board/name])]]]
+             [:h2.ui.header [:i.list.grey.icon] [:div.content (get-in app [:board :board/name])]]]
             [:div.item
              [:div.ui.search
               [:div.ui.icon.input
@@ -111,20 +111,18 @@
           ;                                                  :message (str (:user/name user) " is calling!!")}))}
           ;         (om/build avatar member)])]])]
           [:div.ui.dropdown.item
-           [:div {:on-click (fn [_]
+           [:div.ui.two.column.grid.text.center {:on-click (fn [_]
                               (om/set-state! owner :open-profile? (not open-profile?)))}
-            (om/build avatar user)
+
             [:span
-             [:i.icon.circle.large
-              {:class (case (:socket app) :connect "teal" :disconnect "red")}]
-             (:user/name user)]]
-           [:div.menu.transition {:class (if open-profile? "visible" "hidden")}
-            [:div.item {:on-click (fn [_]
+             [:i.icon.circle
+              {:class (case (:socket app) :connect "green" :disconnect "red")
+              :on-click (fn [_]
                                     (when (= (:socket app) :disconnect)
-                                      (put! (om/get-shared owner :msgbox) [:reconnect-socket])))}
-             [:i.icon.circle {:class (case (:socket app) :connect "teal" :disconnect "red")}]
-             (case (:socket app) :connect "connecting" :disconnect "reconnect")]
-            [:div.divider]
+                                      (put! (om/get-shared owner :msgbox) [:reconnect-socket])))}]
+             (:user/name user)]
+             (om/build avatar user)]
+           [:div.menu.transition {:class (if open-profile? "visible" "hidden")}
             [:form.item {:action (str (om/get-shared owner :prefix) "/logout")
                          :method :post
                          :name "logout"
