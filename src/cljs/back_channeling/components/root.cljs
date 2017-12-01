@@ -70,7 +70,7 @@
          (when (= (get-in app [:page :type]) :board)
            [:div.center.menu
             [:a.item {:href "#/"}
-             [:h2.ui.header [:i.list.olive.icon] [:div.content (get-in app [:board :board/name])]]]
+             [:h2.ui.header [:i.list.grey.icon] [:div.content (get-in app [:board :board/name])]]]
             [:div.item
              [:div.ui.search
               [:div.ui.icon.input
@@ -116,7 +116,7 @@
 
             [:span
              [:i.icon.circle
-              {:class (case (:socket app) :connect "teal" :disconnect "red")
+              {:class (case (:socket app) :connect "green" :disconnect "red")
               :on-click (fn [_]
                                     (when (= (:socket app) :disconnect)
                                       (put! (om/get-shared owner :msgbox) [:reconnect-socket])))}]
