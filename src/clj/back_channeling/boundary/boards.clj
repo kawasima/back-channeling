@@ -64,6 +64,6 @@
 
     ([{:keys [connection]} board board-id]
      @(d/transact connection
-                  [{:db/id (:db/id board-id)
+                  [{:db/id board-id
                     :board/name (:board/name board)
                     :board/description (:board/description board)}]))))

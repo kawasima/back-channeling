@@ -44,8 +44,8 @@
                 {:board board}
                 false))
 
-   :put! (fn [{old ::board board :edn}]
-           (boards/save datomic board (:db/id old)))
+   :put! (fn [{old :board board :edn}]
+           (boards/save datomic (merge old board) (:db/id old)))
 
    :handle-ok (fn [{board :board identity :identity}]
                 (->> (boards/find-threads datomic (:db/id board) identity)
