@@ -23,5 +23,6 @@
       (html
        [:a.avatar {:title (:user/name user)}
         [:img.ui.avatar.image {:src (str "https://www.gravatar.com/avatar/"
-                                         (md5 (:user/email user))
+                                         (when-let [email (:user/email user)]
+                                           (md5 email))
                                          "?d=mm")}]]))))
