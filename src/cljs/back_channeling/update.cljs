@@ -219,6 +219,14 @@
 (defmethod update-app :scroll-to-comment [_ {comment-no :comment/no} ch app]
   (scroll-to-comment comment-no))
 
+(defmethod update-app :close-thread [_ {thread-id :thread/id board-name :board/name} ch app]
+  (api/request (str "/api/board/" board-name "/thread/" thread-id)
+               :PUT {:close-thread thread-id} {}))
+
+(defmethod update-app :open-thread [_ {thread-id :thread/id board-name :board/name} ch app]
+  (api/request (str "/api/board/" board-name "/thread/" thread-id)
+               :PUT {:open-thread thread-id} {}))
+
 (defn init [ch app]
   (go-loop []
     (let [[key body] (<! ch)]

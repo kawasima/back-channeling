@@ -220,7 +220,8 @@
     (init-state [_]
       {:reaction-top 0
        :open-reactions? false
-       :selected 0})
+       :selected 0
+       :open-menu? false})
 
     om/IWillMount
     (will-mount [_]
@@ -240,15 +241,42 @@
                          (om/get-state owner :click-outside-fn)))
 
     om/IRenderState
-    (render-state [_ {:keys [reaction-top selected open-reactions?]}]
+    (render-state [_ {:keys [reaction-top selected open-reactions? open-menu?]}]
       (html
        [:div.ui.full.height.thread.comments
-        [:h3.ui.dividing.header
-         (-> (get-in app [:board :board/threads
-                          (find-thread (get-in app [:board :board/threads]) (:db/id thread))])
-             :thread/title)]
-        ; [:a.curation.link {:href (str "#/articles/new?thread-id=" (:db/id thread))}
-        ;  [:i.external.share.big.icon]]
+        [:div.ui.secondary.pointing.menu
+         [:div.item
+          [:h3.ui.header
+           (-> (get-in app [:board :board/threads
+                            (find-thread (get-in app [:board :board/threads]) (:db/id thread))])
+               :thread/title)]]
+         [:div.ui.right.dropdown.item {:on-click (fn [_]
+                                                   (om/set-state! owner :open-menu? (not open-menu?)))}
+          [:i.chevron.icon {:class (if open-menu? "up" "down")}]
+          [:div.menu.transition {:class (if open-menu? "visible" "hidden")
+                                 :on-click (fn [e]
+                                             (.stopPropagation e))}
+           [:div.item
+            (let [threads (get-in app [:board :board/threads])
+                  public? (get-in threads [(find-thread threads (:db/id thread)) :thread/public?])]
+              [:div.ui.toggle.checkbox
+               [:input (merge {:type "checkbox"
+                               :on-click (fn [e]
+                                           (.preventDefault e)
+                                           (put! (om/get-shared owner :msgbox)
+                                                 (if public?
+                                                   [:close-thread {:thread/id (:db/id thread)
+                                                                   :board/name (get-in app [:board :board/name])}]
+                                                   [:open-thread {:thread/id (:db/id thread)
+                                                                  :board/name (get-in app [:board :board/name])}])))}
+                              (when-not public? {:checked "checked"})
+                              (when-not (get-in app [:board :user/permissions :read-any-thread])
+                                           {:disabled "disabled"}))]
+               [:label (if public? "open" "close")]])]
+          ;  [:div.item
+          ;   [:a.ui.curation {:href (str "#/articles/new?thread-id=" (:db/id thread))}
+          ;    [:i.external.share.large.icon]]]
+             ]]]
         [:div.scroll-pane
          [:div.ui.icon.reaction.buttons {:style {:top reaction-top}}
           [:button.ui.button {:on-click (fn [e]
