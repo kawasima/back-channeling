@@ -250,16 +250,22 @@
            (-> (get-in app [:board :board/threads
                             (find-thread (get-in app [:board :board/threads]) (:db/id thread))])
                :thread/title)]]
-         [:div.ui.right.dropdown.item {:on-click (fn [_]
-                                                   (om/set-state! owner :open-menu? (not open-menu?)))}
-          [:i.chevron.icon {:class (if open-menu? "up" "down")}]
-          [:div.menu.transition {:class (if open-menu? "visible" "hidden")
-                                 :on-click (fn [e]
-                                             (.stopPropagation e))}
-           [:div.item
-            (let [threads (get-in app [:board :board/threads])
-                  public? (get-in threads [(find-thread threads (:db/id thread)) :thread/public?])]
-              [:div.ui.toggle.checkbox
+         [:div.right.item {:on-click (fn [_]
+                                       (om/set-state! owner :open-menu? (not open-menu?)))}
+          [:i.chevron.icon {:class (if open-menu? "up" "down")}]]
+         [:div.ui.popup.bottom.right.transition {:class (if open-menu? "visible" "hidden")}
+          [:div.ui.two.column.grid
+          ;  [:div.row
+          ;   [:div.column.left.aligned "curation"]
+          ;   [:div.column
+          ;    [:a.ui.curation {:href (str "#/articles/new?thread-id=" (:db/id thread))}
+          ;     [:i.external.share.large.icon]]]]
+           [:div.one.column.row [:div.ui.divider.column]]
+           (let [threads (get-in app [:board :board/threads])
+                 public? (get-in threads [(find-thread threads (:db/id thread)) :thread/public?])]
+             [:div.row
+              [:div.column.left.aligned "public"]
+              [:div.ui.toggle.checkbox.column
                [:input (merge {:type "checkbox"
                                :on-click (fn [e]
                                            (.preventDefault e)
@@ -269,14 +275,10 @@
                                                                    :board/name (get-in app [:board :board/name])}]
                                                    [:open-thread {:thread/id (:db/id thread)
                                                                   :board/name (get-in app [:board :board/name])}])))}
-                              (when-not public? {:checked "checked"})
+                              (when public? {:checked "checked"})
                               (when-not (get-in app [:board :user/permissions :read-any-thread])
                                            {:disabled "disabled"}))]
-               [:label (if public? "open" "close")]])]
-          ;  [:div.item
-          ;   [:a.ui.curation {:href (str "#/articles/new?thread-id=" (:db/id thread))}
-          ;    [:i.external.share.large.icon]]]
-             ]]]
+               [:label]]])]]]
         [:div.scroll-pane
          [:div.ui.icon.reaction.buttons {:style {:top reaction-top}}
           [:button.ui.button {:on-click (fn [e]
