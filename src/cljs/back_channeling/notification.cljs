@@ -2,7 +2,7 @@
   (:use [back-channeling.components.avatar :only [avatar-url]]))
 
 (def initialized? (atom (and (.-Notification js/window)
-                             (= (.. (.-Notification js/window) -permission) "granted"))))
+                             (= (.. js/Notification -permission) "granted"))))
 
 (defn initialize []
   (when (and (not @initialized?)
