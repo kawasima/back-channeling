@@ -36,7 +36,7 @@
                   (->> (threads/find-threads datomic board-name q)
                        (filter #(thread-allowed? ctx datomic #{:read-any-thread} (:db/id %))))))))
 
-(defn thread-resource [{:keys [datomic]} board-name thread-id]
+(defn thread-resource [{:keys [datomic socketapp]} board-name thread-id]
   (liberator/resource base-resource
    :allowed-methods [:put]
    :malformed? #(parse-request %)
@@ -51,10 +51,13 @@
                (threads/add-watcher datomic thread-id identity))
              (when remove-watcher
                (threads/remove-watcher datomic thread-id identity))
-             (when open-thread
-               (threads/open-thread datomic thread-id))
-             (when close-thread
-               (threads/close-thread datomic thread-id))))
+             (when (has-permission? ctx #{:read-any-thread})
+               (when open-thread
+                 (threads/open-thread datomic thread-id)
+                 (broadcast-message socketapp [:update-board {:board/name board-name}]))
+               (when close-thread
+                 (threads/close-thread datomic thread-id)
+                 (broadcast-message socketapp [:update-board {:board/name board-name}])))))
 
    :handle-created (fn [_]
                      {:status "ok"})
