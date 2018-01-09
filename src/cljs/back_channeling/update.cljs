@@ -10,6 +10,8 @@
             [back-channeling.helper :refer [find-thread find-board]])
   (:use [cljs.reader :only [read-string]]))
 
+(def title "Back Channeling")
+
 (defn refresh-board [app board-name]
   (api/request (str "/api/board/" board-name)
                {:handler (fn [response]
@@ -42,6 +44,11 @@
                                           :comment/from from
                                           :comments %}])))))))
 
+(defn notify [data]
+  (when-not (.hasFocus js/document)
+    (set! (.-title js/document) (str "(+) " title)))
+  (notification/show data))
+
 (defn open-socket [app msgbox token]
   (socket/open (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://")
                     (.-host js/location)
@@ -65,7 +72,7 @@
                :on-message (fn [message]
                              (let [[cmd data] (read-string message)]
                                (case cmd
-                                 :notify (notification/show data)
+                                 :notify (notify data)
                                  :update-board (refresh-board app (:board/name data))
                                  :update-thread (refresh-thread app msgbox data)
                                  :join  (om/transact! app [:users] #(conj % data))
@@ -234,6 +241,9 @@
       (recur)))
 
   (connect-socket app ch)
+
+  (.addEventListener js/window "focus"
+    #(set! (.-title js/document) title))
 
   (when-let [user-name (some-> js/document
                                (.querySelector "meta[property='bc:user:name']")
