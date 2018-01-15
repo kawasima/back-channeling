@@ -25,9 +25,14 @@
   (when (= (:board/name thread) (get-in @app [:board :board/name]))
     (om/transact! app [:board :board/threads]
                   #(update-in % [(find-thread % (:db/id thread))]
-                              assoc
-                              :thread/last-updated (:thread/last-updated thread)
-                              :thread/resnum (:thread/resnum thread)))
+                              (fn [th]
+                                (assoc th :thread/last-updated (:thread/last-updated thread)
+                                          :thread/resnum (:thread/resnum thread)
+                                          :thread/writenum
+                                          (if (= (get-in @app [:identity :user/name])
+                                                 (get-in thread [:comment/posted-by :user/name]))
+                                            (inc (:thread/writenum th))
+                                            (:thread/writenum th))))))
     (when (= (get-in @app [:page :thread/id]) (:db/id thread))
       (if-let [comment-no (:comments/no thread)]
         (fetch-comments thread comment-no comment-no
@@ -226,6 +231,12 @@
 (defmethod update-app :open-thread [_ {thread-id :thread/id board-name :board/name} ch app]
   (api/request (str "/api/board/" board-name "/thread/" thread-id)
                :PUT {:open-thread thread-id} {}))
+
+(defmethod update-app :watch-thread [_ {thread :thread board-name :board/name} ch app]
+  (refresh-board app board-name))
+
+(defmethod update-app :unwatch-thread [_ {thread :thread board-name :board/name} ch app]
+  (refresh-board app board-name))
 
 (defn init [ch app]
   (go-loop []

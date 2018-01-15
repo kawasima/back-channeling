@@ -56,6 +56,7 @@
                  [:update-thread {:db/id thread-id
                                   :thread/last-updated now
                                   :thread/resnum (inc resnum)
+                                  :comment/posted-by user
                                   :board/name board-name}])
                 (when-let [watchers (not-empty (->> (threads/find-watchers datomic thread-id)
                                                     :thread/watchers

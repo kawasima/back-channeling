@@ -55,6 +55,7 @@
                :PUT
                {:add-watcher user}
                {:handler (fn [response]
+                           (put! (om/get-shared owner :msgbox) [:watch-thread {:thread thread :board/name board-name}])
                            (om/set-state! owner :watching? true))})
   (notification/initialize))
 
@@ -63,6 +64,7 @@
                :PUT
                {:remove-watcher user}
                {:handler (fn [response]
+                           (put! (om/get-shared owner :msgbox) [:watch-thread {:thread thread :board/name board-name}])
                            (om/set-state! owner :watching? false))}))
 
 (defn comment-new-view [{:keys [app thread]} owner]
@@ -346,7 +348,7 @@
     om/IRenderState
     (render-state [_ {:keys [watching? hover? user]}]
       (html
-       [:td
+       [:td.collapsing
         {:on-click (fn [_]
                      (if watching?
                        (unwatch-thread board-name thread user owner)
@@ -365,38 +367,47 @@
     om/IInitState
     (init-state [_]
       {:sort-key [:thread/last-updated :desc]
+       :filters {:watching? false :writing? false}
        :user {:user/name  (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))
               :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}})
 
     om/IRenderState
-    (render-state [_ {:keys [sort-key user]}]
+    (render-state [_ {:keys [filters sort-key user]}]
       (html
        [:div.table.container
         [:div.tbody.container
-         [:table.ui.compact.table
+         [:table.ui.unstackable.compact.table
           [:thead
            [:tr
-            [:th "#"]
+            [:th {:on-click (fn [_]
+                              (om/update-state! owner [:filters :watching?] not))}
+             [:div
+              [:i.large.icons
+                [:i.icon.unhide {:class (if (:watching? filters) "green" "disabled")}]
+                [:i.icon.corner.filter {:class (if (:watching? filters) "teal" "disabled")}]]]]
+            [:th {:on-click (fn [_]
+                              (om/update-state! owner [:filters :writing?] not))}
+             [:div
+              [:i.large.icons
+               [:i.icon.comments.outline {:class (if (:writing? filters) "green" "disabled")}]
+               [:i.icon.corner.filter {:class (if (:writing? filters) "teal" "disabled")}]]]]
             [:th {:on-click (fn [_] (toggle-sort-key owner :thread/title))}
-             "Title" [:div "Title " (when (= (first sort-key) :thread/title)
-                                      (case (second sort-key)
-                                        :asc  [:i.caret.up.icon]
-                                        :desc [:i.caret.down.icon]))]]
+             [:div "Title " (when (= (first sort-key) :thread/title)
+                              (case (second sort-key)
+                                :asc  [:i.caret.up.icon]
+                                :desc [:i.caret.down.icon]))]]
             [:th {:on-click (fn [_] (toggle-sort-key owner :thread/resnum))}
-             "Res"
              [:div "Res" (when (= (first sort-key) :thread/resnum)
                            (case (second sort-key)
                              :asc  [:i.caret.up.icon]
                              :desc [:i.caret.down.icon]))]]
             [:th {:on-click (fn [_] (toggle-sort-key owner :thread/last-updated))}
-             "Last updated"
              [:div "Last updated"
               (when (= (first sort-key) :thread/last-updated)
                 (case (second sort-key)
                   :asc  [:i.caret.up.icon]
                   :desc [:i.caret.down.icon]))]]
             [:th {:on-click (fn [_] (toggle-sort-key owner :thread/since))}
-             "Since"
              [:div "Since"
               (when (= (first sort-key) :thread/since)
                 (case (second sort-key)
@@ -404,10 +415,12 @@
                   :desc [:i.caret.down.icon]))]]]]
           [:tbody
            (for [thread (->> (:board/threads board)
-                             (filter #(or (:thread/public? %)
-                                          (> (:thread/writenum %) 0)
-                                          (when-let [permissions (:user/permissions board)]
-                                            (:read-any-thread permissions))))
+                             (filter #(and (or (:thread/public? %)
+                                               (> (:thread/writenum %) 0)
+                                               (when-let [permissions (:user/permissions board)]
+                                                 (:read-any-thread permissions)))
+                                           (if (:watching? filters) ((:thread/watchers %) user) true)
+                                           (if (:writing? filters) (> (:thread/writenum %) 0) true)))
                              (map #(if (:thread/watchers %) % (assoc % :thread/watchers #{})))
                              (sort-by (first sort-key) (case (second sort-key)
                                                          :asc < :desc >)))]
@@ -419,14 +432,25 @@
                          {:watching? (boolean ((:thread/watchers thread) user))
                           :user user}
                          :opts {:board-name (:board/name board)}})
-              [:td
+
+              [:td.collapsing
+                [:i.icon.comments.outline
+                {:class (if (> (:thread/writenum thread) 0) "green" "disabled")}
+
+
+                ]
+                ]
+
+              [:td.selectable
                [:a {:href (str "#/board/" (:board/name board) "/" (:db/id thread))}
                 (when-not (:thread/public? thread) [:i.icon.lock])
-                (when (> (:thread/writenum thread) 0) [:i.icon.comments.outline])
                 (:thread/title thread)]]
               [:td (:thread/resnum thread)]
               [:td (.format date-format-m (:thread/last-updated thread))]
-              [:td (.format date-format-m (:thread/since thread))]])]]]]))))
+              [:td (.format date-format-m (:thread/since thread))]])]]
+              ]
+              ]
+              ))))
 
 (defn thread-new-view [board owner]
   (reify

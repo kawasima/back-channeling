@@ -92,7 +92,7 @@
              :top 0
              :cursor "pointer"
              :color "rgba(0,0,0,.87)"
-             :padding "9px 25px"
+             :padding-top (px 12)
              :line-height "1em"}]]]]
    [:div.curating-block
     [:div.buttons {:margin-top (px -23)}]]
