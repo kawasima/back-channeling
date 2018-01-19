@@ -120,7 +120,9 @@
                                           comment-no :comment/no :as thread} ch app]
   (let [page (get-in @app [:page :type])
         from (-> (get-in @app [:threads thread-id :thread/comments]) count inc)]
-    (when (= page :initializing) (refresh-board app board-name))
+    (when-not (= board-name (get-in @app [:board :board/name]))
+      (om/transact! app #(assoc % :threads {}))
+      (refresh-board app board-name))
     (om/transact! app #(assoc % :page {:type :board
                                        :thread/id thread-id
                                        :board/name board-name
