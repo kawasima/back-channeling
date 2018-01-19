@@ -71,30 +71,31 @@
            [:div.center.menu
             [:a.item {:href "#/"}
              [:h2.ui.header [:i.list.grey.icon] [:div.content (get-in app [:board :board/name])]]]
-            [:div.item
-             [:div.ui.search
-              [:div.ui.icon.input
-               [:input.prompt
-                {:type "text"
-                 :placeholder "Keyword"
-                 :on-key-up (fn [e]
-                             (if-let [query (.. e -target -value)]
-                                (if (> (count query) 2)
-                                  (search-threads owner (get-in app [:board :board/name]) query)
-                                  (om/set-state! owner :search-result nil))))}]
-               [:i.search.icon]]
-              (when (not-empty search-result)
-                [:div.results.transition.visible
-                 (for [res search-result]
-                   [:a.result {:on-click
-                               (fn [_]
-                                 (om/set-state! owner :search-result nil)
-                                 (set! (.-href js/location) (str "#/board/" (:board/name res)
-                                                                 "/" (:db/id res)
-                                                                 "/" (:comment/no res))))}
-                    [:div.content
-                     [:div.title (:thread/title res)]]])])]]])
-
+            (when (or (nil? (get-in app [:board :user/permissions]))
+                      (get-in app [:board :user/permissions :search-thread]))
+              [:div.item
+               [:div.ui.search
+                [:div.ui.icon.input
+                 [:input.prompt
+                  {:type "text"
+                   :placeholder "Keyword"
+                   :on-key-up (fn [e]
+                               (if-let [query (.. e -target -value)]
+                                  (if (> (count query) 2)
+                                    (search-threads owner (get-in app [:board :board/name]) query)
+                                    (om/set-state! owner :search-result nil))))}]
+                 [:i.search.icon]]
+                (when (not-empty search-result)
+                  [:div.results.transition.visible
+                   (for [res search-result]
+                     [:a.result {:on-click
+                                 (fn [_]
+                                   (om/set-state! owner :search-result nil)
+                                   (set! (.-href js/location) (str "#/board/" (:board/name res)
+                                                                   "/" (:db/id res)
+                                                                   "/" (:comment/no res))))}
+                      [:div.content
+                       [:div.title (:thread/title res)]]])])]])])
          [:div.right.menu
           ; [:a.item
           ;  [:div {:on-click (fn [_]
