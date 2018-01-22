@@ -46,7 +46,7 @@
 
 (defn notify [data]
   (when-not (.hasFocus js/document)
-    (set! (.-title js/document) (str "(+) " title)))
+    (set! (.-title js/document) (str "* " title)))
   (notification/show data))
 
 (defn open-socket [app msgbox token]
