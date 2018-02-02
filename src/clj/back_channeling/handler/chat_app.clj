@@ -84,10 +84,11 @@
          (assoc :session {})))))
 
 (defmethod ig/init-key :back-channeling.handler/chat-app
-  [_ {:keys [datomic login-enabled? env prefix logout-route]
+  [_ {:keys [datomic login-enabled? env prefix logout-route custom-index-view]
       :or   {login-enabled? true}}]
   (let [r (routes
-           (GET "/" req (index-view req {:prefix prefix :env env}))
+           (if custom-index-view (GET "/" req (custom-index-view req {:prefix prefix :env env}))
+                                 (GET "/" req (index-view req {:prefix prefix :env env})))
            (GET "/react/react.js" [] (-> (resource-response "cljsjs/development/react.inc.js")
                                          (content-type "text/javascript")))
            (GET "/react/react.min.js" [] (resource-response "cljsjs/production/react.min.inc.js"))
