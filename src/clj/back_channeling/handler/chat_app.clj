@@ -29,12 +29,14 @@
          (d/db connection)
          username password)))
 
-(defn index-view [req {:keys [prefix env]}]
+(defn index-view [req {:keys [prefix env plugin-js-path]}]
   (layout prefix req
    [:div#app.ui.page.full.height]
    (include-js (str prefix (if (= env :production)
                              "/js/back-channeling.min.js"
-                             "/js/main.js")) )))
+                             "/js/main.js")))
+   (when plugin-js-path
+     (include-js (str prefix plugin-js-path)))))
 
 (defn login-view [req {:keys [prefix]}]
   (layout prefix
@@ -84,11 +86,10 @@
          (assoc :session {})))))
 
 (defmethod ig/init-key :back-channeling.handler/chat-app
-  [_ {:keys [datomic login-enabled? env prefix logout-route custom-index-view]
+  [_ {:keys [datomic login-enabled? env prefix logout-route plugin-js-path]
       :or   {login-enabled? true}}]
   (let [r (routes
-           (if custom-index-view (GET "/" req (custom-index-view req {:prefix prefix :env env}))
-                                 (GET "/" req (index-view req {:prefix prefix :env env})))
+           (GET "/" req (index-view req {:prefix prefix :env env :plugin-js-path plugin-js-path}))
            (GET "/react/react.js" [] (-> (resource-response "cljsjs/development/react.inc.js")
                                          (content-type "text/javascript")))
            (GET "/react/react.min.js" [] (resource-response "cljsjs/production/react.min.inc.js"))
