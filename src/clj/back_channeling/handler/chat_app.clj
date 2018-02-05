@@ -36,8 +36,8 @@
    (include-js (str prefix (if (= env :production)
                              "/js/back-channeling.min.js"
                              "/js/main.js")))
-          (when plugin-js-path
-            (include-js (str (when-not (string/includes? plugin-js-path "//") prefix) plugin-js-path)))))
+   (when plugin-js-path
+     (include-js (str (when-not (string/includes? plugin-js-path "//") prefix) plugin-js-path)))))
 
 (defn login-view [req {:keys [prefix]}]
   (layout prefix
