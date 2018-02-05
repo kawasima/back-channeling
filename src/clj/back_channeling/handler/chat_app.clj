@@ -11,7 +11,8 @@
             (back-channeling [layout :refer [layout]]
                              [signup :as signup]
                              [style :as style])
-            [datomic.api :as d])
+            [datomic.api :as d]
+            [clojure.string :as string])
   (:import [java.io FileInputStream]))
 
 (defn auth-by-password [{:keys [connection]} username password]
@@ -35,8 +36,8 @@
    (include-js (str prefix (if (= env :production)
                              "/js/back-channeling.min.js"
                              "/js/main.js")))
-   (when plugin-js-path
-     (include-js (str prefix plugin-js-path)))))
+          (when plugin-js-path
+            (include-js (str (when-not (string/includes? plugin-js-path "//") prefix) plugin-js-path)))))
 
 (defn login-view [req {:keys [prefix]}]
   (layout prefix
