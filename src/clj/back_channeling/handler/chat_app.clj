@@ -5,14 +5,14 @@
             [liberator.dev]
             [hiccup.page :refer [include-js]]
             [hiccup.middleware :refer [wrap-base-url]]
+            [hiccup.util :as util]
             [compojure.core :refer [GET POST routing routes] :as compojure]
             [compojure.route :as route]
 
             (back-channeling [layout :refer [layout]]
                              [signup :as signup]
                              [style :as style])
-            [datomic.api :as d]
-            [clojure.string :as string])
+            [datomic.api :as d])
   (:import [java.io FileInputStream]))
 
 (defn auth-by-password [{:keys [connection]} username password]
@@ -37,7 +37,7 @@
                              "/js/back-channeling.min.js"
                              "/js/main.js")))
    (when plugin-js-path
-     (include-js (str (when-not (string/includes? plugin-js-path "//") prefix) plugin-js-path)))))
+     (include-js (str (when-not (util/to-uri plugin-js-path) prefix) plugin-js-path)))))
 
 (defn login-view [req {:keys [prefix]}]
   (layout prefix
