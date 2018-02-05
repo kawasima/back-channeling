@@ -37,7 +37,9 @@
                              "/js/back-channeling.min.js"
                              "/js/main.js")))
    (when plugin-js-path
-     (include-js (str (when-not (util/to-uri plugin-js-path) prefix) plugin-js-path)))))
+     (include-js (if (.getScheme (util/to-uri plugin-js-path))
+                   plugin-js-path
+                   (util/url prefix plugin-js-path))))))
 
 (defn login-view [req {:keys [prefix]}]
   (layout prefix
