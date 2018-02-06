@@ -5,6 +5,7 @@
             [liberator.dev]
             [hiccup.page :refer [include-js]]
             [hiccup.middleware :refer [wrap-base-url]]
+            [hiccup.util :as util]
             [compojure.core :refer [GET POST routing routes] :as compojure]
             [compojure.route :as route]
 
@@ -36,7 +37,9 @@
                              "/js/back-channeling.min.js"
                              "/js/main.js")))
    (when plugin-js-path
-     (include-js (str prefix plugin-js-path)))))
+     (include-js (if (.getScheme (util/to-uri plugin-js-path))
+                   plugin-js-path
+                   (util/url prefix plugin-js-path))))))
 
 (defn login-view [req {:keys [prefix]}]
   (layout prefix
