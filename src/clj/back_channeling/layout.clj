@@ -14,13 +14,11 @@
       (list
        [:meta {:property "bc:user:name" :content (:user/name user)}]
        [:meta {:property "bc:user:email" :content (:user/email user)}]))
-    (include-css "//cdn.jsdelivr.net/semantic-ui/2.2.1/semantic.min.css"
-                 "//cdn.jsdelivr.net/highlight.js/9.4.0/styles/github.min.css"
+    (include-css "//cdn.jsdelivr.net/npm/fomantic-ui@2.9.3/dist/semantic.min.css"
+                 "//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css"
                  (str prefix "/css/back-channeling.css"))
-    (include-js "//cdn.jsdelivr.net/markdown-it/7.0.0/markdown-it.min.js"
+    (include-js "//cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"
                 (str prefix "/js/vendors/markdown-it-emoji.min.js")
-                "//twemoji.maxcdn.com/2/twemoji.min.js"
-                "//cdn.jsdelivr.net/highlight.js/9.4.0/highlight.min.js"
-                "//cdn.webrtc-experiment.com/MediaStreamRecorder.js"
-                "//cdn.jsdelivr.net/zeroclipboard/2.2.0/ZeroClipboard.min.js")]
+                "//cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js"
+                "//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js")]
    [:body body]))

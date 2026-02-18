@@ -1,6 +1,5 @@
 (ns back-channeling.resource.board
   (:require [liberator.core :as liberator]
-            [bouncer.validators :as v]
             (back-channeling [util :refer [parse-request]])
             (back-channeling.boundary [boards :as boards]
                                       [threads :as threads]
@@ -13,11 +12,12 @@
 (defn boards-resource [{:keys [datomic]}]
   (liberator/resource base-resource
    :allowed-methods [:get :post]
-   :malformed? #(parse-request % {:board/name [[v/required]
-                                               [v/max-count 255]
-                                               [v/matches #"^[A-Za-z0-9_\-]+$"]
-                                               [v/every (fn [v]
-                                                          (not (contains? board-ng-names v)))]]})
+   :malformed? #(parse-request % [:map
+                                  [:board/name [:and
+                                                [:string {:min 1 :max 255}]
+                                                [:re #"^[A-Za-z0-9_\-]+$"]
+                                                [:fn {:error/message "Board name is reserved"}
+                                                 (fn [v] (not (contains? board-ng-names v)))]]]])
 
    :allowed? #(case (get-in % [:request :request-method])
                 :get  true

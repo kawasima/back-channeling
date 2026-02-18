@@ -1,15 +1,9 @@
-[{:db/id #db/id[:db.part/db]
-  :db/ident :read-comment/user
+[{:db/ident :read-comment/user
   :db/valueType :db.type/ref
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :read-comment/thread
+  :db/cardinality :db.cardinality/one}
+ {:db/ident :read-comment/thread
   :db/valueType :db.type/ref
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :read-comment/comment-no
+  :db/cardinality :db.cardinality/one}
+ {:db/ident :read-comment/comment-no
   :db/valueType :db.type/long
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}]
+  :db/cardinality :db.cardinality/one}]

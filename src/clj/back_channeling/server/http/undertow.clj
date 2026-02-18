@@ -1,19 +1,15 @@
 (ns back-channeling.server.http.undertow
   (:require [integrant.core :as ig]
             [duct.logger :refer [log]]
-            [ring.util.servlet :as servlet]
+            [ring.util.jakarta.servlet :as servlet]
             [back-channeling.websocket.socketapp :as socketapp]
             [compojure.core :refer [context]])
-  (:import [java.util UUID]
-           [java.net URI]
-           [org.xnio ByteBufferSlicePool]
+  (:import [java.net URI]
            [io.undertow Undertow Handlers]
            [io.undertow.servlet Servlets]
-           [io.undertow.servlet.api DeploymentInfo]
            [io.undertow.servlet.util ImmediateInstanceFactory]
-           [io.undertow.websockets WebSocketConnectionCallback ]
-           [io.undertow.websockets.core WebSockets WebSocketCallback AbstractReceiveListener]
-           [io.undertow.websockets.jsr WebSocketDeploymentInfo]))
+           [io.undertow.websockets WebSocketConnectionCallback]
+           [io.undertow.websockets.core WebSockets WebSocketCallback AbstractReceiveListener]))
 
 (defn websocket-callback [socketapp]
   (proxy [WebSocketConnectionCallback] []
@@ -86,10 +82,10 @@
   (log @logger :report ::stopping-server)
   (.stop server))
 
-(defmethod ig/suspend-key! :duct.server.http/undertow [_ {:keys [handler]}]
+(defmethod ig/suspend-key! :back-channeling.server.http/undertow [_ {:keys [handler]}]
   (reset! handler (promise)))
 
-(defmethod ig/resume-key :duct.server.http/undertow [key opts old-opts old-impl]
+(defmethod ig/resume-key :back-channeling.server.http/undertow [key opts old-opts old-impl]
   (if (= (dissoc opts :handler :logger) (dissoc old-opts :handler :logger))
     (do (deliver @(:handler old-impl) (:handler opts))
         (reset! (:logger old-impl) (:logger opts))

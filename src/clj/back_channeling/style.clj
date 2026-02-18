@@ -102,10 +102,11 @@
      [:&:hover {:fill "#aacf53"}]]]
    [:div.ui.top.attached.tabular.sticky.menu.fixed
     {:margin-top "66px"
-     :width "874px"
+     :width "100%"
+     :max-width (px 960)
      :background-color "#ffffff"
      :z-index "1"}]])
 
 
 (defn build []
-  (css {:pretty-pring? false} styles))
+  (css {:pretty-print? false} styles))

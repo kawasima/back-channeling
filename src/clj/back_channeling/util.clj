@@ -2,7 +2,8 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [bouncer.core :as b]))
+            [malli.core :as m]
+            [malli.error :as me]))
 
 (defn- body-as-string
   "Returns a request body as String."
@@ -14,24 +15,23 @@
 
 (defn- validate
   "Validate the given model with the given spec of validation."
-  [model validation-spec]
-  (if validation-spec
-    (let [[result map] (b/validate model validation-spec)]
-      (if result
-        {:message (pr-str (:bouncer.core/errors map))}
-        [false {:edn model}]))
+  [model validation-schema]
+  (if validation-schema
+    (if-let [errors (m/explain validation-schema model)]
+      {:message (pr-str (me/humanize errors))}
+      [false {:edn model}])
     [false {:edn model}]))
 
 (defn parse-request
   ([context]
    (parse-request context nil))
-  ([context validation-spec]
+  ([context validation-schema]
    (when (#{:put :post} (get-in context [:request :request-method]))
      (try
        (if-let [body (body-as-string context)]
          (case (get-in context [:request :content-type])
-           "application/edn"  (validate (edn/read-string body) validation-spec)
-           "application/json" (validate (json/read-str body :key-fn keyword) validation-spec)
+           "application/edn"  (validate (edn/read-string body) validation-schema)
+           "application/json" (validate (json/read-str body :key-fn keyword) validation-schema)
            {:message "Unknown format."})
          false)
        (catch Exception e

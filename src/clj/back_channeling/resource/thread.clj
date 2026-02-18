@@ -1,6 +1,5 @@
 (ns back-channeling.resource.thread
   (:require [liberator.core :as liberator]
-            [bouncer.validators :as v]
             [datomic.api :as d]
 
             (back-channeling [util :refer [parse-request]])
@@ -12,10 +11,9 @@
 (defn threads-resource [{:keys [datomic socketapp]} board-name]
   (liberator/resource base-resource
    :allowed-methods [:get :post]
-   :malformed? #(parse-request % {:thread/title [[v/required]
-                                                 [v/max-count 255]]
-                                  :comment/content [[v/required]
-                                                    [v/max-count 4000]]})
+   :malformed? #(parse-request % [:map
+                                  [:thread/title [:string {:min 1 :max 255}]]
+                                  [:comment/content [:string {:min 1 :max 4000}]]])
    :allowed? #(case (get-in % [:request :request-method])
                 :get  (has-permission? % #{:read-thread :read-any-thread})
                 :post (has-permission? % #{:write-thread :write-any-thread}))

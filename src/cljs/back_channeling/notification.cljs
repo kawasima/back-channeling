@@ -1,5 +1,5 @@
 (ns back-channeling.notification
-  (:use [back-channeling.components.avatar :only [avatar-url]]))
+  (:require [back-channeling.components.avatar :refer [avatar-url]]))
 
 (def initialized? (atom (and (.-Notification js/window)
                              (= (.. js/Notification -permission) "granted"))))

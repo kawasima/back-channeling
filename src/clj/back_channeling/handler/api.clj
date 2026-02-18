@@ -3,8 +3,6 @@
             [compojure.core :refer :all]
             [compojure.coercions :refer :all]
             [clojure.data.json :as json]
-            [clj-time.format :as time-fmt]
-            [clj-time.coerce :refer [from-date to-date]]
             (back-channeling.resource [board  :refer [boards-resource board-resource]]
                                       [thread :refer [threads-resource thread-resource]]
                                       [comment :refer [comments-resource comment-resource]]
@@ -12,19 +10,18 @@
                                       [article :refer [articles-resource article-resource]]
                                       [user    :refer [users-resource user-resource]]
                                       [token   :refer [token-resource]]
-                                      [reaction :refer [reactions-resource]])))
-
-(def iso8601-formatter (time-fmt/formatters :basic-date-time))
+                                      [reaction :refer [reactions-resource]]))
+  (:import [java.time.format DateTimeFormatter]))
 
 (extend-type java.util.Date
   json/JSONWriter
-  (-write [date out]
-    (json/-write (time-fmt/unparse iso8601-formatter (from-date date)) out)))
+  (-write [date out options]
+    (json/-write (.format DateTimeFormatter/ISO_INSTANT (.toInstant date)) out options)))
 
 (extend-type java.util.UUID
   json/JSONWriter
-  (-write [uuid out]
-    (json/-write (.toString uuid) out)))
+  (-write [uuid out options]
+    (json/-write (.toString uuid) out options)))
 
 (defmethod ig/init-key :back-channeling.handler/api [_ {:keys [prefix] :as options}]
   (context "/api" []

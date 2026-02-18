@@ -3,36 +3,42 @@
   :java-source-paths ["src/java"]
   :test-paths ["test/clj"]
   :min-lein-version "2.0.0"
-  :dependencies [[org.clojure/clojure "1.9.0-beta4"]
+  :dependencies [[org.clojure/clojure "1.12.0"]
                  [duct/core "0.6.1"]
                  [duct/module.logging "0.3.1"]
-                 [duct/module.web "0.6.2"]
-                 [duct/module.cljs "0.3.1"
+                 [duct/module.web "0.6.4"]
+                 [duct/module.cljs "0.3.2"
                   :exclusions [org.clojure/clojurescript]]
-                 [org.clojure/data.json "0.2.6"]
-                 [org.clojure/clojurescript "1.9.946" :scope "provided"]
+                 [org.clojure/data.json "2.5.1"]
+                 [org.clojure/clojurescript "1.11.132" :scope "provided"]
 
-                 [hiccup "1.0.5"]
-                 [garden "1.3.3"]
-                 [buddy "2.0.0"]
-                 [camel-snake-kebab "0.4.0"]
+                 [hiccup "2.0.0-RC3"]
+                 [garden "1.3.10"]
+                 [buddy/buddy-auth "3.0.323"]
+                 [buddy/buddy-core "1.12.0-430"]
+                 [buddy/buddy-sign "3.6.1-359"]
+                 [camel-snake-kebab "0.4.3"]
 
-                 [org.clojure/core.async "0.3.443"]
-                 [sablono "0.8.1"]
-                 [bouncer "1.0.1"]
-                 [secretary "1.2.3"]
-                 [org.omcljs/om "1.0.0-beta1"]
-                 [io.undertow/undertow-websockets-jsr "1.4.20.Final"]
-                 [com.datomic/datomic-free "0.9.5561.62"
+                 [org.clojure/core.async "1.7.701"]
+                 [reagent "1.2.0"]
+                 [cljsjs/react "18.2.0-1"]
+                 [cljsjs/react-dom "18.2.0-1"]
+                 [re-frame "1.4.3"]
+                 [metosin/reitit-frontend "0.7.2"]
+                 [metosin/malli "0.16.4"]
+                 [io.undertow/undertow-websockets-jsr "2.3.23.Final"]
+                 [org.ring-clojure/ring-jakarta-servlet "1.15.3"]
+                 [com.datomic/peer "1.0.7187"
                   :exclusions [org.slf4j/slf4j-api
                                org.slf4j/slf4j-nop
-                               joda-time
-                               com.amazonaws/aws-java-sdk
                                com.google.guava/guava]]
-                 [com.google.guava/guava "23.0"]
-                 [liberator "0.15.1"]]
+                 [com.google.guava/guava "33.4.0-jre"]
+                 [cheshire "5.13.0"]
+                 [com.fasterxml.jackson.core/jackson-core "2.17.0"]
+                 [com.fasterxml.jackson.core/jackson-databind "2.17.0"]
+                 [liberator "0.15.3"]]
 
-  :plugins [[duct/lein-duct "0.10.3"]]
+  :plugins [[duct/lein-duct "0.10.6"]]
   :pom-plugins [[org.apache.maven.plugins/maven-assembly-plugin "2.5.5"
                  {:configuration [:descriptors [:descriptor "src/assembly/dist.xml"]]}]]
 

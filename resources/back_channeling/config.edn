@@ -19,10 +19,7 @@
      :asset-path #ig/ref :back-channeling.path/asset-path
      :closure-defines {'goog.DEBUG false}
      :verbose   true
-     :externs ["closure-js/externs/MediaStreamRecorder.ext.js"
-               "closure-js/externs/highlight.ext.js"
-               "closure-js/externs/marked.ext.js"
-               "closure-js/externs/zeroclipboard.ext.js"]
+     :externs ["closure-js/externs/highlight.ext.js"]
      :optimizations :advanced}}]}
 
  :back-channeling.module/auth {}

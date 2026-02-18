@@ -17,18 +17,14 @@
              (map #(.url %)))))
 
 (def schema-version
-  [{:db/id #db/id[:db.part/db]
-    :db/ident :schema-version/version
+  [{:db/ident :schema-version/version
     :db/valueType :db.type/long
     :db/cardinality :db.cardinality/one
     :db/index true
-    :db/unique :db.unique/identity
-    :db.install/_attribute :db.part/db}
-   {:db/id #db/id[:db.part/db]
-    :db/ident :schema-version/installed-at
+    :db/unique :db.unique/identity}
+   {:db/ident :schema-version/installed-at
     :db/valueType :db.type/instant
-    :db/cardinality :db.cardinality/one
-    :db.install/_attribute :db.part/db}])
+    :db/cardinality :db.cardinality/one}])
 
 (defn find-or-create-version [connection]
   (let [version-attr (d/q '{:find [?v .]
@@ -64,6 +60,6 @@
 
           @(d/transact
             connection
-            (conj tx-data {:db/id #db/id[:db.part/user]
+            (conj tx-data {:db/id (d/tempid :db.part/user)
                            :schema-version/version version
                            :schema-version/installed-at (Date.)})))))))

@@ -1,16 +1,15 @@
 #!/bin/bash
 
-datomic_version=0.9.5385
-datomic_dir=datomic-free-${datomic_version}
+datomic_version=1.0.7187
+datomic_dir=datomic-pro-${datomic_version}
 
 function get_datomic () {
-  curl --progress-bar --location --url "https://my.datomic.com/downloads/free/${datomic_version}" --output datomic.zip
+  curl --progress-bar --location --url "https://datomic-pro-downloads.s3.amazonaws.com/${datomic_version}/datomic-pro-${datomic_version}.zip" --output datomic.zip
   unzip -x datomic.zip
 }
 
-if [ ! -e "datomic-free-${datomic_version}" ]; then
+if [ ! -e "${datomic_dir}" ]; then
    get_datomic
 fi
 
-exec java -server -cp ${datomic_dir}/datomic-transactor-free-${datomic_version}.jar:"${datomic_dir}/lib/*" clojure.main -m datomic.launcher ${datomic_dir}/config/samples/free-transactor-template.properties
-
+exec "${datomic_dir}/bin/transactor" "${1:-${datomic_dir}/config/samples/dev-transactor-template.properties}"

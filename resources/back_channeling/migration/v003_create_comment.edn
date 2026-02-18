@@ -1,38 +1,23 @@
-[{:db/id #db/id[:db.part/db]
-  :db/ident :comment/posted-at
+[{:db/ident :comment/posted-at
   :db/valueType :db.type/instant
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment/posted-by
+  :db/cardinality :db.cardinality/one}
+ {:db/ident :comment/posted-by
   :db/valueType :db.type/ref
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment/content
+  :db/cardinality :db.cardinality/one}
+ {:db/ident :comment/content
   :db/valueType :db.type/string
   :db/cardinality :db.cardinality/one
-  :db/fulltext true
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment/format
+  :db/fulltext true}
+ {:db/ident :comment/format
   :db/valueType :db.type/ref
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment/reactions
+  :db/cardinality :db.cardinality/one}
+ {:db/ident :comment/reactions
   :db/valueType :db.type/ref
-  :db/cardinality :db.cardinality/many
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment/public?
+  :db/cardinality :db.cardinality/many}
+ {:db/ident :comment/public?
   :db/valueType :db.type/boolean
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
+  :db/cardinality :db.cardinality/one}
 
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment.format/plain}
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment.format/markdown}
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment.format/voice}]
+ {:db/ident :comment.format/plain}
+ {:db/ident :comment.format/markdown}
+ {:db/ident :comment.format/voice}]

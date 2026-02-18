@@ -1,33 +1,20 @@
-[{:db/id #db/id[:db.part/db]
-  :db/ident :comment-reaction/reaction-at
+[{:db/ident :comment-reaction/reaction-at
   :db/valueType :db.type/instant
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment-reaction/reaction-by
+  :db/cardinality :db.cardinality/one}
+ {:db/ident :comment-reaction/reaction-by
   :db/valueType :db.type/ref
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :comment-reaction/reaction
+  :db/cardinality :db.cardinality/one}
+ {:db/ident :comment-reaction/reaction
   :db/valueType :db.type/ref
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
+  :db/cardinality :db.cardinality/one}
 
-
- {:db/id #db/id[:db.part/db]
-  :db/ident :reaction/name
+ {:db/ident :reaction/name
   :db/valueType :db.type/string
   :db/cardinality :db.cardinality/one
-  :db/unique :db.unique/identity
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :reaction/label
+  :db/unique :db.unique/identity}
+ {:db/ident :reaction/label
   :db/valueType :db.type/string
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}
- {:db/id #db/id[:db.part/db]
-  :db/ident :reaction/src
+  :db/cardinality :db.cardinality/one}
+ {:db/ident :reaction/src
   :db/valueType :db.type/uri
-  :db/cardinality :db.cardinality/one
-  :db.install/_attribute :db.part/db}]
+  :db/cardinality :db.cardinality/one}]

@@ -54,7 +54,11 @@
                           (.querySelector "meta[property='bc:prefix']")
                           (.getAttribute "content"))]
        (.send xhrio (str prefix path) (.toLowerCase (name method))
-              body
+              (when body
+                (cond
+                  (string? body) body
+                  (instance? js/Blob body) body
+                  :else (pr-str body)))
               (-> (case format
                     :xml {:content-type "application/xml"}
                     :ogg {:content-type "audio/ogg"}

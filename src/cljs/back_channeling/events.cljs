@@ -1,0 +1,431 @@
+(ns back-channeling.events
+  (:require [re-frame.core :as rf]
+            [back-channeling.db :as db]
+            [back-channeling.api :as api]
+            [back-channeling.helper :refer [find-thread find-board]])
+  (:use [cljs.reader :only [read-string]]))
+
+(def title "Back Channeling")
+
+;; -- Initialize ------------------------------------------------------------
+
+(rf/reg-event-fx
+ ::initialize
+ (fn [_ _]
+   (let [prefix (some-> js/document
+                         (.querySelector "meta[property='bc:prefix']")
+                         (.getAttribute "content"))
+         user-name (some-> js/document
+                           (.querySelector "meta[property='bc:user:name']")
+                           (.getAttribute "content"))]
+     {:db (assoc db/default-db :prefix prefix)
+      :dispatch-n (cond-> [[::-fetch-reactions]
+                            [::-fetch-users]
+                            [::connect-socket]]
+                    user-name (conj [::fetch-identity user-name]))})))
+
+;; -- Identity ---------------------------------------------------------------
+
+(rf/reg-event-fx
+ ::fetch-identity
+ (fn [_ [_ user-name]]
+   {:http {:path (str "/api/user/" user-name)
+           :handler (fn [response] [::set-identity response])}}))
+
+(rf/reg-event-db
+ ::set-identity
+ (fn [db [_ identity]]
+   (assoc db :identity identity)))
+
+;; -- Reactions & Users (bootstrap) ------------------------------------------
+
+(rf/reg-event-fx
+ ::-fetch-reactions
+ (fn [_ _]
+   {:http {:path "/api/reactions"
+           :handler (fn [response] [::set-reactions response])}}))
+
+(rf/reg-event-db
+ ::set-reactions
+ (fn [db [_ reactions]]
+   (assoc db :reactions reactions)))
+
+(rf/reg-event-fx
+ ::-fetch-users
+ (fn [_ _]
+   {:http {:path "/api/users"
+           :handler (fn [response] [::set-users response])}}))
+
+(rf/reg-event-db
+ ::set-users
+ (fn [db [_ users]]
+   (assoc db :users (apply hash-set users))))
+
+;; -- Navigation events ------------------------------------------------------
+
+(rf/reg-event-fx
+ ::move-to-boards
+ (fn [{:keys [db]} _]
+   {:db (assoc db :page (if (not-empty (:boards db))
+                          {:type :boards}
+                          {:type :loading}))
+    :dispatch [::fetch-boards]}))
+
+(rf/reg-event-fx
+ ::fetch-boards
+ (fn [_ _]
+   {:http {:path "/api/boards"
+           :handler (fn [response] [::boards-fetched response])}}))
+
+(rf/reg-event-fx
+ ::boards-fetched
+ (fn [{:keys [db]} [_ boards]]
+   (let [new-db (assoc db :page {:type :boards} :boards boards)]
+     {:db new-db
+      :dispatch-n (mapv (fn [board]
+                          [::fetch-board-permissions (:board/name board)])
+                        boards)})))
+
+(rf/reg-event-fx
+ ::fetch-board-permissions
+ (fn [{:keys [db]} [_ board-name]]
+   (let [user-name (get-in db [:identity :user/name])]
+     (when user-name
+       {:http {:path (str "/api/board/" board-name "/user/" user-name)
+               :handler (fn [response] [::board-permissions-fetched board-name response])
+               :error-handler (fn [_ xhrio]
+                                (when (= (.getStatus xhrio) 404)
+                                  [::board-permissions-fetched board-name {:user/permissions #{}}]))}}))))
+
+(rf/reg-event-db
+ ::board-permissions-fetched
+ (fn [db [_ board-name {:keys [user/permissions]}]]
+   (let [idx (find-board (:boards db) board-name)]
+     (if idx
+       (assoc-in db [:boards idx :user/permissions] (or permissions #{}))
+       db))))
+
+(rf/reg-event-fx
+ ::move-to-board
+ (fn [{:keys [db]} [_ {:keys [board/name]}]]
+   {:db (-> (if (= name (get-in db [:board :board/name]))
+              db
+              (assoc db :board {} :threads {}))
+            (assoc :page {:type :board :board/name name :loading? true}))
+    :dispatch [::fetch-board name]}))
+
+(rf/reg-event-fx
+ ::fetch-board
+ (fn [_ [_ board-name]]
+   {:http {:path (str "/api/board/" board-name)
+           :handler (fn [response] [::board-fetched response])}}))
+
+(rf/reg-event-db
+ ::board-fetched
+ (fn [db [_ board]]
+   (-> (assoc db :board board)
+       (update :page dissoc :loading?))))
+
+(rf/reg-event-fx
+ ::move-to-thread
+ (fn [{:keys [db]} [_ {:keys [db/id board/name comment/no] :as thread}]]
+   (let [from (-> (get-in db [:threads id :thread/comments]) count inc)
+         need-board-refresh? (not= name (get-in db [:board :board/name]))]
+     (cond-> {:db (cond-> db
+                    need-board-refresh? (assoc :threads {})
+                    true (assoc :page {:type :board
+                                       :thread/id id
+                                       :board/name name
+                                       :comment/no no
+                                       :loading? true}))
+              :dispatch-n [[::fetch-comments {:thread thread :from from
+                                              :callback-event ::comments-fetched-for-thread}]
+                           [::scroll-to-comment no]]}
+       need-board-refresh?
+       (update :dispatch-n conj [::fetch-board name])))))
+
+(rf/reg-event-fx
+ ::fetch-comments
+ (fn [_ [_ {:keys [thread from to callback-event]}]]
+   (let [{:keys [board/name db/id]} thread
+         range-str (if to (str from "-" to) (str from "-"))]
+     {:http {:path (str "/api/board/" name "/thread/" id "/comments/" range-str)
+             :handler (fn [response] [callback-event {:thread thread :from from :comments response}])}})))
+
+(rf/reg-event-fx
+ ::comments-fetched-for-thread
+ (fn [{:keys [db]} [_ {:keys [thread from comments]}]]
+   (let [id (:db/id thread)]
+     {:db (-> db
+              (assoc-in [:threads id :db/id] id)
+              (update-in [:threads id :thread/comments]
+                         #(->> (concat % comments)
+                               (map (fn [c] [(:comment/no c) c]))
+                               (into (sorted-map))
+                               vals))
+              (update :page dissoc :loading?))
+      :dispatch [::update-readnum id]})))
+
+(rf/reg-event-db
+ ::update-readnum
+ (fn [db [_ thread-id]]
+   (let [lastnum (-> (get-in db [:threads thread-id :thread/comments]) last :comment/no)
+         threads (get-in db [:board :board/threads])
+         idx (find-thread threads thread-id)
+         readnum (when idx
+                   (some-> (get-in threads [idx :thread/readnum])
+                           (max (or lastnum 0))))]
+     (if (and idx readnum)
+       (assoc-in db [:board :board/threads idx :thread/readnum] readnum)
+       db))))
+
+;; -- Add comments (from websocket updates) ----------------------------------
+
+(rf/reg-event-db
+ ::add-comments
+ (fn [db [_ {:keys [comment/from comments] {:keys [db/id]} :thread}]]
+   (let [lastnum (-> comments last (:comment/no 0))
+         threads (get-in db [:board :board/threads])
+         idx (find-thread threads id)
+         readnum (when idx
+                   (some-> (get-in threads [idx :thread/readnum])
+                           (max lastnum)))]
+     (-> db
+         (assoc-in [:threads id :db/id] id)
+         (update-in [:threads id :thread/comments]
+                    #(->> (concat % comments)
+                          (map (fn [c] [(:comment/no c) c]))
+                          (into (sorted-map))
+                          vals))
+         (cond->
+           (and idx readnum)
+           (assoc-in [:board :board/threads idx :thread/readnum] readnum))))))
+
+;; -- Refresh comment (single update) ----------------------------------------
+
+(rf/reg-event-db
+ ::refresh-comment
+ (fn [db [_ {:keys [comment/no comment] {id :db/id} :thread}]]
+   (update-in db [:threads id :thread/comments]
+              (fn [comments]
+                (map #(if (= (:db/id comment) (:db/id %)) comment %) comments)))))
+
+;; -- Remove thread tab ------------------------------------------------------
+
+(rf/reg-event-fx
+ ::remove-thread
+ (fn [{:keys [db]} [_ {:keys [thread/id board/name]}]]
+   (let [new-threads (dissoc (:threads db) id)
+         next-id (-> new-threads first first)]
+     {:db (update db :threads dissoc id)
+      :navigate (if next-id
+                  (str "#/board/" name "/" next-id)
+                  (str "#/board/" name))})))
+
+;; -- Save thread ------------------------------------------------------------
+
+(rf/reg-event-fx
+ ::save-thread
+ (fn [_ [_ {:keys [thread board]}]]
+   {:http {:path (str "/api/board/" (:board/name board) "/threads")
+           :method :POST
+           :body thread
+           :handler (fn [response]
+                      [::thread-saved {:response response :thread thread :board board}])}}))
+
+(rf/reg-event-fx
+ ::thread-saved
+ (fn [_ [_ {:keys [response thread board]}]]
+   {:navigate (str "#/board/" (:board/name board) "/" (:db/id response))}))
+
+;; -- Delete comment ---------------------------------------------------------
+
+(rf/reg-event-fx
+ ::delete-comment
+ (fn [_ [_ {:keys [board/name thread/id comment/no]}]]
+   {:http {:path (str "/api/board/" name "/thread/" id "/comment/" no)
+           :method :DELETE}}))
+
+;; -- Close / Open thread ----------------------------------------------------
+
+(rf/reg-event-fx
+ ::close-thread
+ (fn [_ [_ {:keys [thread/id board/name]}]]
+   {:http {:path (str "/api/board/" board-name "/thread/" id)
+           :method :PUT
+           :body {:close-thread id}}}))
+
+(rf/reg-event-fx
+ ::open-thread
+ (fn [_ [_ {:keys [thread/id board/name]}]]
+   {:http {:path (str "/api/board/" board-name "/thread/" id)
+           :method :PUT
+           :body {:open-thread id}}}))
+
+;; -- Watch / Unwatch thread -------------------------------------------------
+
+(rf/reg-event-fx
+ ::watch-thread
+ (fn [_ [_ {:keys [board/name]}]]
+   {:dispatch [::refresh-board name]}))
+
+(rf/reg-event-fx
+ ::unwatch-thread
+ (fn [_ [_ {:keys [board/name]}]]
+   {:dispatch [::refresh-board name]}))
+
+;; -- Refresh board ----------------------------------------------------------
+
+(rf/reg-event-fx
+ ::refresh-board
+ (fn [{:keys [db]} [_ board-name]]
+   {:http {:path (str "/api/board/" board-name)
+           :handler (fn [response] [::board-fetched response])}}))
+
+;; -- WebSocket --------------------------------------------------------------
+
+(rf/reg-event-fx
+ ::connect-socket
+ (fn [{:keys [db]} _]
+   (when (= (:socket db) :disconnect)
+     {:http {:path "/api/token"
+             :method :POST
+             :handler (fn [response] [::open-socket (:access-token response)])
+             :error-handler (fn [_ _]
+                              (.error js/console "Can't connect websocket (;;)")
+                              nil)}})))
+
+(rf/reg-event-fx
+ ::open-socket
+ (fn [{:keys [db]} [_ token]]
+   (let [prefix (:prefix db)]
+     {:ws-open {:url (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://")
+                          (.-host js/location)
+                          prefix
+                          "/ws?token=" token)
+                :on-open (fn []
+                           (rf/dispatch [::socket-opened]))
+                :on-close (fn [_]
+                            (rf/dispatch [::socket-closed]))
+                :on-message (fn [message]
+                              (rf/dispatch [::socket-message message]))}})))
+
+(rf/reg-event-fx
+ ::socket-opened
+ (fn [{:keys [db]} _]
+   (let [was-disconnected? (= (:socket db) :disconnect)
+         thread-id (get-in db [:page :thread/id])]
+     (cond-> {:db (assoc db :socket :connect)}
+       (and was-disconnected? thread-id)
+       (assoc :dispatch [::fetch-comments
+                         {:thread {:db/id thread-id
+                                   :board/name (get-in db [:page :board/name])}
+                          :from (-> (get-in db [:threads thread-id :thread/comments]) count inc)
+                          :callback-event ::add-comments}])))))
+
+(rf/reg-event-db
+ ::socket-closed
+ (fn [db _]
+   (assoc db :socket :disconnect)))
+
+(rf/reg-event-fx
+ ::socket-message
+ (fn [{:keys [db]} [_ raw-message]]
+   (let [[cmd data] (read-string raw-message)]
+     (case cmd
+       :notify       {:notify data}
+       :update-board {:dispatch [::refresh-board (:board/name data)]}
+       :update-thread {:dispatch [::ws-update-thread data]}
+       :join         {:db (update db :users conj data)}
+       :leave        {:db (update db :users disj data)}
+       :call         (do (js/alert (:message data)) {})
+       {}))))
+
+(rf/reg-event-fx
+ ::ws-update-thread
+ (fn [{:keys [db]} [_ thread]]
+   (let [board-name (get-in db [:board :board/name])]
+     (when (= (:board/name thread) board-name)
+       (let [my-name (get-in db [:identity :user/name])
+             thread-id (:db/id thread)
+             idx (find-thread (get-in db [:board :board/threads]) thread-id)
+             new-db (if idx
+                      (-> db
+                          (assoc-in [:board :board/threads idx :thread/last-updated] (:thread/last-updated thread))
+                          (assoc-in [:board :board/threads idx :thread/resnum] (:thread/resnum thread))
+                          (update-in [:board :board/threads idx :thread/writenum]
+                                     (fn [wn]
+                                       (if (= my-name (get-in thread [:comment/posted-by :user/name]))
+                                         (inc (or wn 0))
+                                         (or wn 0)))))
+                      db)
+             viewing-this-thread? (= (get-in db [:page :thread/id]) thread-id)]
+         (cond-> {:db new-db}
+           viewing-this-thread?
+           (assoc :dispatch
+                  (if-let [comment-no (:comments/no thread)]
+                    [::fetch-single-comment {:thread thread :comment-no comment-no}]
+                    [::fetch-comments {:thread thread
+                                       :from (-> (get-in db [:threads thread-id :thread/comments]) count inc)
+                                       :callback-event ::add-comments}]))))))))
+
+(rf/reg-event-fx
+ ::fetch-single-comment
+ (fn [_ [_ {:keys [thread comment-no]}]]
+   {:http {:path (str "/api/board/" (:board/name thread)
+                      "/thread/" (:db/id thread)
+                      "/comments/" comment-no "-" comment-no)
+           :handler (fn [response]
+                      [::refresh-comment {:thread thread
+                                          :comment/no comment-no
+                                          :comment (first response)}])}}))
+
+;; -- Scroll to comment ------------------------------------------------------
+
+(rf/reg-event-fx
+ ::scroll-to-comment
+ (fn [_ [_ comment-no]]
+   (when comment-no
+     {:scroll-to-comment comment-no})))
+
+;; -- Focus title on window focus -------------------------------------------
+
+(rf/reg-event-fx
+ ::window-focused
+ (fn [_ _]
+   {:set-title title}))
+
+;; -- Articles ---------------------------------------------------------------
+
+(rf/reg-event-fx
+ ::fetch-articles
+ (fn [_ _]
+   {:http {:path "/api/articles"
+           :handler (fn [response] [::articles-fetched response])}}))
+
+(rf/reg-event-db
+ ::articles-fetched
+ (fn [db [_ articles]]
+   (assoc db :page {:type :article} :articles articles)))
+
+(rf/reg-event-fx
+ ::fetch-article
+ (fn [_ [_ id]]
+   {:http {:path (str "/api/article/" id)
+           :handler (fn [response] [::article-fetched response])}}))
+
+(rf/reg-event-db
+ ::article-fetched
+ (fn [db [_ article]]
+   (assoc db
+          :page {:type :article}
+          :target-thread (js/parseInt (get-in article [:article/thread :db/id]))
+          :article article)))
+
+(rf/reg-event-db
+ ::new-article
+ (fn [db [_ thread-id]]
+   (assoc db
+          :page {:type :article}
+          :target-thread (js/parseInt thread-id)
+          :article {:article/name nil :article/blocks []})))

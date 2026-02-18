@@ -1,0 +1,13 @@
+services:
+  datomic:
+    image: ghcr.io/dat-ecosystem-net/datomic-pro-transactor:1.0.7187
+    environment:
+      ADMIN_PASSWORD: "admin"
+      DATOMIC_STORAGE_ADMIN_PASSWORD: "admin"
+    ports:
+      - "4334:4334"
+    volumes:
+      - datomic-data:/opt/datomic-pro/data
+
+volumes:
+  datomic-data:

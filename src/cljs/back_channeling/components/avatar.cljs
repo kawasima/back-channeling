@@ -1,9 +1,6 @@
 (ns back-channeling.components.avatar
-  (:require [om.core :as om :include-macros true]
-            [sablono.core :as html :refer-macros [html]]
-            [goog.crypt :as crypt]
-            [goog.crypt.Md5])
-  (:import [goog.crypt]))
+  (:require [goog.crypt :as crypt]
+            [goog.crypt.Md5]))
 
 (def md5digester (goog.crypt.Md5.))
 
@@ -16,13 +13,9 @@
 (defn avatar-url [user]
   (str "https://www.gravatar.com/avatar/" (md5 (:user/email user)) "?d=mm"))
 
-(defn avatar [user owner]
-  (reify
-    om/IRender
-    (render [_]
-      (html
-       [:a.avatar {:title (:user/name user)}
-        [:img.ui.avatar.image {:src (str "https://www.gravatar.com/avatar/"
-                                         (when-let [email (:user/email user)]
-                                           (md5 email))
-                                         "?d=mm")}]]))))
+(defn avatar [user]
+  [:a.avatar {:title (:user/name user)}
+   [:img.ui.avatar.image {:src (str "https://www.gravatar.com/avatar/"
+                                    (when-let [email (:user/email user)]
+                                      (md5 email))
+                                    "?d=mm")}]])

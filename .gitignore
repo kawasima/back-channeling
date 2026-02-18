@@ -16,3 +16,15 @@ pom.xml
 /profiles.clj
 /dev/resources/local.edn
 /dev/src/local.clj
+.clj-kondo/
+/resources/back_channeling/public/js/cljs/
+/resources/back_channeling/public/js/clojure/
+/resources/back_channeling/public/js/goog/
+/resources/back_channeling/public/js/cljsjs/
+/resources/back_channeling/public/js/reagent/
+/resources/back_channeling/public/js/re_frame/
+/resources/back_channeling/public/js/reitit/
+/resources/back_channeling/public/js/meta_merge/
+/resources/back_channeling/public/js/process/
+/resources/back_channeling/public/js/back_channeling/
+/resources/back_channeling/public/js/cljsc_opts.edn

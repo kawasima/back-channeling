@@ -5,8 +5,6 @@
             [ring.middleware.flash :refer [flash-response]]
             [buddy.core.nonce :as nonce]
             [buddy.core.hash]
-            [bouncer.core :as b]
-            [bouncer.validators :as v :refer [defvalidator]]
             [back-channeling [layout :refer [layout]]]
             [datomic.api :as d]))
 
@@ -95,46 +93,74 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
        [:button.ui.fluid.large.teal.submit.button {:type "submit"} "Sign up"]]]]]
    (include-js (str prefix "/js/signup.js"))))
 
-(defvalidator unique-email-validator
-  {:default-message-format "%s is used by someone."}
-  [email {:keys [connection]}]
+(defn unique-email? [connection email]
   (nil? (d/q '{:find [?u .]
                :in [$ ?email]
                :where [[?u :user/email ?email]]}
              (d/db connection)
              email)))
 
-(defvalidator unique-name-validator
-  {:default-message-format "%s is used by someone."}
-  [name {:keys [connection]}]
+(defn unique-name? [connection name]
   (nil? (d/q '{:find [?u .]
                :in [$ ?name]
                :where [[?u :user/name ?name]]}
              (d/db connection)
              name)))
 
-(defn validate-user [datomic user]
-  (b/validate user
-              :password-credential/password
-              [[v/required :pre (comp nil? not-empty :token-credential/token)]
-               [v/min-count 8
-                :message "Password must be at least 8 characters long."
-                :pre (comp nil? not-empty :token-credential/token)]]
-              :user/email    [[v/required]
-                              [v/email]
-                              [v/max-count 100 :message "Email is too long."]
-                              [unique-email-validator datomic]]
-              :token-credential/token
-              [[v/required :pre (comp nil? not-empty :password-credential/password)]
-                              [v/matches #"[0-9a-z]{16}" :pre (comp nil? not-empty :password-credential/password)]]
-              :user/name     [[v/required]
-                              [v/min-count 3 :message "Username must be at least 3 characters long."]
-                              [v/max-count 20 :message "Username is too long."]
-                              [unique-name-validator datomic]]))
+(defn validate-user [{:keys [connection]} user]
+  (let [has-token? (not-empty (:token-credential/token user))
+        has-password? (not-empty (:password-credential/password user))
+        errors (cond-> {}
+                 ;; password required if no token
+                 (and (nil? has-token?) (nil? has-password?))
+                 (assoc :password-credential/password ["Password is required"])
+
+                 ;; password min length
+                 (and (nil? has-token?) has-password? (< (count has-password?) 8))
+                 (assoc :password-credential/password ["Password must be at least 8 characters long."])
+
+                 ;; token format (if no password)
+                 (and (nil? has-password?) has-token? (not (re-matches #"[0-9a-z]{16}" has-token?)))
+                 (assoc :token-credential/token ["Token must be 16 lowercase alphanumeric characters."])
+
+                 ;; email
+                 (empty? (:user/email user))
+                 (assoc :user/email ["Email is required"])
+
+                 (and (not-empty (:user/email user))
+                      (not (re-matches #".+@.+\..+" (:user/email user))))
+                 (assoc :user/email ["Email is not valid"])
+
+                 (and (not-empty (:user/email user))
+                      (> (count (:user/email user)) 100))
+                 (assoc :user/email ["Email is too long."])
+
+                 (and (not-empty (:user/email user))
+                      (not (unique-email? connection (:user/email user))))
+                 (assoc :user/email ["Email is used by someone."])
+
+                 ;; name
+                 (empty? (:user/name user))
+                 (assoc :user/name ["Username is required"])
+
+                 (and (not-empty (:user/name user))
+                      (< (count (:user/name user)) 3))
+                 (assoc :user/name ["Username must be at least 3 characters long."])
+
+                 (and (not-empty (:user/name user))
+                      (> (count (:user/name user)) 20))
+                 (assoc :user/name ["Username is too long."])
+
+                 (and (not-empty (:user/name user))
+                      (not (unique-name? connection (:user/name user))))
+                 (assoc :user/name ["Username is used by someone."]))]
+    (if (empty? errors)
+      [nil user]
+      [errors user])))
 
 (defn signup [user {:keys [datomic prefix] :as options}]
-  (let [[result map] (validate-user datomic user)]
-    (if-let [error-map (:bouncer.core/errors map)]
+  (let [[error-map _] (validate-user datomic user)]
+    (if error-map
       (signup-view {:error-map error-map :params user} options)
       (let [salt (nonce/random-nonce 16)
             password (some-> (not-empty (:password-credential/password user))
@@ -144,15 +170,18 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
                              buddy.core.codecs/bytes->hex)]
         (if-not (or password (:token-credential/token user))
           (throw (Exception. user)))
-        (let [t (->> [(-> (select-keys user [:user/email :user/name])
-                          (assoc :db/id #db/id[db.part/user -1]))
+        (let [user-id (d/tempid :db.part/user -1)
+              token-id (d/tempid :db.part/user -2)
+              password-id (d/tempid :db.part/user -3)
+              t (->> [(-> (select-keys user [:user/email :user/name])
+                          (assoc :db/id user-id))
                       (when-let [token (not-empty (:token-credential/token user))]
-                        {:db/id #db/id[db.part/user -2]
-                         :token-credential/user #db/id[db.part/user -1]
+                        {:db/id token-id
+                         :token-credential/user user-id
                          :token-credential/token token})
                       (when password
-                        {:db/id #db/id[db.part/user -3]
-                         :password-credential/user #db/id[db.part/user -1]
+                        {:db/id password-id
+                         :password-credential/user user-id
                          :password-credential/password password
                          :password-credential/salt salt})]
                      (remove nil?))]

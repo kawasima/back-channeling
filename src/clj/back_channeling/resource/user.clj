@@ -1,6 +1,5 @@
 (ns back-channeling.resource.user
   (:require [liberator.core :as liberator]
-            [bouncer.validators :as v]
             (back-channeling [util :refer [parse-request]])
             (back-channeling.boundary [users :as users])
             (back-channeling.resource [base :refer [base-resource]])))

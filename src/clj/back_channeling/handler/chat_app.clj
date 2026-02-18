@@ -4,7 +4,6 @@
             [integrant.core :as ig]
             [liberator.dev]
             [hiccup.page :refer [include-js]]
-            [hiccup.middleware :refer [wrap-base-url]]
             [hiccup.util :as util]
             [compojure.core :refer [GET POST routing routes] :as compojure]
             [compojure.route :as route]

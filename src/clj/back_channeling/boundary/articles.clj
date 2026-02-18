@@ -38,7 +38,7 @@
   (find-blocks [{:keys [connection]} id]
     (d/pull (d/db connection) '[:article/blocks] id))
 
-  (save [{:keys [connenction]} article]
+  (save [{:keys [connection]} article]
     (let [id (d/tempid :db.part/user)
           tempids (-> (d/transact
                        connection
@@ -56,7 +56,7 @@
                                     :curating-block/posted-by [:user/name (get-in block [:curating-block/posted-by :user/name])]}]))))
                       deref
                       :tempids)]
-      (d/resolve-tempid (d/db connection) tempids article-id)))
+      (d/resolve-tempid (d/db connection) tempids id)))
 
   (save [{:keys [connection]} article retract-transaction]
     (-> (d/transact

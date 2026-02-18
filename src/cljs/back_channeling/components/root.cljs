@@ -1,144 +1,116 @@
 (ns back-channeling.components.root
-  (:require [om.core :as om :include-macros true]
-            [sablono.core :as html :refer-macros [html]]
-            [cljs.core.async :refer [put!]]
+  (:require [reagent.core :as r]
+            [re-frame.core :as rf]
             [back-channeling.api :as api]
-            [back-channeling.socket :as socket]
-            [back-channeling.update :as update]
-            [back-channeling.components.avatar :refer [avatar]])
-  (:use [back-channeling.components.board :only [board-view boards-view]]
-        [back-channeling.components.curation :only [article-page]]
-        [back-channeling.component-helper :only [make-click-outside-fn]]))
+            [back-channeling.events :as events]
+            [back-channeling.components.avatar :refer [avatar]]
+            [back-channeling.components.board :refer [board-view boards-view]]
+            [back-channeling.components.curation :refer [article-page]]
+            [back-channeling.component-helper :refer [make-click-outside-fn]]))
 
-(defn search-threads [owner board-name query]
+(defn search-threads [state board-name query]
   (api/request (str "/api/board/" board-name "/threads?q=" (js/encodeURIComponent query))
                {:handler (fn [results]
-                           (om/set-state! owner :search-result results))}))
+                           (swap! state assoc :search-result results))}))
 
-(defn root-view [app owner]
-  (reify
-    om/IInitState
-    (init-state [_]
-      {:open-profile? false
-       :open-users? false
-       :search-result nil
-       :user {:user/name (.. js/document (querySelector "meta[property='bc:user:name']") (getAttribute "content"))
-              :user/email (.. js/document (querySelector "meta[property='bc:user:email']") (getAttribute "content"))}
-       :called-message nil
-       :click-outside-fn nil})
+(defn root-view []
+  (let [local (r/atom {:open-profile? false
+                         :open-users? false
+                         :search-result nil
+                         :user {:user/name (some-> js/document (.querySelector "meta[property='bc:user:name']") (.getAttribute "content"))
+                                :user/email (some-> js/document (.querySelector "meta[property='bc:user:email']") (.getAttribute "content"))}})
+        click-outside-fn (atom nil)
+        root-ref (atom nil)]
+    (r/create-class
+     {:display-name "root-view"
 
-    om/IWillMount
-    (will-mount [_]
-      (let [msgbox (om/get-shared owner :msgbox)]
-        (update/init msgbox app)
-        (api/request "/api/reactions"
-                     {:handler
-                      (fn [response]
-                        (om/update! app :reactions response))})
+      :component-did-mount
+      (fn [_]
+        (when-let [node @root-ref]
+          (when-let [menu-el (.querySelector node "div.site.menu")]
+            (reset! click-outside-fn
+                    (make-click-outside-fn
+                     menu-el
+                     (fn [_]
+                       (swap! local assoc
+                              :open-profile? false
+                              :open-users? false
+                              :search-result nil))))
+            (.addEventListener js/document "mousedown" @click-outside-fn)))
+        (.addEventListener js/window "focus"
+                           (fn [_] (rf/dispatch [::events/window-focused]))))
 
-        (api/request "/api/users"
-                     {:handler
-                      (fn [response]
-                        (om/update! app :users (apply hash-set response)))})
+      :component-will-unmount
+      (fn [_]
+        (when @click-outside-fn
+          (.removeEventListener js/document "mousedown" @click-outside-fn)))
 
-        (when-let [on-click-outside (om/get-state owner :click-outside-fn)]
-          (.removeEventListener js/document "mousedown" on-click-outside))))
-
-    om/IDidMount
-    (did-mount [_]
-      (when-not (om/get-state owner :click-outside-fn)
-        (om/set-state! owner :click-outside-fn
-                       (make-click-outside-fn
-                        (.. (om/get-node owner) (querySelector "div.site.menu"))
-                        (fn [_]
-                          (om/update-state! owner #(assoc %
-                                                          :open-profile? false
-                                                          :open-users? false
-                                                          :search-result nil))))))
-      (.addEventListener js/document "mousedown"
-                         (om/get-state owner :click-outside-fn)))
-
-    om/IRenderState
-    (render-state [_ {:keys [open-profile? open-users? search-result user board-channel]}]
-      (html
-       [:div.full.height
-        [:div.ui.fixed.site.menu
-         [:div.item
-          [:a {:href "#/"}
-           [:img.ui.logo.image {:src (str (om/get-shared owner :prefix) "/img/logo.png")
-                                :alt "Back Channeling"}]]]
-         (when (= (get-in app [:page :type]) :board)
-           [:div.center.menu
-            [:a.item {:href "#/"}
-             [:h2.ui.header [:i.list.grey.icon] [:div.content (get-in app [:board :board/name])]]]
-            (when (or (nil? (get-in app [:board :user/permissions]))
-                      (get-in app [:board :user/permissions :search-thread]))
-              [:div.item
-               [:div.ui.search
-                [:div.ui.icon.input
-                 [:input.prompt
-                  {:type "text"
-                   :placeholder "Keyword"
-                   :on-key-up (fn [e]
-                               (if-let [query (.. e -target -value)]
-                                  (if (> (count query) 2)
-                                    (search-threads owner (get-in app [:board :board/name]) query)
-                                    (om/set-state! owner :search-result nil))))}]
-                 [:i.search.icon]]
-                (when (not-empty search-result)
-                  [:div.results.transition.visible
-                   (for [res search-result]
-                     [:a.result {:on-click
-                                 (fn [_]
-                                   (om/set-state! owner :search-result nil)
-                                   (set! (.-href js/location) (str "#/board/" (:board/name res)
-                                                                   "/" (:db/id res)
-                                                                   "/" (:comment/no res))))}
-                      [:div.content
-                       [:div.title (:thread/title res)]]])])]])])
-         [:div.right.menu
-          ; [:a.item
-          ;  [:div {:on-click (fn [_]
-          ;                     (om/set-state! owner :open-users? (not open-users?)))}
-          ;   [:i.users.icon]
-          ;   [:div.ui.label (count (:users app))]]
-          ;  (when open-users?
-          ;    [:div.ui.flowing.popup.right.bottom.transition.visible {:style {:top "60px" :width "200px"}}
-          ;     [:div.ui.four.column.grid
-          ;      (for [member (:users app)]
-          ;        [:column {:on-click (fn [_]
-          ;                              (socket/send :call {:from user
-          ;                                                  :to #{member}
-          ;                                                  :message (str (:user/name user) " is calling!!")}))}
-          ;         (om/build avatar member)])]])]
-          [:div.ui.dropdown.item
-           [:div.ui.two.column.grid.text.center {:on-click (fn [_]
-                              (om/set-state! owner :open-profile? (not open-profile?)))}
-
-            [:span
-             [:i.icon.circle
-              {:class (case (:socket app) :connect "green" :disconnect "red")
-              :on-click (fn [_]
-                                    (when (= (:socket app) :disconnect)
-                                      (put! (om/get-shared owner :msgbox) [:reconnect-socket])))}]
-             (:user/name user)]
-             (om/build avatar user)]
-           [:div.menu.transition {:class (if open-profile? "visible" "hidden")}
-            [:form.item {:action (str (om/get-shared owner :prefix) "/logout")
-                         :method :post
-                         :name "logout"
-                         :on-click (fn [e] (.. e -currentTarget submit))}
-             [:i.icon.sign.out]
-             "Logout"]]]]]
-        (case (get-in app [:page :type])
-          :boards (om/build boards-view app)
-          :board (om/build board-view app)
-          :article (om/build article-page (:article app)
-                             {:init-state {:thread (->> (:threads app)
-                                                        (filter #(= (:thread/active? %) true))
-                                                        first)}
-                              :opts {:user user
-                                     :board-name (get-in app [:board :board/name])}})
-          ; :initializing, :loading
-          [:div.main.content.full.height
-           [:div.ui.active.centered.inline.text.loader "Loading..."]])]))))
+      :reagent-render
+      (fn []
+        (let [{:keys [open-profile? search-result user]} @local
+              page-type @(rf/subscribe [:page-type])
+              board @(rf/subscribe [:board])
+              socket @(rf/subscribe [:socket])
+              prefix @(rf/subscribe [:prefix])]
+          [:div.full.height {:ref (fn [el] (reset! root-ref el))}
+           [:div.ui.fixed.site.menu
+            [:div.item
+             [:a {:href "#/"}
+              [:img.ui.logo.image {:src (str prefix "/img/logo.png")
+                                   :alt "Back Channeling"}]]]
+            (when (= page-type :board)
+              [:div.center.menu
+               [:a.item {:href "#/"}
+                [:h2.ui.header [:i.list.grey.icon] [:div.content (:board/name board)]]]
+               (when (or (nil? (:user/permissions board))
+                         (:search-thread (:user/permissions board)))
+                 [:div.item
+                  [:div.ui.search
+                   [:div.ui.icon.input
+                    [:input.prompt
+                     {:type "text"
+                      :placeholder "Keyword"
+                      :on-key-up (fn [e]
+                                   (if-let [query (.. e -target -value)]
+                                     (if (> (count query) 2)
+                                       (search-threads local (:board/name board) query)
+                                       (swap! local assoc :search-result nil))))}]
+                    [:i.search.icon]]
+                   (when (not-empty search-result)
+                     [:div.results.transition.visible
+                      (for [res search-result]
+                        ^{:key (str "sr-" (:db/id res) "-" (:comment/no res))}
+                        [:a.result {:on-click
+                                    (fn [_]
+                                      (swap! local assoc :search-result nil)
+                                      (set! (.-href js/location) (str "#/board/" (:board/name res)
+                                                                      "/" (:db/id res)
+                                                                      "/" (:comment/no res))))}
+                         [:div.content
+                          [:div.title (:thread/title res)]]])])]])])
+            [:div.right.menu
+             [:div.ui.dropdown.item
+              [:div.ui.two.column.grid.text.center
+               {:on-click (fn [_] (swap! local update :open-profile? not))}
+               [:span
+                [:i.icon.circle
+                 {:class (case socket :connect "green" :disconnect "red")
+                  :on-click (fn [_]
+                              (when (= socket :disconnect)
+                                (rf/dispatch [::events/connect-socket])))}]
+                (:user/name user)]
+               [avatar user]]
+              [:div.menu.transition {:class (if open-profile? "visible" "hidden")}
+               [:form.item {:action (str prefix "/logout")
+                            :method :post
+                            :name "logout"
+                            :on-click (fn [e] (.. e -currentTarget submit))}
+                [:i.icon.sign.out]
+                "Logout"]]]]]
+           (case page-type
+             :boards  [boards-view]
+             :board   [board-view]
+             :article [article-page]
+             ;; :initializing, :loading
+             [:div.main.content.full.height
+              [:div.ui.active.centered.inline.text.loader "Loading..."]])]))})))

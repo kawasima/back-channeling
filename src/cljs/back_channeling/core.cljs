@@ -1,21 +1,23 @@
 (ns back-channeling.core
-  (:require [om.core :as om :include-macros true]
-            [cljs.core.async :refer [chan]])
-  (:use [back-channeling.components.root :only [root-view]]))
+  (:require [reagent.dom :as rdom]
+            [re-frame.core :as rf]
+            [back-channeling.events :as events]
+            [back-channeling.subs]
+            [back-channeling.fx]
+            [back-channeling.routes :as routes]
+            [back-channeling.components.root :refer [root-view]]))
 
-(.initHighlightingOnLoad js/hljs)
+(.highlightAll js/hljs)
 (set! js/md (js/markdownit))
 
-(defonce app-state (atom {:boards []
-                          :board {}
-                          :threads {}
-                          :socket :disconnect
-                          :users #{}
-                          :page {:type :initializing}}))
+(defn ^:dev/after-load mount-root []
+  (rf/clear-subscription-cache!)
+  (rdom/render [root-view]
+               (.getElementById js/document "app")))
 
-(om/root root-view app-state
-         {:target (.getElementById js/document "app")
-          :shared {:prefix (some-> js/document
-                                   (.querySelector "meta[property='bc:prefix']")
-                                   (.getAttribute "content"))
-                   :msgbox (chan)}})
+(defn init []
+  (rf/dispatch-sync [::events/initialize])
+  (routes/init!)
+  (mount-root))
+
+(init)

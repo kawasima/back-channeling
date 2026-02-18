@@ -6,12 +6,15 @@
             [buddy.auth :refer [authenticated?]]
             [buddy.auth.protocols :as proto]
             [buddy.sign.jwt :as jwt]
+            [buddy.sign.jws :as jws]
             [compojure.core :refer [POST routes]]
             [camel-snake-kebab.core :refer :all]))
 
-(alter-var-root #'buddy.sign.jws/+signers-map+
+;; Patch buddy-sign to support :none algorithm for Bouncr SSO.
+;; Bouncr sends unsigned JWTs in x-bouncr-credential header.
+(alter-var-root #'jws/+signers-map+
                 (fn [m]
-                  (assoc m :none {:signer   (fn [_ _ ] "")
+                  (assoc m :none {:signer   (fn [_ _] "")
                                   :verifier (fn [_ _ _] true)})))
 
 (defn api-access? [req]

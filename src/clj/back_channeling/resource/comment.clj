@@ -1,6 +1,5 @@
 (ns back-channeling.resource.comment
   (:require [liberator.core :as liberator]
-            [bouncer.validators :as v]
             [datomic.api :as d]
             (back-channeling [util :refer [parse-request]])
             [back-channeling.websocket.socketapp :refer [broadcast-message multicast-message]]
@@ -16,14 +15,15 @@
   (liberator/resource
    base-resource
    :allowed-methods [:get :post]
-   :malformed? #(parse-request % {:comment/content [[v/required]
-                                                    [v/max-count 4000]]
-                                  :comment/format  [[v/member [:comment.format/plain
-                                                               :comment.format/markdown
-                                                               :comment.format/voice
-                                                               "comment.format/plain"
-                                                               "comment.format/markdown"
-                                                               "comment.format/voice"]]]})
+   :malformed? #(parse-request % [:map
+                                  [:comment/content [:string {:min 1 :max 4000}]]
+                                  [:comment/format {:optional true}
+                                   [:enum :comment.format/plain
+                                          :comment.format/markdown
+                                          :comment.format/voice
+                                          "comment.format/plain"
+                                          "comment.format/markdown"
+                                          "comment.format/voice"]]])
    :allowed? #(case (get-in % [:request :request-method])
                 :get   (has-permission? % #{:read-thread :read-any-thread})
                 :post  (has-permission? % #{:write-thread :write-any-thread}))
@@ -37,11 +37,12 @@
    :post! (fn [{comment :edn req :request resnum :thread/resnum :as ctx}]
             (when (thread-allowed? ctx datomic #{:write-any-thread} thread-id)
               (let [user (users/find-by-name datomic (get-in req [:identity :user/name]))
-                    now (Date.)]
+                    now (Date.)
+                    comment-id (d/tempid :db.part/user -1)]
                 (comments/save
                  datomic
-                 (concat [[:db/add thread-id :thread/comments #db/id[:db.part/user -1]]
-                          {:db/id #db/id[:db.part/user -1]
+                 (concat [[:db/add thread-id :thread/comments comment-id]
+                          {:db/id comment-id
                            :comment/posted-at now
                            :comment/posted-by user
                            :comment/format (-> comment
@@ -94,7 +95,7 @@
   (liberator/resource
    base-resource
    :allowed-methods [:post :delete]
-   :malformed? #(parse-request % {:reaction/name [[v/required]]})
+   :malformed? #(parse-request % [:map [:reaction/name [:string {:min 1}]]])
    :allowed? #(case (get-in % [:request :request-method])
                    :post   (has-permission? % #{:write-thread :write-any-thread})
                    :delete (has-permission? % #{:delete-comment :delete-any-comment}))
