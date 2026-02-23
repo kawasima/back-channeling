@@ -4,7 +4,7 @@
             [compojure.coercions :refer :all]
             [clojure.data.json :as json]
             (back-channeling.resource [board  :refer [boards-resource board-resource]]
-                                      [thread :refer [threads-resource thread-resource]]
+                                      [thread :refer [threads-resource thread-resource thread-readonly-resource]]
                                       [comment :refer [comments-resource comment-resource]]
                                       [voice   :refer [voices-resource]]
                                       [article :refer [articles-resource article-resource]]
@@ -53,6 +53,8 @@
       (ANY "/user/:user-name" [user-name]
         (user-resource options user-name)))
 
+    (ANY "/thread/:thread-id" [thread-id :<< as-int]
+      (thread-readonly-resource options thread-id))
     (ANY "/articles" []
       (articles-resource options))
     (ANY "/article/:article-id" [article-id :<< as-int]

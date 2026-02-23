@@ -252,6 +252,11 @@
              [:i.chevron.icon {:class (if open-menu? "up" "down")}]]
             [:div.ui.popup.bottom.right.transition {:class (if open-menu? "visible" "hidden")}
              [:div.ui.two.column.grid
+              [:div.row
+               [:div.column.left.aligned "curation"]
+               [:div.column
+                [:a {:href (str "#/articles/new?thread-id=" (:db/id thread))}
+                 [:i.external.share.large.icon]]]]
               [:div.one.column.row [:div.ui.divider.column]]
               (let [threads (get-in app [:board :board/threads])
                     public? (get-in threads [(find-thread threads (:db/id thread)) :thread/public?])]
@@ -574,17 +579,18 @@
             {:keys [board error-map]} @local]
         [:div.main.content.full.height
          [:div.ui.cards
-          (for [b (filter #(let [permissions (:user/permissions %)]
-                             (or (nil? permissions) (:read-board permissions)))
-                          (:boards app))]
-            ^{:key (str "b-" (:board/name b))}
-            [:a.card.link
-             {:on-click (fn [_]
-                          (set! (.-href js/location) (str "#/board/" (:board/name b))))}
-             [:div.content
-              [:div.header (:board/name b)]
-              [:div.description
-               [:p (:board/description b)]]]])]
+          (doall
+           (for [b (filter #(let [permissions (:user/permissions %)]
+                              (or (nil? permissions) (:read-board permissions)))
+                           (:boards app))]
+             ^{:key (str "b-" (:board/name b))}
+             [:a.card.link
+              {:on-click (fn [_]
+                           (set! (.-href js/location) (str "#/board/" (:board/name b))))}
+              [:div.content
+               [:div.header (:board/name b)]
+               [:div.description
+                [:p (:board/description b)]]]]))]
          (when (or (nil? (get-in app [:identity :user/permissions]))
                    (:create-board (get-in app [:identity :user/permissions])))
            [:div.ui.content

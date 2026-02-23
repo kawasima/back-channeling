@@ -17,6 +17,7 @@ pom.xml
 /dev/resources/local.edn
 /dev/src/local.clj
 .clj-kondo/
+.lsp/
 /resources/back_channeling/public/js/cljs/
 /resources/back_channeling/public/js/clojure/
 /resources/back_channeling/public/js/goog/

@@ -1,52 +1,52 @@
-{:duct.core/project-ns back-channeling
- :duct.core/environment :production
-
- :duct.module/logging {}
+{:duct.module/logging {}
  :duct.module/web {}
- :duct.middleware.web/defaults {:static {:resources ["duct/module/web/public"
-                                                     "back_channeling/public"]}
-                                :session {:flash true
-                                          :cookie-attrs {:http-only true
-                                                         :same-site :strict}}}
- :duct.module/cljs {}
- :duct.compiler/cljs
- {:builds
-  [{:source-paths ["src/clj" "src/cljs"]
-    :build-options
-    {
-     :output-to  "resources/back_channeling/public/js/back-channeling.min.js"
-     :output-dir "resources/back_channeling/public/js"
-     :asset-path #ig/ref :back-channeling.path/asset-path
-     :closure-defines {'goog.DEBUG false}
-     :verbose   true
-     :externs ["closure-js/externs/highlight.ext.js"]
-     :optimizations :advanced}}]}
-
  :back-channeling.module/auth {}
  :back-channeling.module/app  {}
 
- :duct.router/cascading
- [#ig/ref :back-channeling.handler/api
-  #ig/ref :back-channeling.handler/chat-app]
+ :duct.profile/base
+ {:duct.core/project-ns back-channeling
+  :duct.core/environment :production
 
- :back-channeling.server.http/undertow
- {:port 3009
-  :prefix    #ig/ref :back-channeling.path/prefix
-  :socketapp #ig/ref :back-channeling.websocket/socketapp}
+  :duct.middleware.web/defaults {:static {:resources ["duct/module/web/public"
+                                                      "back_channeling/public"]}
+                                 :session {:flash true
+                                           :cookie-attrs {:http-only true
+                                                          :same-site :strict}}}
+  :duct.compiler/cljs
+  {:builds
+   [{:source-paths ["src/clj" "src/cljs"]
+     :build-options
+     {:output-to  "resources/back_channeling/public/js/back-channeling.min.js"
+      :output-dir "resources/back_channeling/public/js"
+      :asset-path #ig/ref :back-channeling.path/asset-path
+      :closure-defines {'goog.DEBUG false}
+      :verbose   true
+      :externs ["closure-js/externs/highlight.ext.js"]
+      :optimizations :advanced}}]}
 
- :back-channeling.middleware/authentication
- {:backends [#ig/ref :back-channeling.auth.backend/session
-             #ig/ref :back-channeling.auth.backend/token]}
+  :duct.router/cascading
+  [#ig/ref :back-channeling.handler/api
+   #ig/ref :back-channeling.handler/chat-app]
 
- :back-channeling.middleware/authorization
- {:backend #ig/ref :back-channeling.auth.backend/session}
+  :back-channeling.server.http/undertow
+  {:port 3009
+   :prefix    #ig/ref :back-channeling.path/prefix
+   :socketapp #ig/ref :back-channeling.websocket/socketapp}
 
- :back-channeling.database/datomic {:uri "datomic:mem://bc" :recreate? false}
- :back-channeling.migrator/schema
- {:datomic #ig/ref :back-channeling.database/datomic
-  :logger #ig/ref :duct/logger}
+  :back-channeling.middleware/authentication
+  {:backends [#ig/ref :back-channeling.auth.backend/session
+              #ig/ref :back-channeling.auth.backend/token]}
 
- :back-channeling.database/cache {}
- :back-channeling.path/prefix ""
- :back-channeling.path/asset-path "/js"
- }
+  :back-channeling.middleware/authorization
+  {:backend #ig/ref :back-channeling.auth.backend/session}
+
+  :back-channeling.database/datomic {:uri "datomic:mem://bc" :recreate? false}
+  :back-channeling.migrator/schema
+  {:datomic #ig/ref :back-channeling.database/datomic
+   :logger #ig/ref :duct/logger}
+
+  :back-channeling.database/cache {}
+  :back-channeling.path/prefix ""
+  :back-channeling.path/asset-path "/js"}
+
+ :duct.profile/prod {}}

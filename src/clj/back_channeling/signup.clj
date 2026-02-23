@@ -2,7 +2,7 @@
   (:require [hiccup.core :refer [html]]
             [hiccup.page :refer [include-js]]
             [ring.util.response :refer [resource-response content-type header redirect]]
-            [ring.middleware.flash :refer [flash-response]]
+
             [buddy.core.nonce :as nonce]
             [buddy.core.hash]
             [back-channeling [layout :refer [layout]]]
@@ -186,8 +186,8 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
                          :password-credential/salt salt})]
                      (remove nil?))]
           (-> (d/transact (:connection datomic) t)
-              deref))
-
-
-        (-> (redirect (str prefix "/"))
-            (flash-response {:flash (str "Create account " (:user/name user))}))))))
+              deref)
+          (cond-> (redirect (str prefix "/"))
+            ;; パスワード認証の場合はそのままログイン状態にする
+            password
+            (assoc-in [:session :identity] (select-keys user [:user/name :user/email]))))))))

@@ -45,7 +45,9 @@
                      [:call message]
                      (:to message)))
 
-(defrecord Socketapp [channels path]
+(defrecord Socketapp [channels path cache logger])
+
+(extend-type Socketapp
   ISendMessage
   (broadcast-message [{:keys [channels path]} message]
     (doseq [[channel user] (get @channels path)]

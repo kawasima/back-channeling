@@ -52,32 +52,31 @@
   #(wrap-same-origin-policy % console))
 
 (defmethod ig/init-key :back-channeling.module/auth [_ options]
-  {:req #{:duct/logger}
-   :fn  (fn [config]
-          (core/merge-configs
-           config
-           options
-           {:duct.core/handler
-            {:middleware ^distinct
-             [(ig/ref :back-channeling.middleware/access-rules)
-              (ig/ref :back-channeling.middleware/authorization)
-              (ig/ref :back-channeling.middleware/authentication)
-              (ig/ref :back-channeling.middleware/same-origin-policy)]}
-            :back-channeling.auth/access-rules
-            {:prefix (ig/ref :back-channeling.path/prefix)}
-            :back-channeling.middleware/authentication {}
-            :back-channeling.middleware/authorization
-            {:prefix (ig/ref :back-channeling.path/prefix)}
+  (fn [config]
+    (core/merge-configs
+     config
+     options
+     {:duct.handler/root
+      {:middleware ^distinct
+       [(ig/ref :back-channeling.middleware/access-rules)
+        (ig/ref :back-channeling.middleware/authorization)
+        (ig/ref :back-channeling.middleware/authentication)
+        (ig/ref :back-channeling.middleware/same-origin-policy)]}
+      :back-channeling.auth/access-rules
+      {:prefix (ig/ref :back-channeling.path/prefix)}
+      :back-channeling.middleware/authentication {}
+      :back-channeling.middleware/authorization
+      {:prefix (ig/ref :back-channeling.path/prefix)}
 
-            :back-channeling.middleware/access-rules
-            {:rules (ig/ref :back-channeling.auth/access-rules)}
-            :back-channeling.middleware/same-origin-policy {}
+      :back-channeling.middleware/access-rules
+      {:rules (ig/ref :back-channeling.auth/access-rules)}
+      :back-channeling.middleware/same-origin-policy {}
 
-            :back-channeling.auth.backend/token
-            {:cache  (ig/ref :back-channeling.database/cache)
-             :logger (ig/ref :duct/logger)}
-            :back-channeling.auth.backend/session {}
+      :back-channeling.auth.backend/token
+      {:cache  (ig/ref :back-channeling.database/cache)
+       :logger (ig/ref :duct/logger)}
+      :back-channeling.auth.backend/session {}
 
-            :back-channeling.auth.backend/bouncr
-            {:datomic (ig/ref :back-channeling.database/datomic)}
-            :back-channeling.route.logout/bouncr {}}))})
+      :back-channeling.auth.backend/bouncr
+      {:datomic (ig/ref :back-channeling.database/datomic)}
+      :back-channeling.route.logout/bouncr {}})))

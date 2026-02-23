@@ -10,9 +10,9 @@
 (def date-format-m (DateTimeFormat. goog.i18n.DateTimeFormat.Format.MEDIUM_DATETIME
                                     (aget goog.i18n (str "DateTimeSymbols_" (.-language js/navigator)))))
 
-(defn open-thread [board-name thread state]
-  (when-let [thread-id (:db/id thread)]
-    (api/request (str "/api/board/" board-name "/thread/" thread-id)
+(defn open-thread [thread-id state]
+  (when thread-id
+    (api/request (str "/api/thread/" thread-id)
                  {:handler (fn [response]
                              (swap! state assoc-in [:thread :thread/comments]
                                     (:thread/comments response)))})))
@@ -56,6 +56,7 @@
   (let [user {:user/name (some-> js/document (.querySelector "meta[property='bc:user:name']") (.getAttribute "content"))
               :user/email (some-> js/document (.querySelector "meta[property='bc:user:email']") (.getAttribute "content"))}
         local (r/atom {:selected-thread-comments #{}
+                        :curated-comment-ids #{}
                         :editing-article nil
                         :editorial-space {:db/id 0
                                           :comment/format {:db/ident :comment.format/plain}
@@ -71,13 +72,14 @@
       :component-did-mount
       (fn [_]
         (let [article @(rf/subscribe [:article])
-              board-name @(rf/subscribe [:board-name])
               target-thread @(rf/subscribe [:target-thread])]
-          (swap! local assoc
-                 :editing-article (or article {:article/name nil :article/blocks []})
-                 :thread {:db/id target-thread})
-          (when (and board-name target-thread)
-            (open-thread board-name {:db/id target-thread} local))
+          (let [editing-article (or article {:article/name nil :article/blocks []})]
+            (swap! local assoc
+                   :editing-article editing-article
+                   :curated-comment-ids (into #{} (keep :curating-block/id) (:article/blocks editing-article))
+                   :thread {:db/id target-thread}))
+          (when target-thread
+            (open-thread target-thread local))
           (reset! initialized? true)
           (when-let [markdown-btn (some-> @root-ref (.querySelector "button.markdown.button"))]
             (set! (.-onclick markdown-btn)
@@ -90,7 +92,7 @@
 
       :reagent-render
       (fn []
-        (let [{:keys [selected-thread-comments editorial-space thread editing-article error-map]} @local]
+        (let [{:keys [selected-thread-comments curated-comment-ids editorial-space thread editing-article error-map]} @local]
           [:div.curation.full.height.content {:ref (fn [el] (reset! root-ref el))}
            [:div.ui.full.height.grid
             [:div.full.height.row
@@ -98,29 +100,34 @@
               [:div.scroll-pane
                [:div.ui.thread.comments
                 [:h3.ui.dividing.header (:thread/title thread)]
-                [:div.comment {:on-click (fn [_]
-                                           (swap! local update :selected-thread-comments
-                                                  #(if (% 0) (disj % 0) (conj % 0))))}
+                [:div.comment (when-not (curated-comment-ids 0)
+                               {:on-click (fn [_]
+                                            (swap! local update :selected-thread-comments
+                                                   #(if (% 0) (disj % 0) (conj % 0))))})
                  [:div.content
-                  [:div.ui.message (when (selected-thread-comments 0) {:class "red"}) "Editorial space"]]]
+                  [:div.ui.message (cond
+                                     (curated-comment-ids 0) {:class "disabled"}
+                                     (selected-thread-comments 0) {:class "red"})
+                   "Editorial space"]]]
                 (for [comment (:thread/comments thread)]
                   ^{:key (str "comment-" (:comment/no comment))}
                   [comment-view {:comment comment
                                  :thread thread
                                  :selected? (boolean (selected-thread-comments (:db/id comment)))
                                  :comment-attrs
-                                 {:on-click (fn [_]
-                                              (swap! local update :selected-thread-comments
-                                                     (fn [s]
-                                                       (if (s (:db/id comment))
-                                                         (disj s (:db/id comment))
-                                                         (conj s (:db/id comment))))))
-                                  :class (if (selected-thread-comments (:db/id comment)) "selected" "")}}])]]]
+                                 (if (curated-comment-ids (:db/id comment))
+                                   {:class "disabled"}
+                                   {:on-click (fn [_]
+                                                (swap! local update :selected-thread-comments
+                                                       (fn [s]
+                                                         (if (s (:db/id comment))
+                                                           (disj s (:db/id comment))
+                                                           (conj s (:db/id comment))))))
+                                    :class (if (selected-thread-comments (:db/id comment)) "selected" "")})}])]]]
 
-             [:div.column
+             [:div.one.wide.column {:style {:display "flex" :align-items "center" :justify-content "center"}}
               (when (not-empty selected-thread-comments)
-                [:i.citation.huge.arrow.circle.outline.right.icon
-                 {:on-click (fn [_]
+                [:button.ui.icon.button {:on-click (fn [_]
                               (swap! local update-in [:editing-article :article/blocks]
                                      (fn [blocks]
                                        (into (vec blocks)
@@ -135,7 +142,11 @@
                                                   (map (fn [block]
                                                          (update-in block [:curating-block/format :db/ident]
                                                                     #(keyword "curating-block.format" (name %)))))))))
-                              (swap! local assoc :selected-thread-comments #{}))}])]
+                              (swap! local (fn [s]
+                                             (-> s
+                                                 (update :curated-comment-ids into selected-thread-comments)
+                                                 (assoc :selected-thread-comments #{})))))}
+                 [:i.arrow.right.icon]])]
 
              [:div.eight.wide.full.height.column
               [:div.ui.input (merge (when (:article/name error-map) {:class "error"})
@@ -219,10 +230,14 @@
                         [:i.caret.down.icon]]
                        [:button.ui.button
                         {:on-click (fn [_]
-                                     (swap! local update-in [:editing-article :article/blocks]
-                                            (fn [blocks]
-                                              (vec (concat (take index blocks)
-                                                           (drop (inc index) blocks))))))}
+                                     (let [removed-id (:curating-block/id curating-block)]
+                                       (swap! local (fn [s]
+                                                      (-> s
+                                                          (update-in [:editing-article :article/blocks]
+                                                                     (fn [blocks]
+                                                                       (vec (concat (take index blocks)
+                                                                                    (drop (inc index) blocks)))))
+                                                          (update :curated-comment-ids disj removed-id))))))}
                         [:i.close.icon]]]
                       [:div.metadata
                        [:span (get-in curating-block [:curating-block/posted-by :user/name])

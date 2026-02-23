@@ -7,8 +7,8 @@
 (duct/load-hierarchy)
 
 (defn -main [& args]
-  (let [keys (or (duct/parse-keys args) [:back-channeling.migrator/schema :duct/daemon])]
+  (let [keys     (or (duct/parse-keys args) [:back-channeling.migrator/schema :duct/daemon])
+        profiles [:duct.profile/prod]]
     (-> (duct/read-config (io/resource (or (env "BC_CONFIG_PATH")
                                            "back_channeling/config.edn")))
-        (duct/prep keys)
-        (duct/exec keys))))
+        (duct/exec-config profiles keys))))

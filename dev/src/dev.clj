@@ -15,7 +15,9 @@
 (duct/load-hierarchy)
 
 (defn read-config []
-  (duct/read-config (io/resource "dev.edn")))
+  (duct/merge-configs
+   (duct/read-config (io/resource "back_channeling/config.edn"))
+   (duct/read-config (io/resource "dev.edn"))))
 
 (defn test []
   (eftest/run-tests (eftest/find-tests "test")))
@@ -25,4 +27,5 @@
 (when (io/resource "local.clj")
   (load "local"))
 
-(integrant.repl/set-prep! (comp duct/prep read-config))
+(integrant.repl/set-prep! #(-> (duct/prep-config (read-config) [:duct.profile/dev :duct.profile/local])
+                               (dissoc :duct.core/requires)))

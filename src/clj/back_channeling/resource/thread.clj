@@ -36,7 +36,7 @@
 
 (defn thread-resource [{:keys [datomic socketapp]} board-name thread-id]
   (liberator/resource base-resource
-   :allowed-methods [:put]
+   :allowed-methods [:get :put]
    :malformed? #(parse-request %)
 
    :allowed? #(case (get-in % [:request :request-method])
@@ -59,5 +59,12 @@
 
    :handle-created (fn [_]
                      {:status "ok"})
+   :handle-ok (fn [_]
+                (threads/find-thread datomic thread-id))))
+
+(defn thread-readonly-resource [{:keys [datomic]} thread-id]
+  (liberator/resource base-resource
+   :allowed-methods [:get]
+   :allowed? #(has-permission? % #{:read-thread :read-any-thread})
    :handle-ok (fn [_]
                 (threads/find-thread datomic thread-id))))

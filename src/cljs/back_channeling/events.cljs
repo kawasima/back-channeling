@@ -95,14 +95,14 @@
                :handler (fn [response] [::board-permissions-fetched board-name response])
                :error-handler (fn [_ xhrio]
                                 (when (= (.getStatus xhrio) 404)
-                                  [::board-permissions-fetched board-name {:user/permissions #{}}]))}}))))
+                                  [::board-permissions-fetched board-name {:user/permissions nil}]))}}))))
 
 (rf/reg-event-db
  ::board-permissions-fetched
  (fn [db [_ board-name {:keys [user/permissions]}]]
    (let [idx (find-board (:boards db) board-name)]
      (if idx
-       (assoc-in db [:boards idx :user/permissions] (or permissions #{}))
+       (assoc-in db [:boards idx :user/permissions] permissions)
        db))))
 
 (rf/reg-event-fx
@@ -251,14 +251,14 @@
 (rf/reg-event-fx
  ::close-thread
  (fn [_ [_ {:keys [thread/id board/name]}]]
-   {:http {:path (str "/api/board/" board-name "/thread/" id)
+   {:http {:path (str "/api/board/" name "/thread/" id)
            :method :PUT
            :body {:close-thread id}}}))
 
 (rf/reg-event-fx
  ::open-thread
  (fn [_ [_ {:keys [thread/id board/name]}]]
-   {:http {:path (str "/api/board/" board-name "/thread/" id)
+   {:http {:path (str "/api/board/" name "/thread/" id)
            :method :PUT
            :body {:open-thread id}}}))
 

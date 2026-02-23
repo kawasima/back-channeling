@@ -11,7 +11,7 @@
                    :background {:color "#F8FBF8"}}
      [:.column {:max-width (px 450)}]]
     [:tr.unread {:font-weight "bold"}]]
-   [:img.ui.logo.image {:width (px 240)}]
+   [:img.ui.logo.image {:width (px 160)}]
 
    [:.preview {:white-space "pre-wrap"}]
    [:.main.content {:min-height "100%"
