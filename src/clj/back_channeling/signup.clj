@@ -2,6 +2,7 @@
   (:require [hiccup.core :refer [html]]
             [hiccup.page :refer [include-js]]
             [ring.util.response :refer [resource-response content-type header redirect]]
+            [ring.util.anti-forgery :refer [anti-forgery-field]]
 
             [buddy.hashers :as hashers]
             [back-channeling [layout :refer [layout]]]
@@ -57,6 +58,7 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
        [:img.ui.image {:src (str prefix "/img/logo.png") }]]]
      [:form.ui.large.login.form (merge {:method "post"}
                                        (when error-map {:class "error"}))
+      (anti-forgery-field)
       [:div.ui.stacked.segment
        [:div.field
         [:div.ui.two.column.grid
