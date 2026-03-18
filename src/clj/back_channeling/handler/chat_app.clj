@@ -123,10 +123,15 @@
                                  [:user/email :user/name
                                   :password-credential/password
                                   :token-credential/token])
-                    options))
-   (POST "/logout" []
-     (-> (redirect "/")
-         (assoc :session {})))))
+                    options))))
+
+;; Logout is outside wrap-anti-forgery because the SPA logout form
+;; (root.cljs) cannot easily include a CSRF token. Logout only
+;; destroys the session, so the CSRF risk is minimal.
+(defn- default-logout-route []
+  (POST "/logout" []
+    (-> (redirect "/")
+        (assoc :session {}))))
 
 (defmethod ig/init-key :back-channeling.handler/chat-app
   [_ {:keys [datomic login-enabled? env prefix logout-route plugin-js-path]
@@ -153,5 +158,7 @@
                (catch java.nio.file.NoSuchFileException _
                  {:status 404 :headers {} :body "Not found"}))))]
     (if login-enabled?
-      (routes r (wrap-anti-forgery (login-routes {:prefix prefix :datomic datomic})))
+      (routes r
+              (wrap-anti-forgery (login-routes {:prefix prefix :datomic datomic}))
+              (default-logout-route))
       (if logout-route (routes r logout-route) r))))
