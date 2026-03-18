@@ -8,7 +8,8 @@
             [buddy.sign.jwt :as jwt]
             [buddy.sign.jws :as jws]
             [compojure.core :refer [POST routes]]
-            [camel-snake-kebab.core :refer :all]))
+            [camel-snake-kebab.core :refer :all]
+            [back-channeling.auth.util :refer [api-access?]]))
 
 ;; Patch buddy-sign to support :none algorithm for Bouncr SSO.
 ;; Bouncr sends unsigned JWTs in x-bouncr-credential header.
@@ -16,11 +17,6 @@
                 (fn [m]
                   (assoc m :none {:signer   (fn [_ _] "")
                                   :verifier (fn [_ _ _] true)})))
-
-(defn api-access? [req]
-  (if-let [accept (get-in req [:headers "accept"])]
-    (or (.contains accept "application/json")
-        (.contains accept "application/edn"))))
 
 (defn- handle-unauthorized-default
   "A default response constructor for an unauthorized request."

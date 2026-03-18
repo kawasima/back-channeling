@@ -1,12 +1,8 @@
 (ns back-channeling.auth.backend.session
   (:require [integrant.core :as ig]
             [ring.util.response :refer [redirect]]
-            [buddy.auth.backends.session :refer [session-backend]]))
-
-(defn- api-access? [req]
-  (if-let [accept (get-in req [:headers "accept"])]
-    (or (.contains accept "application/json")
-        (.contains accept "application/edn"))))
+            [buddy.auth.backends.session :refer [session-backend]]
+            [back-channeling.auth.util :refer [api-access?]]))
 
 (defn- handle-unauthorized-default
   "A default response constructor for an unauthorized request."

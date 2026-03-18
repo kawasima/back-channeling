@@ -1,15 +1,28 @@
 (ns back-channeling.resource.comment
   (:require [liberator.core :as liberator]
             [datomic.api :as d]
-            (back-channeling [util :refer [parse-request]])
+            (back-channeling [util :refer [parse-request]]
+                             [mention :as mention])
             [back-channeling.websocket.socketapp :refer [broadcast-message multicast-message]]
             (back-channeling.boundary [comments :as comments]
                                       [read-comments :as read-comments]
                                       [threads :as threads]
                                       [reactions :as reactions]
                                       [users :as users])
-            (back-channeling.resource [base :refer [base-resource has-permission? thread-allowed?]]))
+            (back-channeling.resource [base :refer [base-resource has-permission? thread-allowed?
+                                                      perm-read-thread perm-write-thread perm-delete-comment]]))
   (:import [java.util Date]))
+
+(defn- broadcast-thread-update
+  [socketapp datomic board-name thread-id & {:keys [comment-no user resnum]}]
+  (broadcast-message
+   socketapp
+   [:update-thread (cond-> {:db/id thread-id
+                             :thread/last-updated (Date.)
+                             :thread/resnum (or resnum (comments/count datomic thread-id))
+                             :board/name board-name}
+                     comment-no (assoc :comments/no comment-no)
+                     user       (assoc :comment/posted-by user))]))
 
 (defn comments-resource [{:keys [datomic socketapp]} board-name thread-id from to]
   (liberator/resource
@@ -25,8 +38,8 @@
                                           "comment.format/markdown"
                                           "comment.format/voice"]]])
    :allowed? #(case (get-in % [:request :request-method])
-                :get   (has-permission? % #{:read-thread :read-any-thread})
-                :post  (has-permission? % #{:write-thread :write-any-thread}))
+                :get   (has-permission? % perm-read-thread)
+                :post  (has-permission? % perm-write-thread))
 
    :processable? (fn [ctx]
                    (if (#{:put :post} (get-in ctx [:request :request-method]))
@@ -52,13 +65,12 @@
                            :comment/public? true}]
                          (when-not (:comment/sage? comment)
                            [{:db/id thread-id :thread/last-updated now}])))
-                (broadcast-message
-                 socketapp
-                 [:update-thread {:db/id thread-id
-                                  :thread/last-updated now
-                                  :thread/resnum (inc resnum)
-                                  :comment/posted-by user
-                                  :board/name board-name}])
+                ;; Add mentioned users as watchers
+                (doseq [mentioned-name (mention/extract-mentions (:comment/content comment))]
+                  (when (users/find-by-name datomic mentioned-name)
+                    (threads/add-watcher datomic thread-id {:user/name mentioned-name})))
+                (broadcast-thread-update socketapp datomic board-name thread-id
+                                        :resnum (inc resnum) :user user)
                 (when-let [watchers (not-empty (->> (threads/find-watchers datomic thread-id)
                                                     :thread/watchers
                                                     (apply hash-set)))]
@@ -97,30 +109,20 @@
    :allowed-methods [:post :delete]
    :malformed? #(parse-request % [:map [:reaction/name [:string {:min 1}]]])
    :allowed? #(case (get-in % [:request :request-method])
-                   :post   (has-permission? % #{:write-thread :write-any-thread})
-                   :delete (has-permission? % #{:delete-comment :delete-any-comment}))
+                   :post   (has-permission? % perm-write-thread)
+                   :delete (has-permission? % perm-delete-comment))
    :post! (fn [{comment-reaction :edn identity :identity :as ctx}]
             (when (thread-allowed? ctx datomic #{:write-any-thread} thread-id)
               (let [user (users/find-by-name datomic (:user/name identity))
                     reaction (reactions/find-by-name datomic (:reaction/name comment-reaction))]
                 (comments/add-reaction datomic reaction thread-id comment-no user)
-                (broadcast-message
-                 socketapp
-                 [:update-thread {:db/id thread-id
-                                  :thread/last-updated (Date.)
-                                  :thread/resnum (comments/count datomic thread-id)
-                                  :comments/no comment-no
-                                  :board/name board-name}]))))
+                (broadcast-thread-update socketapp datomic board-name thread-id
+                                        :comment-no comment-no))))
    :delete! (fn [{identity :identity :as ctx}]
               (when (or (has-permission? ctx #{:delete-any-comment})
                         (-> (comments/find-by-thread datomic thread-id)
                             (nth (dec comment-no))
                             (#(= (get-in % [:comment/posted-by :user/name]) (:user/name identity)))))
                 (comments/hide datomic thread-id comment-no)
-                (broadcast-message
-                 socketapp
-                 [:update-thread {:db/id thread-id
-                                  :thread/last-updated (Date.)
-                                  :thread/resnum (comments/count datomic thread-id)
-                                  :comments/no comment-no
-                                  :board/name board-name}])))))
+                (broadcast-thread-update socketapp datomic board-name thread-id
+                                        :comment-no comment-no)))))

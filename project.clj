@@ -21,6 +21,7 @@
                  [buddy/buddy-auth "3.0.323"]
                  [buddy/buddy-core "1.12.0-430"]
                  [buddy/buddy-sign "3.6.1-359"]
+                 [buddy/buddy-hashers "2.0.167"]
                  [camel-snake-kebab "0.4.3"]
 
                  [org.clojure/core.async "1.7.701"]
@@ -41,7 +42,8 @@
                  [cheshire "5.13.0"]
                  [com.fasterxml.jackson.core/jackson-core "2.17.0"]
                  [com.fasterxml.jackson.core/jackson-databind "2.17.0"]
-                 [liberator "0.15.3"]]
+                 [liberator "0.15.3"]
+                 [clj-http "3.13.0"]]
 
   :plugins [[duct/lein-duct "0.12.3"]]
   :pom-plugins [[org.apache.maven.plugins/maven-assembly-plugin "2.5.5"
@@ -66,4 +68,4 @@
                                    [binaryage/devtools "1.0.7"]]
                     :source-paths   ["dev/src"]
                     :resource-paths ["target/resources" "dev/resources" "resources"]}
-   :project/test   {}})
+   :project/test   {:prep-tasks ^:replace ["javac" "compile"]}})
