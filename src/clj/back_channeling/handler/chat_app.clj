@@ -139,11 +139,8 @@
                    file-path (.normalize (Paths/get "voices" (into-array String [thread-id filename])))]
                (if-not (.startsWith (.toAbsolutePath file-path) base-dir)
                  {:status 400 :headers {} :body "Invalid path"}
-                 (let [content-type (cond (.endsWith filename ".wav") "audio/wav"
-                                          (.endsWith filename ".ogg") "audio/ogg"
-                                          :else "application/octet-stream")]
-                   {:headers {"content-type" content-type}
-                    :body (FileInputStream. (.toString file-path))})))))]
+                 {:headers {"content-type" "audio/ogg"}
+                  :body (FileInputStream. (.toString file-path))}))))]
     (if login-enabled?
       (routes r (login-routes {:prefix prefix :datomic datomic}))
       (if logout-route (routes r logout-route) r))))
