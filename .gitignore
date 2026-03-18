@@ -29,5 +29,6 @@ pom.xml
 /resources/back_channeling/public/js/process/
 /resources/back_channeling/public/js/back_channeling/
 /resources/back_channeling/public/js/cljsc_opts.edn
+/resources/back_channeling/bot_config.edn
 /resources/back_channeling/public/js/back-channeling.min.js
 /resources/back_channeling/public/js/main.js
