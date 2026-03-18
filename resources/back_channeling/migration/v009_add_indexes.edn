@@ -1,0 +1,4 @@
+[{:db/ident :thread/comments
+  :db/index true}
+ {:db/ident :read-comment/thread
+  :db/index true}]

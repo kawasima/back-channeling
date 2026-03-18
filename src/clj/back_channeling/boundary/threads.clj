@@ -53,18 +53,14 @@
          (map (fn [[k v]]
                 (apply max-key :score/value v)))
          (sort-by :score/value >)
+         (take 50)
          vec))
 
   (find-thread [{:keys [connection]} thread-id]
-    (-> (d/pull (d/db connection)
-                '[:*
-                  {:thread/comments
-                   [:*
-                    {:comment/format [:db/ident]}
-                    {:comment/posted-by [:user/name :user/email]}]}]
-                thread-id)
-        (update-in [:thread/comments]
-                   (partial map-indexed #(assoc %2 :comment/no (inc %1))))))
+    (d/pull (d/db connection)
+            '[:db/id :thread/title :thread/since :thread/last-updated :thread/public?
+              {:thread/watchers [:user/name :user/email]}]
+            thread-id))
 
   (find-watchers [{:keys [connection]} thread-id]
     (d/pull (d/db connection)
