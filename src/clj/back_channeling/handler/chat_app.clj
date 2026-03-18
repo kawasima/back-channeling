@@ -136,14 +136,14 @@
                                                   (content-type "text/css")))
            (GET ["/voice/:thread-id/:filename" :thread-id #"\d+" :filename #"[0-9a-f\-]+\.ogg"] [thread-id filename]
              (let [base-dir (.toAbsolutePath (Paths/get "voices" (into-array String [])))
-                   file-path (.normalize (.resolve base-dir (Paths/get "" (into-array String [thread-id filename]))))]
-               (when-not (.startsWith file-path base-dir)
-                 (throw (IllegalArgumentException. "Invalid path")))
-               (let [content-type (cond (.endsWith filename ".wav") "audio/wav"
-                                        (.endsWith filename ".ogg") "audio/ogg"
-                                        :else (throw (IllegalArgumentException. filename)))]
-                 {:headers {"content-type" content-type}
-                  :body (FileInputStream. (.toString file-path))}))))]
+                   file-path (.normalize (Paths/get "voices" (into-array String [thread-id filename])))]
+               (if-not (.startsWith (.toAbsolutePath file-path) base-dir)
+                 {:status 400 :headers {} :body "Invalid path"}
+                 (let [content-type (cond (.endsWith filename ".wav") "audio/wav"
+                                          (.endsWith filename ".ogg") "audio/ogg"
+                                          :else "application/octet-stream")]
+                   {:headers {"content-type" content-type}
+                    :body (FileInputStream. (.toString file-path))})))))]
     (if login-enabled?
       (routes r (login-routes {:prefix prefix :datomic datomic}))
       (if logout-route (routes r logout-route) r))))
