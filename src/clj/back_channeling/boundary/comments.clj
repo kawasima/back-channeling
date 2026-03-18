@@ -7,6 +7,7 @@
   (find-by-thread [datomic thread-id])
   (count [datomic thread-id])
   (count-writenum [datomic thread-id identity])
+  (count-writenums-batch [datomic thread-ids identity])
   (save [datomic comment])
   (hide [datomic thread-id comment-no])
   (add-reaction [datomic reaction thread-id comment-no user]))
@@ -38,6 +39,15 @@
                    [?comment :comment/posted-by ?user]
                    [?user :user/name ?user-name]]}
          (d/db connection) thread-id (:user/name identity)))
+
+  (count-writenums-batch [{:keys [connection]} thread-ids identity]
+    (let [results (d/q '{:find [?thread (count ?comment)]
+                         :in [$ [?thread ...] ?user-name]
+                         :where [[?thread :thread/comments ?comment]
+                                 [?comment :comment/posted-by ?user]
+                                 [?user :user/name ?user-name]]}
+                       (d/db connection) thread-ids (:user/name identity))]
+      (into {} results)))
 
   (save [{:keys [connection]} comment]
     (-> (d/transact connection comment)

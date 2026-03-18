@@ -176,17 +176,21 @@
      {:http {:path (str "/api/board/" name "/thread/" id "/comments/" range-str)
              :handler (fn [response] [callback-event {:thread thread :from from :comments response}])}})))
 
+(defn- merge-comments
+  "Merge new comments into existing collection efficiently."
+  [existing new-comments]
+  (->> (into (sorted-map)
+             (map (fn [c] [(:comment/no c) c]))
+             (concat existing new-comments))
+       vals))
+
 (rf/reg-event-fx
  ::comments-fetched-for-thread
  (fn [{:keys [db]} [_ {:keys [thread from comments]}]]
    (let [id (:db/id thread)]
      {:db (-> db
               (assoc-in [:threads id :db/id] id)
-              (update-in [:threads id :thread/comments]
-                         #(->> (concat % comments)
-                               (map (fn [c] [(:comment/no c) c]))
-                               (into (sorted-map))
-                               vals))
+              (update-in [:threads id :thread/comments] merge-comments comments)
               (update :page dissoc :loading?))
       :dispatch [::update-readnum id]})))
 
@@ -216,11 +220,7 @@
                            (max lastnum)))]
      (-> db
          (assoc-in [:threads id :db/id] id)
-         (update-in [:threads id :thread/comments]
-                    #(->> (concat % comments)
-                          (map (fn [c] [(:comment/no c) c]))
-                          (into (sorted-map))
-                          vals))
+         (update-in [:threads id :thread/comments] merge-comments comments)
          (cond->
            (and idx readnum)
            (assoc-in [:board :board/threads idx :thread/readnum] readnum))))))

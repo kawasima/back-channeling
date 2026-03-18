@@ -48,11 +48,14 @@
            (boards/save datomic (merge old board) (:db/id old)))
 
    :handle-ok (fn [{board :board identity :identity}]
-                (->> (boards/find-threads datomic (:db/id board) identity)
-                     (map #(assoc % :thread/writenum (comments/count-writenum datomic (:db/id %) identity)))
-                     (map #(update % :thread/watchers
-                        (fn [watchers] (apply hash-set watchers))
-
-                        ))
-                     ((fn [threads] (assoc board :board/threads (vec threads))))
-                     ((fn [board] (assoc board :user/permissions (:user/permissions identity))))))))
+                (let [threads (boards/find-threads datomic (:db/id board) identity)
+                      thread-ids (mapv :db/id threads)
+                      writenums (if (seq thread-ids)
+                                  (comments/count-writenums-batch datomic thread-ids identity)
+                                  {})]
+                  (-> board
+                      (assoc :board/threads
+                             (->> threads
+                                  (mapv #(assoc % :thread/writenum (get writenums (:db/id %) 0)))
+                                  (mapv #(update % :thread/watchers (fn [w] (apply hash-set w))))))
+                      (assoc :user/permissions (:user/permissions identity)))))))
