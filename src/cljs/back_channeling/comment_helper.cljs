@@ -34,7 +34,7 @@
 
 (defn highlight-text [text {:keys [search-highlight]}]
   (if (and search-highlight (not (string/blank? search-highlight)))
-    (let [pattern (re-pattern (str "(?i)" (escape-regex search-highlight)))]
+    (let [pattern (js/RegExp. (escape-regex search-highlight) "gi")]
       (interleave
        (vec (.split text pattern))
        (concat (->> (re-seq pattern text)

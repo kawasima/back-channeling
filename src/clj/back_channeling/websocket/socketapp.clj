@@ -77,7 +77,8 @@
   (on-close [{:keys [channels path] :as socketapp} ch close-reason]
     (let [user (find-user-by-channel socketapp ch)]
       (swap! channels update-in [path] dissoc ch)
-      (handle-command socketapp [:leave user] ch))))
+      (when user
+        (handle-command socketapp [:leave user] ch)))))
 
 (defmethod ig/init-key :back-channeling.websocket/socketapp [_ {:keys [logger path cache]}]
   (map->Socketapp {:logger logger

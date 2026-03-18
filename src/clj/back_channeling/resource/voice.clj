@@ -66,9 +66,14 @@
               (try
                 (Files/copy body-stream path
                             (make-array CopyOption 0))
-                (catch clojure.lang.ExceptionInfo e
+                {::filename filename}
+                (catch clojure.lang.ExceptionInfo _
                   (Files/deleteIfExists path)
-                  (throw e)))
-              {::filename filename}))
+                  {::size-exceeded true}))))
+   :new? (fn [ctx] (not (::size-exceeded ctx)))
+   :respond-with-entity? true
+   :handle-ok (fn [ctx]
+                {:status 413
+                 :message "Voice file exceeds size limit"})
    :handle-created (fn [ctx]
                      {:comment/content (str thread-id "/" (::filename ctx))})))
