@@ -3,7 +3,7 @@
             [datomic.api :as d]
 
             (back-channeling [util :refer [parse-request]])
-            [back-channeling.websocket.socketapp :refer [broadcast-message]]
+            [back-channeling.websocket.socketapp :refer [board-multicast-message]]
             (back-channeling.boundary [threads :as threads]
                                       [users :as users])
             (back-channeling.resource [base :refer [base-resource has-permission? thread-allowed?
@@ -27,7 +27,7 @@
                   [tempids temp-thread-id] (threads/save datomic board-name th user)
                   thread-id (d/resolve-tempid (d/db (:connection datomic)) tempids temp-thread-id)]
               (threads/add-watcher datomic thread-id identity)
-              (broadcast-message socketapp [:update-board {:board/name board-name}])
+              (board-multicast-message socketapp [:update-board {:board/name board-name}] board-name)
               {:db/id thread-id}))
 
    :handle-ok (fn [{{{:keys [q]} :params} :request :as ctx}]
@@ -53,10 +53,10 @@
              (when (has-permission? ctx #{:read-any-thread})
                (when open-thread
                  (threads/open-thread datomic thread-id)
-                 (broadcast-message socketapp [:update-board {:board/name board-name}]))
+                 (board-multicast-message socketapp [:update-board {:board/name board-name}] board-name))
                (when close-thread
                  (threads/close-thread datomic thread-id)
-                 (broadcast-message socketapp [:update-board {:board/name board-name}])))))
+                 (board-multicast-message socketapp [:update-board {:board/name board-name}] board-name)))))
 
    :handle-created (fn [_]
                      {:status "ok"})

@@ -120,7 +120,8 @@
               (assoc db :board {} :threads {} :thread-order []))
             (assoc :page {:type :board :board/name name :loading? true})
             (dissoc :search-highlight))
-    :dispatch [::fetch-board name]}))
+    :dispatch-n [[::fetch-board name]
+                 [::subscribe-board name]]}))
 
 (rf/reg-event-fx
  ::fetch-board
@@ -323,10 +324,11 @@
  ::open-socket
  (fn [{:keys [db]} [_ token]]
    (let [prefix (:prefix db)]
-     {:ws-open {:url (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://")
+     {:db (assoc db :ws-token token)
+      :ws-open {:url (str (if (= "https:" (.-protocol js/location)) "wss://" "ws://")
                           (.-host js/location)
                           prefix
-                          "/ws?token=" token)
+                          "/ws")
                 :on-open (fn []
                            (rf/dispatch [::socket-opened]))
                 :on-close (fn [_]
@@ -338,14 +340,32 @@
  ::socket-opened
  (fn [{:keys [db]} _]
    (let [was-disconnected? (= (:socket db) :disconnect)
-         thread-id (get-in db [:page :thread/id])]
-     (cond-> {:db (assoc db :socket :connect)}
-       (and was-disconnected? thread-id)
-       (assoc :dispatch [::fetch-comments
-                         {:thread {:db/id thread-id
-                                   :board/name (get-in db [:page :board/name])}
-                          :from (-> (get-in db [:threads thread-id :thread/comments]) count inc)
-                          :callback-event ::add-comments}])))))
+         thread-id (get-in db [:page :thread/id])
+         board-name (get-in db [:page :board/name])
+         dispatches (cond-> []
+                      ;; Always send auth on connect
+                      true (conj [::send-auth])
+                      ;; Subscribe to current board if any
+                      board-name (conj [::subscribe-board board-name])
+                      ;; Fetch missed comments on reconnect
+                      (and was-disconnected? thread-id)
+                      (conj [::fetch-comments
+                             {:thread {:db/id thread-id :board/name board-name}
+                              :from (-> (get-in db [:threads thread-id :thread/comments]) count inc)
+                              :callback-event ::add-comments}]))]
+     {:db (assoc db :socket :connect)
+      :dispatch-n dispatches})))
+
+(rf/reg-event-fx
+ ::send-auth
+ (fn [{:keys [db]} _]
+   (when-let [token (:ws-token db)]
+     {:ws-send {:command :auth :message {:token token}}})))
+
+(rf/reg-event-fx
+ ::subscribe-board
+ (fn [_ [_ board-name]]
+   {:ws-send {:command :subscribe-board :message {:board/name board-name}}}))
 
 (rf/reg-event-db
  ::socket-closed
