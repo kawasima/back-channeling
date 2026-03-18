@@ -165,7 +165,8 @@
                                               :callback-event ::comments-fetched-for-thread}]
                            [::scroll-to-comment no]]}
        need-board-refresh?
-       (update :dispatch-n conj [::fetch-board name])))))
+       (update :dispatch-n into [[::fetch-board name]
+                                  [::subscribe-board name]])))))
 
 (rf/reg-event-fx
  ::fetch-comments
