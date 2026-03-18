@@ -61,8 +61,9 @@
    :handle-created (fn [_]
                      {:status "ok"})
    :handle-ok (fn [_]
-                (threads/find-thread datomic thread-id))))
+                (threads/find-thread-meta datomic thread-id))))
 
+;; Readonly resource returns full thread with comments (used by bot, curation)
 (defn thread-readonly-resource [{:keys [datomic]} thread-id]
   (liberator/resource base-resource
    :allowed-methods [:get]
