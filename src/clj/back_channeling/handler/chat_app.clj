@@ -23,10 +23,10 @@
   "Check password against legacy sha256(salt + password) hash.
    Uses constant-time comparison to prevent timing attacks."
   [password salt stored-hash]
-  (let [passwd-bytes (into-array Byte/TYPE (concat salt (.getBytes password)))
+  (let [passwd-bytes (into-array Byte/TYPE (concat salt (.getBytes password "UTF-8")))
         hash-bytes (buddy.core.hash/sha256 passwd-bytes)
         hash-hex (buddy.core.codecs/bytes->hex hash-bytes)]
-    (buddy.core.bytes/equals? (.getBytes hash-hex) (.getBytes stored-hash))))
+    (buddy.core.bytes/equals? (.getBytes hash-hex "UTF-8") (.getBytes stored-hash "UTF-8"))))
 
 (defn- upgrade-to-bcrypt
   "Replace legacy sha256 credential with bcrypt hash."
@@ -106,7 +106,8 @@
        (let [next-url (get-in req [:query-params "next"] "/")
              safe-url (if (and (string? next-url)
                                (.startsWith next-url "/")
-                               (not (.startsWith next-url "//")))
+                               (not (.startsWith next-url "//"))
+                               (not (re-find #"[\r\n\\]" next-url)))
                         next-url
                         "/")]
          (-> (redirect safe-url)
