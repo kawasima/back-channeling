@@ -1,0 +1,25 @@
+{;; Server connection
+ :server-url "http://localhost:3009"
+
+ ;; Bot user credentials (register via /signup with token auth)
+ :bot-name "ai-bot"
+ :bot-token "CHANGE_ME"
+
+ :system-prompt "You are an AI assistant participating in a team chat. Be helpful, concise, and friendly. When responding to questions, consider the full conversation context. Format your responses in Markdown."
+
+ ;; --- Claude ---
+ ;; :ai-provider {:type :claude
+ ;;               :api-key "YOUR_API_KEY_HERE"
+ ;;               :model "claude-sonnet-4-20250514"}
+
+ ;; --- OpenAI ---
+ ;; :ai-provider {:type :openai
+ ;;               :api-key "YOUR_API_KEY_HERE"
+ ;;               :model "gpt-4o"
+ ;;               :base-url "https://api.openai.com/v1"}
+
+ ;; --- Ollama (OpenAI compatible) ---
+ :ai-provider {:type :openai
+               :api-key "ollama"
+               :model "llama3"
+               :base-url "http://localhost:11434/v1"}}
