@@ -26,9 +26,9 @@
 
 (defn- upgrade-to-bcrypt
   "Replace legacy sha256 credential with bcrypt hash."
-  [connection credential-id password]
+  [connection credential-id password salt]
   @(d/transact connection
-     [[:db/retract credential-id :password-credential/salt]
+     [[:db/retract credential-id :password-credential/salt salt]
       [:db/add credential-id :password-credential/password (hashers/derive password)]]))
 
 (defn auth-by-password [{:keys [connection]} username password]
@@ -45,13 +45,15 @@
           (cond
             ;; bcrypt hash (starts with "$2a$" or similar)
             (and stored-hash (.startsWith stored-hash "$"))
-            (when (hashers/check password stored-hash)
-              user)
+            (try
+              (when (hashers/check password stored-hash)
+                user)
+              (catch Exception _ nil))
 
             ;; legacy sha256 hash — verify and upgrade
             (and stored-hash salt)
             (when (legacy-sha256-check password salt stored-hash)
-              (upgrade-to-bcrypt connection (:db/id credential) password)
+              (upgrade-to-bcrypt connection (:db/id credential) password salt)
               user)))))))
 
 (defn index-view [req {:keys [prefix env plugin-js-path]}]

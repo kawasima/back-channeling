@@ -1,7 +1,7 @@
 (ns back-channeling.components.comment
   (:require [clojure.string :as string]
             [back-channeling.components.avatar :refer [avatar]]
-            [back-channeling.comment-helper :refer [format-plain]]
+            [back-channeling.comment-helper :refer [format-plain escape-regex]]
             [back-channeling.format-helper :refer [date-format-medium]]))
 
 (defn random-string [n]
@@ -9,20 +9,11 @@
        (take n)
        (reduce str)))
 
-(def ^:private re-special-chars #"([.*+?^${}()|\\])")
-
-(defn- escape-regex [s]
-  (string/replace s re-special-chars "\\$1"))
-
 (defn- highlight-html [html query]
   (if (and query (not (string/blank? query)))
     (let [escaped (escape-regex query)
           pattern (js/RegExp. (str "(?<=>)([^<]*?)(" escaped ")") "gi")]
-      (loop [result html]
-        (let [replaced (.replace result pattern "$1<mark style=\"background-color:#fff3cd\">$2</mark>")]
-          (if (= replaced result)
-            result
-            (recur replaced)))))
+      (.replace html pattern "$1<mark style=\"background-color:#fff3cd\">$2</mark>"))
     html))
 
 (defn comment-view [{:keys [app thread comment comment-attrs show-reactions? selected? search-highlight]
