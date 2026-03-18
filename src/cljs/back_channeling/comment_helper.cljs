@@ -27,9 +27,9 @@
         (fn [x] (if (string? x) (f x options) x))
         html))
 
-(def ^:private re-special-chars #"([.*+?^${}()|\\])")
+(def ^:private re-special-chars #"([.*+?^${}()|\\[\]])")
 
-(defn- escape-regex [s]
+(defn escape-regex [s]
   (string/replace s re-special-chars "\\$1"))
 
 (defn highlight-text [text {:keys [search-highlight]}]

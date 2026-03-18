@@ -2,21 +2,29 @@
   (:gen-class)
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.core.cache :as cache]
             [back-channeling.bot.ai :as ai]
             [back-channeling.bot.ai.claude]
             [back-channeling.bot.ai.openai]
             [back-channeling.bot.api :as bot-api]
             [back-channeling.bot.ws :as bot-ws]
             [back-channeling.mention :as mention])
-  (:import [java.util.concurrent Executors TimeUnit ScheduledExecutorService]))
+  (:import [java.net URI]
+           [java.net.http WebSocket]
+           [java.util.concurrent Executors TimeUnit ScheduledExecutorService]))
 
 ;; -- State -----------------------------------------------------------------
 
+(def ^:private max-monitored-threads 100)
+
 (defonce state (atom {:access-token nil
                       :ws-connection nil
-                      :monitored-threads #{}}))
+                      :monitored-threads (cache/lru-cache-factory {} :threshold max-monitored-threads)}))
 
 (defn- get-token [] (:access-token @state))
+
+(defn- monitor-thread! [thread-id]
+  (swap! state update :monitored-threads cache/miss thread-id true))
 
 ;; -- Message building ------------------------------------------------------
 
@@ -46,7 +54,7 @@
         mentions (mention/extract-mentions (or content ""))]
     (and (not= poster bot-name)
          (or (contains? mentions bot-name)
-             (contains? monitored-threads thread-id)))))
+             (cache/has? monitored-threads thread-id)))))
 
 (defn- handle-notify!
   [config ai-provider notify-data]
@@ -56,7 +64,7 @@
         access-token (get-token)
         monitored-threads (:monitored-threads @state)]
     (when (should-respond? notify-data bot-name monitored-threads)
-      (swap! state update :monitored-threads conj thread-id)
+      (monitor-thread! thread-id)
       (try
         (let [poster (get-in notify-data [:comment/posted-by :user/name])
               thread (bot-api/fetch-thread config access-token thread-id)
@@ -81,13 +89,27 @@
 
 ;; -- Connection management -------------------------------------------------
 
+(defn- close-old-ws! []
+  (when-let [^WebSocket old (:ws-connection @state)]
+    (try
+      (.sendClose old WebSocket/NORMAL_CLOSURE "reconnecting")
+      (catch Exception _))))
+
+(defn- server-url->ws-url [^String server-url]
+  (let [uri (URI. server-url)]
+    (str (case (.getScheme uri)
+           "https" "wss"
+           "ws")
+         "://" (.getAuthority uri) (.getPath uri))))
+
 (declare connect-ws!)
 
 (defn- connect-ws!
   [config ai-provider ^ScheduledExecutorService executor]
   (let [access-token (get-token)
-        ws-url (str (.replace ^String (:server-url config) "http" "ws")
+        ws-url (str (server-url->ws-url (:server-url config))
                     "/ws?token=" access-token)]
+    (close-old-ws!)
     (try
       (let [ws (bot-ws/connect! ws-url
                  {:on-message (fn [msg] (on-ws-message config ai-provider executor msg))
@@ -95,19 +117,21 @@
                               (.println System/err (str "WebSocket closed: " status-code " " reason))
                               (.schedule executor
                                 ^Runnable (fn []
-                                            (try
-                                              (let [new-token (bot-api/authenticate! config)]
-                                                (swap! state assoc :access-token new-token))
-                                              (catch Exception e
-                                                (.println System/err (str "Re-authentication failed: " (.getMessage e)))))
-                                            (connect-ws! config ai-provider executor))
+                                            (if-let [new-token (try
+                                                                 (bot-api/authenticate! config)
+                                                                 (catch Exception e
+                                                                   (.println System/err (str "Re-authentication failed: " (.getMessage e)))
+                                                                   nil))]
+                                              (do
+                                                (swap! state assoc :access-token new-token)
+                                                (connect-ws! config ai-provider executor))
+                                              (.println System/err "Giving up reconnection after auth failure")))
                                 (long 5) TimeUnit/SECONDS))
                   :on-error (fn [error]
                               (.println System/err (str "WebSocket error: " (.getMessage error))))})]
         (swap! state assoc :ws-connection ws))
       (catch Exception e
         (.println System/err (str "WebSocket connection failed: " (.getMessage e)))
-        ;; Retry after delay
         (.schedule executor
           ^Runnable (fn [] (connect-ws! config ai-provider executor))
           (long 10) TimeUnit/SECONDS)))))
@@ -163,10 +187,10 @@
     (start-token-refresh! config executor)
     (connect-ws! config ai-provider executor)
     (.println System/err "Bot connected and listening")
-    ;; Shutdown hook to clean up executor
     (.addShutdownHook (Runtime/getRuntime)
       (Thread. ^Runnable (fn []
                            (.println System/err "Shutting down bot...")
+                           (close-old-ws!)
                            (.shutdown executor)
                            (when-not (.awaitTermination executor 10 TimeUnit/SECONDS)
                              (.shutdownNow executor)))))

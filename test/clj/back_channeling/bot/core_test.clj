@@ -1,5 +1,6 @@
 (ns back-channeling.bot.core-test
   (:require [clojure.test :refer :all]
+            [clojure.core.cache :as cache]
             [back-channeling.bot.core :refer [build-messages should-respond?]]))
 
 (deftest build-messages-test
@@ -44,25 +45,25 @@
          {:comment/content "hey @mybot help"
           :thread/id 1
           :comment/posted-by {:user/name "alice"}}
-         "mybot" #{})))
+         "mybot" (cache/lru-cache-factory {}))))
 
   (testing "responds to monitored thread"
     (is (should-respond?
          {:comment/content "no mention"
           :thread/id 1
           :comment/posted-by {:user/name "alice"}}
-         "mybot" #{1})))
+         "mybot" (cache/lru-cache-factory {1 true}))))
 
   (testing "does not respond to own messages"
     (is (not (should-respond?
               {:comment/content "@mybot"
                :thread/id 1
                :comment/posted-by {:user/name "mybot"}}
-              "mybot" #{}))))
+              "mybot" (cache/lru-cache-factory {})))))
 
   (testing "does not respond without mention or monitored thread"
     (is (not (should-respond?
               {:comment/content "hello everyone"
                :thread/id 99
                :comment/posted-by {:user/name "alice"}}
-              "mybot" #{1})))))
+              "mybot" (cache/lru-cache-factory {1 true}))))))
