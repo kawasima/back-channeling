@@ -3,7 +3,8 @@
             [duct.logger :refer [log]]
             [clojure.edn :as edn]
             (back-channeling.boundary [tokens :as tokens]))
-  (:import [io.undertow.websockets.core WebSockets WebSocketCallback]))
+  (:import [io.undertow.websockets.core WebSockets WebSocketCallback]
+           [java.util.concurrent Executors ScheduledExecutorService TimeUnit]))
 
 
 (defprotocol ISendMessage
@@ -37,6 +38,9 @@
 
 (defmulti handle-command (fn [socketapp msg ch] (first msg)))
 
+(defmethod handle-command :default [{:keys [logger]} [cmd] ch]
+  (log logger :warn ::unknown-command {:command cmd}))
+
 (defmethod handle-command :auth [{:keys [channels path cache] :as socketapp} [_ {:keys [token]}] ch]
   (when-let [user (some-> (tokens/auth-by cache token)
                           (select-keys [:user/name :user/email]))]
@@ -59,7 +63,7 @@
                      [:call message]
                      (:to message)))
 
-(defrecord Socketapp [channels path cache logger])
+(defrecord Socketapp [channels path cache logger scheduler])
 
 (defn- make-ws-callback [logger user]
   (proxy [WebSocketCallback] []
@@ -87,27 +91,33 @@
         (WebSockets/sendText (pr-str message) channel
                              (make-ws-callback logger user)))))
 
-  (on-connect [{:keys [channels path logger] :as socketapp} exchange channel]
+  (on-connect [{:keys [channels path logger ^ScheduledExecutorService scheduler] :as socketapp} exchange channel]
     ;; Store channel as unauthenticated. Client must send :auth message.
     (swap! channels assoc-in [path channel] {:user nil :board nil})
     ;; Close channel if not authenticated within 10 seconds
-    (future
-      (Thread/sleep 10000)
-      (when (and (get-in @channels [path channel])
-                 (nil? (get-in @channels [path channel :user])))
-        (log logger :info ::auth-timeout {:channel channel})
-        (try
-          (.sendClose channel 1008 "Authentication timeout")
-          (catch Exception _)))))
+    (.schedule scheduler
+      ^Runnable (fn []
+                  (when (and (get-in @channels [path channel])
+                             (nil? (get-in @channels [path channel :user])))
+                    (log logger :info ::auth-timeout {:channel channel})
+                    (try
+                      (.sendClose channel 1008 "Authentication timeout")
+                      (catch Exception _))))
+      (long 10) TimeUnit/SECONDS))
 
-  (on-message [{:keys [channels path] :as socketapp} ch message]
-    (let [parsed (edn/read-string message)
-          cmd (first parsed)
-          authenticated? (get-in @channels [path ch :user])]
-      ;; :auth only from unauthenticated; :leave only from on-close (internal)
-      (when (and (not= cmd :leave)
-                 (or (= cmd :auth) authenticated?))
-        (handle-command socketapp parsed ch))))
+  (on-message [{:keys [channels path logger] :as socketapp} ch message]
+    (try
+      (let [parsed (edn/read-string message)
+            cmd (first parsed)
+            authenticated? (get-in @channels [path ch :user])]
+        ;; :leave only from on-close (internal), :auth only when unauthenticated
+        (when (and (not= cmd :leave)
+                   (if (= cmd :auth)
+                     (not authenticated?)
+                     authenticated?))
+          (handle-command socketapp parsed ch)))
+      (catch Exception e
+        (log logger :warn ::ws-message-parse-error {:error (.getMessage e)}))))
 
   (on-close [{:keys [channels path] :as socketapp} ch close-reason]
     (let [user (find-user-by-channel socketapp ch)]
@@ -119,4 +129,9 @@
   (map->Socketapp {:logger logger
                    :channels (atom {})
                    :path path
-                   :cache cache}))
+                   :cache cache
+                   :scheduler (Executors/newSingleThreadScheduledExecutor)}))
+
+(defmethod ig/halt-key! :back-channeling.websocket/socketapp [_ {:keys [^ScheduledExecutorService scheduler]}]
+  (when scheduler
+    (.shutdown scheduler)))
