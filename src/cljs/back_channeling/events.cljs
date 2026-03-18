@@ -364,8 +364,11 @@
 
 (rf/reg-event-fx
  ::subscribe-board
- (fn [_ [_ board-name]]
-   {:ws-send {:command :subscribe-board :message {:board/name board-name}}}))
+ (fn [{:keys [db]} [_ board-name]]
+   ;; Only send if socket is connected. On reconnect, ::socket-opened
+   ;; will re-subscribe to the current board.
+   (when (= (:socket db) :connect)
+     {:ws-send {:command :subscribe-board :message {:board/name board-name}}})))
 
 (rf/reg-event-db
  ::socket-closed
