@@ -13,6 +13,7 @@ RUN curl -sSL -o /tmp/datomic.zip \
 WORKDIR /opt/datomic-pro
 
 COPY entrypoint.sh /opt/datomic-pro/entrypoint.sh
+COPY transactor.properties.tmpl /opt/datomic-pro/config/transactor.properties.tmpl
 RUN chmod +x /opt/datomic-pro/entrypoint.sh
 
 EXPOSE 4334 4335

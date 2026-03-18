@@ -128,7 +128,11 @@
 (defmethod ig/init-key :back-channeling.handler/chat-app
   [_ {:keys [datomic login-enabled? env prefix logout-route plugin-js-path]
       :or   {login-enabled? true}}]
-  (let [r (routes
+  (let [voices-base-dir (try (.toRealPath (Paths/get "voices" (into-array String []))
+                                          (into-array java.nio.file.LinkOption []))
+                             (catch java.nio.file.NoSuchFileException _
+                               (.toAbsolutePath (Paths/get "voices" (into-array String [])))))
+        r (routes
            (GET "/" req (index-view req {:prefix prefix :env env :plugin-js-path plugin-js-path}))
            (GET "/react/react.js" [] (-> (resource-response "cljsjs/development/react.inc.js")
                                          (content-type "text/javascript")))
@@ -137,9 +141,9 @@
                                                   (content-type "text/css")))
            (GET ["/voice/:thread-id/:filename" :thread-id #"\d+" :filename #"[0-9a-f\-]+\.ogg"] [thread-id filename]
              (try
-               (let [base-dir (.toRealPath (Paths/get "voices" (into-array String [])) (into-array java.nio.file.LinkOption []))
-                     file-path (.toRealPath (Paths/get "voices" (into-array String [thread-id filename])) (into-array java.nio.file.LinkOption []))]
-                 (if-not (.startsWith file-path base-dir)
+               (let [file-path (.toRealPath (Paths/get "voices" (into-array String [thread-id filename]))
+                                            (into-array java.nio.file.LinkOption []))]
+                 (if-not (.startsWith file-path voices-base-dir)
                    {:status 400 :headers {} :body "Invalid path"}
                    {:headers {"content-type" "audio/ogg"}
                     :body (FileInputStream. (.toString file-path))}))
