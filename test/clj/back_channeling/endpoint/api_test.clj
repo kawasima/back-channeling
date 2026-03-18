@@ -3,11 +3,11 @@
             [clojure.edn :as edn]
             [back-channeling.test-helper :as th]
             [back-channeling.resource.board :refer [boards-resource board-resource]]
-            [back-channeling.resource.thread :refer [threads-resource]]
+            [back-channeling.resource.thread :refer [threads-resource thread-resource
+                                                      thread-readonly-resource]]
             [back-channeling.resource.comment :refer [comments-resource]]
             [back-channeling.resource.reaction :refer [reactions-resource]]
-            [back-channeling.resource.article :refer [articles-resource]]
-            [liberator.dev :refer [wrap-trace]]))
+            [back-channeling.resource.article :refer [articles-resource]]))
 
 (def ^:dynamic *system* nil)
 
@@ -55,6 +55,41 @@
           response (handler request)]
       (is (= 201 (:status response))))))
 
+;; -- Board resource (single board with threads) ---------------------------
+
+(deftest board-resource-test
+  (let [_ (th/create-test-user *system* "alice" "alice@test.com")
+        _ (th/create-test-board *system* "myboard" "Test board")]
+    ;; Create a thread so board has content
+    (let [handler (threads-resource *system* "myboard")
+          request (th/make-authenticated-request :post
+                    :identity {:user/name "alice"}
+                    :body {:thread/title "Thread 1"
+                           :comment/content "Hello"})
+          response (handler request)]
+      (is (= 201 (:status response))))
+
+    (testing "GET board returns threads with writenum defaulting to 0"
+      (let [handler (board-resource *system* "myboard")
+            request (th/make-authenticated-request :get
+                      :identity {:user/name "alice"})
+            response (handler request)
+            body (parse-body response)]
+        (is (= 200 (:status response)))
+        (is (= 1 (count (:board/threads body))))
+        ;; alice posted 1 comment so writenum should be 1
+        (is (= 1 (:thread/writenum (first (:board/threads body)))))))
+
+    (testing "GET board with different user has writenum 0"
+      (th/create-test-user *system* "bob" "bob@test.com")
+      (let [handler (board-resource *system* "myboard")
+            request (th/make-authenticated-request :get
+                      :identity {:user/name "bob"})
+            response (handler request)
+            body (parse-body response)]
+        (is (= 200 (:status response)))
+        (is (= 0 (:thread/writenum (first (:board/threads body)))))))))
+
 ;; -- Thread tests ---------------------------------------------------------
 
 (deftest threads-resource-test
@@ -80,6 +115,41 @@
                                     :comment/content "Should fail"})}
             response (handler request)]
         (is (= 401 (:status response)))))))
+
+;; -- Thread resource (single thread metadata) -----------------------------
+
+(deftest thread-resource-test
+  (let [_ (th/create-test-user *system* "alice" "alice@test.com")
+        _ (th/create-test-board *system* "default" "Default board")
+        ;; Create a thread
+        create-handler (threads-resource *system* "default")
+        create-resp (create-handler
+                     (th/make-authenticated-request :post
+                       :identity {:user/name "alice"}
+                       :body {:thread/title "Meta test"
+                              :comment/content "First comment"}))
+        thread-id (:db/id (parse-body create-resp))]
+
+    (testing "GET thread returns metadata without comments"
+      (let [handler (thread-resource *system* "default" thread-id)
+            request (th/make-authenticated-request :get
+                      :identity {:user/name "alice"})
+            response (handler request)
+            body (parse-body response)]
+        (is (= 200 (:status response)))
+        (is (= "Meta test" (:thread/title body)))
+        (is (nil? (:thread/comments body)))))
+
+    (testing "GET readonly thread returns comments"
+      (let [handler (thread-readonly-resource *system* thread-id)
+            request (th/make-authenticated-request :get
+                      :identity {:user/name "alice"})
+            response (handler request)
+            body (parse-body response)]
+        (is (= 200 (:status response)))
+        (is (= "Meta test" (:thread/title body)))
+        (is (seq (:thread/comments body)))
+        (is (= "First comment" (:comment/content (first (:thread/comments body)))))))))
 
 ;; -- Article tests --------------------------------------------------------
 
