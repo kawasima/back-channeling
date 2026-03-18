@@ -19,6 +19,8 @@
     (swap! messages conj {:type :broadcast :message message}))
   (multicast-message [_ message users]
     (swap! messages conj {:type :multicast :message message :users users}))
+  (board-multicast-message [_ message board-name]
+    (swap! messages conj {:type :board-multicast :message message :board board-name}))
   (on-connect [_ exchange channel] nil)
   (on-message [_ ch message] nil)
   (on-close [_ ch close-reason] nil))

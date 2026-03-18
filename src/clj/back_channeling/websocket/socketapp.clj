@@ -9,37 +9,49 @@
 (defprotocol ISendMessage
   (broadcast-message [this message])
   (multicast-message [this message users])
+  (board-multicast-message [this message board-name])
   (on-connect [this exchange channel])
   (on-message [this channel message])
   (on-close   [this channel close-reason]))
 
+;; Channel data structure:
+;; {path {channel {:user {:user/name "..." :user/email "..."}
+;;                 :board "board-name-or-nil"}}}
+;; :user is nil until :auth command is received.
+
 (defn find-users [{:keys [channels path]}]
   (->> (get @channels path)
        vals
-       (keep identity)
+       (keep :user)
        (apply hash-set)))
 
 (defn find-user-by-channel [{:keys [channels path]} ch]
-  (get-in @channels [path ch]))
+  (get-in @channels [path ch :user]))
 
 (defn find-user-by-name [{:keys [channels path]} user-name]
   (->> (get @channels path)
        vals
-       (keep identity)
+       (keep :user)
        (filter #(= (:user/name %) user-name))
        first))
 
-(defn- token-from-request [exchange]
-  (-> (.getRequestParameters exchange)
-      (.get "token")
-      first))
-
 (defmulti handle-command (fn [socketapp msg ch] (first msg)))
+
+(defmethod handle-command :auth [{:keys [channels path cache] :as socketapp} [_ {:keys [token]}] ch]
+  (when-let [user (some-> (tokens/auth-by cache token)
+                          (select-keys [:user/name :user/email]))]
+    (swap! channels assoc-in [path ch :user] user)
+    (broadcast-message socketapp [:join user])))
+
+(defmethod handle-command :subscribe-board [{:keys [channels path]} [_ {:keys [board/name]}] ch]
+  (when (and name (get-in @channels [path ch :user]))
+    (swap! channels assoc-in [path ch :board] name)))
 
 (defmethod handle-command :leave [socketapp [_ message] ch]
   (broadcast-message socketapp
                      [:leave {:user/name (:user/name message)
                               :user/email (:user/email message)}]))
+
 (defmethod handle-command :call [socketapp [_ message] ch]
   (multicast-message socketapp
                      [:call message]
@@ -47,32 +59,43 @@
 
 (defrecord Socketapp [channels path cache logger])
 
+(defn- make-ws-callback [logger user]
+  (proxy [WebSocketCallback] []
+    (complete [channel context])
+    (onError [channel context throwable]
+      (log logger :warn ::ws-send-error {:user user :error throwable}))))
+
 (extend-type Socketapp
   ISendMessage
   (broadcast-message [{:keys [channels path logger]} message]
-    (doseq [[channel user] (get @channels path)]
-      (WebSockets/sendText (pr-str message) channel
-                           (proxy [WebSocketCallback] []
-                             (complete [channel context])
-                             (onError [channel context throwable]
-                               (log logger :warn ::ws-send-error {:user user :error throwable}))))))
-  (multicast-message [{:keys [channels path logger]} message users]
-    (doseq [[channel user] (get @channels path)]
-      (when (users user)
+    (doseq [[channel {:keys [user]}] (get @channels path)]
+      (when user
         (WebSockets/sendText (pr-str message) channel
-                             (proxy [WebSocketCallback] []
-                               (complete [channel context])
-                               (onError [channel context throwable]
-                                 (log logger :warn ::ws-send-error {:user user :error throwable})))))))
+                             (make-ws-callback logger user)))))
 
-  (on-connect [{:keys [channels path cache] :as socketapp} exchange channel]
-    (if-let [user (some-> (tokens/auth-by cache (token-from-request exchange))
-                          (select-keys [:user/name :user/email]))]
-      (do
-        (swap! channels assoc-in [path channel] user)
-        (broadcast-message socketapp [:join user]))))
-  (on-message [socketapp ch message]
-    (handle-command socketapp (edn/read-string message) ch))
+  (multicast-message [{:keys [channels path logger]} message users]
+    (doseq [[channel {:keys [user]}] (get @channels path)]
+      (when (and user (users user))
+        (WebSockets/sendText (pr-str message) channel
+                             (make-ws-callback logger user)))))
+
+  (board-multicast-message [{:keys [channels path logger]} message board-name]
+    (doseq [[channel {:keys [user board]}] (get @channels path)]
+      (when (and user (= board board-name))
+        (WebSockets/sendText (pr-str message) channel
+                             (make-ws-callback logger user)))))
+
+  (on-connect [{:keys [channels path] :as socketapp} exchange channel]
+    ;; Store channel as unauthenticated. Client must send :auth message.
+    (swap! channels assoc-in [path channel] {:user nil :board nil}))
+
+  (on-message [{:keys [channels path] :as socketapp} ch message]
+    (let [parsed (edn/read-string message)
+          cmd (first parsed)
+          authenticated? (get-in @channels [path ch :user])]
+      ;; Only allow :auth command from unauthenticated channels
+      (when (or (= cmd :auth) authenticated?)
+        (handle-command socketapp parsed ch))))
 
   (on-close [{:keys [channels path] :as socketapp} ch close-reason]
     (let [user (find-user-by-channel socketapp ch)]

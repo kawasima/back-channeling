@@ -3,7 +3,7 @@
             [datomic.api :as d]
             (back-channeling [util :refer [parse-request]]
                              [mention :as mention])
-            [back-channeling.websocket.socketapp :refer [broadcast-message multicast-message]]
+            [back-channeling.websocket.socketapp :refer [board-multicast-message multicast-message]]
             (back-channeling.boundary [comments :as comments]
                                       [read-comments :as read-comments]
                                       [threads :as threads]
@@ -15,14 +15,15 @@
 
 (defn- broadcast-thread-update
   [socketapp datomic board-name thread-id & {:keys [comment-no user resnum]}]
-  (broadcast-message
+  (board-multicast-message
    socketapp
    [:update-thread (cond-> {:db/id thread-id
                              :thread/last-updated (Date.)
                              :thread/resnum (or resnum (comments/count datomic thread-id))
                              :board/name board-name}
                      comment-no (assoc :comments/no comment-no)
-                     user       (assoc :comment/posted-by user))]))
+                     user       (assoc :comment/posted-by user))]
+   board-name))
 
 (defn comments-resource [{:keys [datomic socketapp]} board-name thread-id from to]
   (liberator/resource

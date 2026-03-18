@@ -107,8 +107,7 @@
 (defn- connect-ws!
   [config ai-provider ^ScheduledExecutorService executor]
   (let [access-token (get-token)
-        ws-url (str (server-url->ws-url (:server-url config))
-                    "/ws?token=" access-token)]
+        ws-url (str (server-url->ws-url (:server-url config)) "/ws")]
     (close-old-ws!)
     (try
       (let [ws (bot-ws/connect! ws-url
@@ -129,7 +128,9 @@
                                 (long 5) TimeUnit/SECONDS))
                   :on-error (fn [error]
                               (.println System/err (str "WebSocket error: " (.getMessage error))))})]
-        (swap! state assoc :ws-connection ws))
+        (swap! state assoc :ws-connection ws)
+        ;; Authenticate via message instead of URL query parameter
+        (.sendText ws (pr-str [:auth {:token access-token}]) true))
       (catch Exception e
         (.println System/err (str "WebSocket connection failed: " (.getMessage e)))
         (.schedule executor
