@@ -136,12 +136,15 @@
            (GET "/css/back-channeling.css" [] (-> {:body (style/build)}
                                                   (content-type "text/css")))
            (GET ["/voice/:thread-id/:filename" :thread-id #"\d+" :filename #"[0-9a-f\-]+\.ogg"] [thread-id filename]
-             (let [base-dir (.toAbsolutePath (Paths/get "voices" (into-array String [])))
-                   file-path (.normalize (Paths/get "voices" (into-array String [thread-id filename])))]
-               (if-not (.startsWith (.toAbsolutePath file-path) base-dir)
-                 {:status 400 :headers {} :body "Invalid path"}
-                 {:headers {"content-type" "audio/ogg"}
-                  :body (FileInputStream. (.toString file-path))}))))]
+             (try
+               (let [base-dir (.toRealPath (Paths/get "voices" (into-array String [])) (into-array java.nio.file.LinkOption []))
+                     file-path (.toRealPath (Paths/get "voices" (into-array String [thread-id filename])) (into-array java.nio.file.LinkOption []))]
+                 (if-not (.startsWith file-path base-dir)
+                   {:status 400 :headers {} :body "Invalid path"}
+                   {:headers {"content-type" "audio/ogg"}
+                    :body (FileInputStream. (.toString file-path))}))
+               (catch java.nio.file.NoSuchFileException _
+                 {:status 404 :headers {} :body "Not found"}))))]
     (if login-enabled?
       (routes r (login-routes {:prefix prefix :datomic datomic}))
       (if logout-route (routes r logout-route) r))))

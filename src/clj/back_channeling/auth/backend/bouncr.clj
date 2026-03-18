@@ -52,7 +52,7 @@
                                               (map #(keyword (->kebab-case %)))
                                               set))})
            (catch Exception _ nil)))))
-    (-authenticate [_ requst data]
+    (-authenticate [_ request data]
       (authfn datomic data))
 
     proto/IAuthorization
