@@ -6,17 +6,9 @@
             [buddy.auth :refer [authenticated?]]
             [buddy.auth.protocols :as proto]
             [buddy.sign.jwt :as jwt]
-            [buddy.sign.jws :as jws]
             [compojure.core :refer [POST routes]]
             [camel-snake-kebab.core :refer :all]
             [back-channeling.auth.util :refer [api-access?]]))
-
-;; Patch buddy-sign to support :none algorithm for Bouncr SSO.
-;; Bouncr sends unsigned JWTs in x-bouncr-credential header.
-(alter-var-root #'jws/+signers-map+
-                (fn [m]
-                  (assoc m :none {:signer   (fn [_ _] "")
-                                  :verifier (fn [_ _ _] true)})))
 
 (defn- handle-unauthorized-default
   "A default response constructor for an unauthorized request."
@@ -45,12 +37,13 @@
 
 (defmethod ig/init-key :back-channeling.auth.backend/bouncr
   [_ {:keys [datomic unauthorized-handler authfn pkey] :or {authfn authfn-default}}]
-  (reify
+  (when pkey
+    (reify
     proto/IAuthentication
     (-parse [_ request]
       (merge
        (when-let [message (get-in request [:headers "x-bouncr-credential"])]
-         (let [cred (jwt/unsign message "secret" {:alg :none})]
+         (let [cred (jwt/unsign message pkey {:alg :hs256})]
            {:user/name (:sub cred)
             :user/email (:email cred)
             :user/permissions (set (some->> (:permissions cred)
@@ -63,7 +56,7 @@
     (-handle-unauthorized [_ request metadata]
       (if unauthorized-handler
         (unauthorized-handler request metadata)
-        (handle-unauthorized-default request)))))
+        (handle-unauthorized-default request))))))
 
 (defmethod ig/init-key :back-channeling.route.logout/bouncr
   [_ _]

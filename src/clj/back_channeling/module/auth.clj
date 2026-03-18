@@ -11,18 +11,20 @@
 
 (defn wrap-same-origin-policy [handler console]
   (fn [req]
-    (if (:uri console)
-      (if (= (:request-method req) :options)
-        ;;Pre-flight request
-        {:status 200
-        :headers {"Access-Control-Allow-Methods" "POST,GET,PUT,DELETE,OPTIONS"
-                  "Access-Control-Allow-Origin" (:uri console)
-                  "Access-Control-Allow-Headers" "Origin, Authorization, Accept, Content-Type"
-                  "Access-Control-Allow-Credentials" "true"}}
-        (when-let [resp (handler req)]
-          (-> resp
-              (header "Access-Control-Allow-Origin" (:uri console))
-              (header "Access-Control-Allow-Credentials" "true"))))
+    (if-let [allowed-origin (:uri console)]
+      (let [request-origin (get-in req [:headers "origin"])]
+        (if (and request-origin (= request-origin allowed-origin))
+          (if (= (:request-method req) :options)
+            {:status 200
+             :headers {"Access-Control-Allow-Methods" "POST,GET,PUT,DELETE,OPTIONS"
+                       "Access-Control-Allow-Origin" allowed-origin
+                       "Access-Control-Allow-Headers" "Origin, Authorization, Accept, Content-Type"
+                       "Access-Control-Allow-Credentials" "true"}}
+            (when-let [resp (handler req)]
+              (-> resp
+                  (header "Access-Control-Allow-Origin" allowed-origin)
+                  (header "Access-Control-Allow-Credentials" "true"))))
+          (handler req)))
       (handler req))))
 
 (defn api-access? [req]

@@ -11,7 +11,8 @@
                                                       "back_channeling/public"]}
                                  :session {:flash true
                                            :cookie-attrs {:http-only true
-                                                          :same-site :strict}}}
+                                                          :same-site :strict
+                                                          :secure true}}}
   :duct.compiler/cljs
   {:builds
    [{:source-paths ["src/clj" "src/cljs"]
