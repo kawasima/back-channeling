@@ -43,14 +43,16 @@
     (swap! channels assoc-in [path ch :user] user)
     (broadcast-message socketapp [:join user])))
 
-(defmethod handle-command :subscribe-board [{:keys [channels path]} [_ {:keys [board/name]}] ch]
-  (when (and name (get-in @channels [path ch :user]))
-    (swap! channels assoc-in [path ch :board] name)))
+(defmethod handle-command :subscribe-board [{:keys [channels path]} [_ {board-name :board/name}] ch]
+  (when (and board-name (get-in @channels [path ch :user]))
+    (swap! channels assoc-in [path ch :board] board-name)))
 
+;; :leave is only dispatched internally from on-close — derive user from
+;; the channel data, never trust client-supplied fields.
 (defmethod handle-command :leave [socketapp [_ message] ch]
-  (broadcast-message socketapp
-                     [:leave {:user/name (:user/name message)
-                              :user/email (:user/email message)}]))
+  (when message
+    (broadcast-message socketapp
+                       [:leave (select-keys message [:user/name :user/email])])))
 
 (defmethod handle-command :call [socketapp [_ message] ch]
   (multicast-message socketapp
@@ -102,8 +104,9 @@
     (let [parsed (edn/read-string message)
           cmd (first parsed)
           authenticated? (get-in @channels [path ch :user])]
-      ;; Only allow :auth command from unauthenticated channels
-      (when (or (= cmd :auth) authenticated?)
+      ;; :auth only from unauthenticated; :leave only from on-close (internal)
+      (when (and (not= cmd :leave)
+                 (or (= cmd :auth) authenticated?))
         (handle-command socketapp parsed ch))))
 
   (on-close [{:keys [channels path] :as socketapp} ch close-reason]
