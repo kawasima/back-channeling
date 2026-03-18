@@ -3,7 +3,6 @@
             [ring.util.response :refer [redirect]]
 
             [datomic.api :as d]
-            [buddy.auth :refer [authenticated?]]
             [buddy.auth.protocols :as proto]
             [buddy.sign.jwt :as jwt]
             [compojure.core :refer [POST routes]]
