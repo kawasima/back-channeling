@@ -36,6 +36,8 @@
                    (:user/email data))))
 
 (defmethod ig/init-key :back-channeling.auth.backend/bouncr
+  ;; Returns nil when :pkey is not configured. Do not include this
+  ;; component in :backends when Bouncr integration is not in use.
   [_ {:keys [datomic unauthorized-handler authfn pkey] :or {authfn authfn-default}}]
   (when pkey
     (reify
