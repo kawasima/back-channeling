@@ -2,9 +2,11 @@ services:
   postgres:
     image: postgres:18
     environment:
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DATOMIC_DB_USER: ${DATOMIC_DB_USER:-datomic}
+      DATOMIC_DB_PASSWORD: ${DATOMIC_DB_PASSWORD:-datomic}
     volumes:
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh
       - pg-data:/var/lib/postgresql
 
   datomic:
@@ -14,10 +16,13 @@ services:
         DATOMIC_VERSION: "1.0.7556"
     depends_on:
       - postgres
+    environment:
+      DATOMIC_DB_USER: ${DATOMIC_DB_USER:-datomic}
+      DATOMIC_DB_PASSWORD: ${DATOMIC_DB_PASSWORD:-datomic}
     ports:
       - "4334:4334"
     volumes:
-      - ./docker/datomic/transactor.properties:/opt/datomic-pro/config/transactor.properties
+      - ./docker/datomic/transactor.properties.tmpl:/opt/datomic-pro/config/transactor.properties.tmpl
 
 volumes:
   pg-data:

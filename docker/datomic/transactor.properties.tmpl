@@ -1,7 +1,7 @@
 protocol=sql
 host=0.0.0.0
 port=4334
-sql-url=jdbc:postgresql://postgres:5432/datomic?user=datomic&password=datomic
+sql-url=jdbc:postgresql://postgres:5432/${DATOMIC_DB_USER}?user=${DATOMIC_DB_USER}&password=${DATOMIC_DB_PASSWORD}
 sql-driver-class=org.postgresql.Driver
 
 memory-index-threshold=32m

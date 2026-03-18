@@ -2,7 +2,7 @@ FROM eclipse-temurin:11-jre-jammy
 
 ARG DATOMIC_VERSION=1.0.7556
 
-RUN apt-get update && apt-get install -y curl unzip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl unzip gettext-base && rm -rf /var/lib/apt/lists/*
 
 RUN curl -sSL -o /tmp/datomic.zip \
     https://datomic-pro-downloads.s3.amazonaws.com/${DATOMIC_VERSION}/datomic-pro-${DATOMIC_VERSION}.zip \
@@ -12,7 +12,8 @@ RUN curl -sSL -o /tmp/datomic.zip \
 
 WORKDIR /opt/datomic-pro
 
+COPY entrypoint.sh /opt/datomic-pro/entrypoint.sh
+
 EXPOSE 4334 4335
 
-ENTRYPOINT ["bin/transactor"]
-CMD ["config/transactor.properties"]
+ENTRYPOINT ["/opt/datomic-pro/entrypoint.sh"]
