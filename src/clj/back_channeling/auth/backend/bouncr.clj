@@ -45,12 +45,14 @@
     (-parse [_ request]
       (merge
        (when-let [message (get-in request [:headers "x-bouncr-credential"])]
-         (let [cred (jwt/unsign message pkey {:alg :hs256})]
-           {:user/name (:sub cred)
-            :user/email (:email cred)
-            :user/permissions (set (some->> (:permissions cred)
-                                            (map #(keyword (->kebab-case %)))
-                                            set))}))))
+         (try
+           (let [cred (jwt/unsign message pkey {:alg :hs256})]
+             {:user/name (:sub cred)
+              :user/email (:email cred)
+              :user/permissions (set (some->> (:permissions cred)
+                                              (map #(keyword (->kebab-case %)))
+                                              set))})
+           (catch Exception _ nil)))))
     (-authenticate [_ requst data]
       (authfn datomic data))
 
