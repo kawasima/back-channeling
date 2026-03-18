@@ -7,6 +7,7 @@
   (pull [datomic id])
   (find-threads [datomic board-name q])
   (find-thread  [datomic thread-id])
+  (find-thread-meta [datomic thread-id])
   (find-watchers [datomic thread-id])
 
   (add-watcher    [datomic thread-id identity])
@@ -57,6 +58,17 @@
          vec))
 
   (find-thread [{:keys [connection]} thread-id]
+    (-> (d/pull (d/db connection)
+                '[:*
+                  {:thread/comments
+                   [:*
+                    {:comment/format [:db/ident]}
+                    {:comment/posted-by [:user/name :user/email]}]}]
+                thread-id)
+        (update-in [:thread/comments]
+                   (partial map-indexed #(assoc %2 :comment/no (inc %1))))))
+
+  (find-thread-meta [{:keys [connection]} thread-id]
     (d/pull (d/db connection)
             '[:db/id :thread/title :thread/since :thread/last-updated :thread/public?
               {:thread/watchers [:user/name :user/email]}]

@@ -6,10 +6,13 @@
 (defrecord Boundary [cache scheduler])
 
 (defn- evict-expired!
-  "Force eviction of expired entries by touching every key via has?."
+  "Force eviction of all expired entries in a single atomic swap."
   [cache-atom]
-  (doseq [k (keys @cache-atom)]
-    (swap! cache-atom #(if (cache/has? % k) % (cache/evict % k)))))
+  (swap! cache-atom
+    (fn [c]
+      (reduce (fn [acc k]
+                (if (cache/has? acc k) acc (cache/evict acc k)))
+              c (keys c)))))
 
 (defmethod ig/init-key :back-channeling.database/cache [_ {:keys [ttl] :or {ttl (* 30 60 1000)}}]
   (let [cache-atom (atom (cache/ttl-cache-factory {} :ttl ttl))
