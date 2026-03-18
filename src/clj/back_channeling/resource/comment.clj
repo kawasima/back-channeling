@@ -65,10 +65,15 @@
                            :comment/public? true}]
                          (when-not (:comment/sage? comment)
                            [{:db/id thread-id :thread/last-updated now}])))
-                ;; Add mentioned users as watchers
-                (doseq [mentioned-name (mention/extract-mentions (:comment/content comment))]
-                  (when (users/find-by-name datomic mentioned-name)
-                    (threads/add-watcher datomic thread-id {:user/name mentioned-name})))
+                ;; Add mentioned users as watchers (batch)
+                (let [mentioned-names (mention/extract-mentions (:comment/content comment))
+                      watcher-tx (into []
+                                       (comp (filter #(users/find-by-name datomic %))
+                                             (map #(vector :db/add thread-id
+                                                           :thread/watchers [:user/name %])))
+                                       mentioned-names)]
+                  (when (seq watcher-tx)
+                    @(d/transact (:connection datomic) watcher-tx)))
                 (broadcast-thread-update socketapp datomic board-name thread-id
                                         :resnum (inc resnum) :user user)
                 (when-let [watchers (not-empty (->> (threads/find-watchers datomic thread-id)
