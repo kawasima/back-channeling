@@ -86,7 +86,7 @@
   [method & {:keys [identity body content-type]}]
   (cond-> {:request-method method
            :headers {"accept" "application/edn"}}
-    identity     (assoc :identity identity)
-    body         (assoc :body (pr-str body))
-    content-type (assoc :content-type content-type)
-    body         (assoc :content-type "application/edn")))
+    identity (assoc :identity identity)
+    body     (assoc :body (pr-str body))
+    true     (assoc :content-type (or content-type
+                                      (when body "application/edn")))))
