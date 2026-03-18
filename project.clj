@@ -34,7 +34,7 @@
                  [io.undertow/undertow-websockets-jsr "2.3.23.Final"]
                  [org.jboss.threads/jboss-threads "3.9.2"]
                  [org.ring-clojure/ring-jakarta-servlet "1.15.3"]
-                 [com.datomic/peer "1.0.7187"
+                 [com.datomic/peer "1.0.7556"
                   :exclusions [org.slf4j/slf4j-api
                                org.slf4j/slf4j-nop
                                com.google.guava/guava]]

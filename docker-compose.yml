@@ -1,13 +1,23 @@
 services:
-  datomic:
-    image: ghcr.io/dat-ecosystem-net/datomic-pro-transactor:1.0.7187
+  postgres:
+    image: postgres:18
     environment:
-      ADMIN_PASSWORD: "admin"
-      DATOMIC_STORAGE_ADMIN_PASSWORD: "admin"
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pg-data:/var/lib/postgresql
+
+  datomic:
+    build:
+      context: docker/datomic
+      args:
+        DATOMIC_VERSION: "1.0.7556"
+    depends_on:
+      - postgres
     ports:
       - "4334:4334"
     volumes:
-      - datomic-data:/opt/datomic-pro/data
+      - ./docker/datomic/transactor.properties:/opt/datomic-pro/config/transactor.properties
 
 volumes:
-  datomic-data:
+  pg-data:

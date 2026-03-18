@@ -57,8 +57,21 @@ The app starts at <http://localhost:3009> using an in-memory Datomic database.
 
 ```
 docker compose up -d
+```
+
+Then update `resources/back_channeling/config.edn`:
+
+```clojure
+:back-channeling.database/datomic {:uri "datomic:sql://bc?jdbc:postgresql://localhost:5432/datomic?user=datomic&password=datomic" :recreate? false}
+```
+
+Start the app:
+
+```
 lein run
 ```
+
+This starts PostgreSQL and a Datomic transactor. Data is persisted in a Docker volume.
 
 #### Manual setup
 
@@ -68,11 +81,7 @@ Download [Datomic Pro](https://www.datomic.com/) and start the transactor:
 /path/to/datomic-pro/bin/transactor config/dev-transactor.properties
 ```
 
-Then update `resources/back_channeling/config.edn`:
-
-```clojure
-:back-channeling.database/datomic {:uri "datomic:dev://localhost:4334/bc?password=admin" :recreate? false}
-```
+Then update `resources/back_channeling/config.edn` with the appropriate URI for your storage backend (e.g., `datomic:dev://`, `datomic:sql://`).
 
 Start the app:
 
@@ -85,7 +94,7 @@ lein run
 | Layer | Library |
 | --- | --- |
 | Language | Clojure 1.12, ClojureScript 1.11 |
-| Database | Datomic Pro (peer) 1.0.7187 |
+| Database | Datomic Pro (peer) 1.0.7556 |
 | HTTP Server | Undertow 2.3 (Jakarta EE 10) |
 | Framework | Duct / Integrant |
 | Frontend | Reagent 1.2 + re-frame 1.4 |
