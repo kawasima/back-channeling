@@ -1,6 +1,8 @@
 (ns back-channeling.handler.chat-app
   (:require [clojure.edn :as edn]
             [ring.util.response :refer [resource-response content-type header redirect]]
+            [ring.util.anti-forgery :refer [anti-forgery-field]]
+            [ring.middleware.anti-forgery :refer [wrap-anti-forgery]]
             [integrant.core :as ig]
             [liberator.dev]
             [hiccup.page :refer [include-js]]
@@ -83,6 +85,7 @@
       (merge {:method "post"}
              (when (= (:request-method req) :post)
                {:class "error"}))
+      (anti-forgery-field)
       [:div.ui.stacked.segment
        [:div.ui.error.message
         [:p "User name or password is wrong."]]
@@ -150,5 +153,5 @@
                (catch java.nio.file.NoSuchFileException _
                  {:status 404 :headers {} :body "Not found"}))))]
     (if login-enabled?
-      (routes r (login-routes {:prefix prefix :datomic datomic}))
+      (routes r (wrap-anti-forgery (login-routes {:prefix prefix :datomic datomic})))
       (if logout-route (routes r logout-route) r))))
