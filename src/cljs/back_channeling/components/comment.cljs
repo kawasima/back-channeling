@@ -9,11 +9,19 @@
        (take n)
        (reduce str)))
 
+(defn- html-escape [s]
+  (-> s
+      (string/replace "&" "&amp;")
+      (string/replace "<" "&lt;")
+      (string/replace ">" "&gt;")
+      (string/replace "\"" "&quot;")))
+
 (defn- highlight-html [html query]
   (if (and query (not (string/blank? query)))
     (let [escaped (escape-regex query)
+          safe-query (html-escape query)
           pattern (js/RegExp. (str "(?<=>)([^<]*?)(" escaped ")") "gi")]
-      (.replace html pattern "$1<mark style=\"background-color:#fff3cd\">$2</mark>"))
+      (.replace html pattern (str "$1<mark style=\"background-color:#fff3cd\">" safe-query "</mark>")))
     html))
 
 (defn comment-view [{:keys [app thread comment comment-attrs show-reactions? selected? search-highlight]

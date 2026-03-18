@@ -25,13 +25,12 @@
         ([^bytes buf]
          (.read ^InputStream this buf 0 (alength buf)))
         ([^bytes buf off len]
-         (if (<= @remaining 0)
-           (throw (ex-info "Voice file exceeds size limit" {:max-bytes limit}))
-           (let [n (.read in buf off len)]
-             (when (pos? n) (swap! remaining - n))
-             (when (< @remaining 0)
-               (throw (ex-info "Voice file exceeds size limit" {:max-bytes limit})))
-             n))))
+         (let [r @remaining]
+           (if (<= r 0)
+             (throw (ex-info "Voice file exceeds size limit" {:max-bytes limit}))
+             (let [n (.read in buf off (int (min len r)))]
+               (when (pos? n) (swap! remaining - n))
+               n)))))
       (close [] (.close in)))))
 
 (defn voices-resource [{:keys [datomic]} thread-id]
