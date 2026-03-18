@@ -85,9 +85,18 @@
         (WebSockets/sendText (pr-str message) channel
                              (make-ws-callback logger user)))))
 
-  (on-connect [{:keys [channels path] :as socketapp} exchange channel]
+  (on-connect [{:keys [channels path logger] :as socketapp} exchange channel]
     ;; Store channel as unauthenticated. Client must send :auth message.
-    (swap! channels assoc-in [path channel] {:user nil :board nil}))
+    (swap! channels assoc-in [path channel] {:user nil :board nil})
+    ;; Close channel if not authenticated within 10 seconds
+    (future
+      (Thread/sleep 10000)
+      (when (and (get-in @channels [path channel])
+                 (nil? (get-in @channels [path channel :user])))
+        (log logger :info ::auth-timeout {:channel channel})
+        (try
+          (.sendClose channel 1008 "Authentication timeout")
+          (catch Exception _)))))
 
   (on-message [{:keys [channels path] :as socketapp} ch message]
     (let [parsed (edn/read-string message)
