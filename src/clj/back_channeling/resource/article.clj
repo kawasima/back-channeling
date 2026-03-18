@@ -9,20 +9,17 @@
   (liberator/resource base-resource
    :allowed-methods [:get :post]
    :malformed? #(parse-request %)
-   :post-to-existing? (fn [{{article-name :article/name} :edn :as ctx}]
-                        (not
-                         (or
-                          (#{:get} (get-in ctx [:request :request-method]))
-                          (and (#{:post} (get-in ctx [:request :request-method]))
-                               (articles/find-by-name datomic article-name)))))
+   :exists? (fn [{{article-name :article/name} :edn :as ctx}]
+              (case (get-in ctx [:request :request-method])
+                :get  true
+                :post (if article-name
+                        (if (articles/find-by-name datomic article-name)
+                          {::existing true}
+                          false)
+                        false)))
+   :conflict? (fn [ctx] (::existing ctx))
 
-   ;; Only :post-to-existing? = false pattern.
-   :put-to-existing? (fn [ctx]
-                       (#{:post} (get-in ctx [:request :request-method])))
-   :conflict? (fn [ctx]
-                (#{:post} (get-in ctx [:request :request-method])))
-
-   :post! (fn [{article :edn req :request}]
+   :post! (fn [{article :edn}]
             {:db/id (articles/save datomic article)})
 
    :handle-created (fn [ctx]
@@ -33,7 +30,7 @@
   (liberator/resource base-resource
    :allowed-methods [:get :put :delete]
    :malformed? #(parse-request %)
-   :put! (fn [{article :edn req :request}]
+   :put! (fn [{article :edn}]
            (let [retract-transaction (->> (articles/find-blocks datomic article-id)
                                           :article/blocks
                                           (map (fn [{id :db/id}]
