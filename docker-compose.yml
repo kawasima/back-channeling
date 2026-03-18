@@ -21,8 +21,6 @@ services:
       DATOMIC_DB_PASSWORD: ${DATOMIC_DB_PASSWORD:-datomic}
     ports:
       - "4334:4334"
-    volumes:
-      - ./docker/datomic/transactor.properties.tmpl:/opt/datomic-pro/config/transactor.properties.tmpl
 
 volumes:
   pg-data:

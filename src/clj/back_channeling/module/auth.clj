@@ -19,11 +19,13 @@
              :headers {"Access-Control-Allow-Methods" "POST,GET,PUT,DELETE,OPTIONS"
                        "Access-Control-Allow-Origin" allowed-origin
                        "Access-Control-Allow-Headers" "Origin, Authorization, Accept, Content-Type"
-                       "Access-Control-Allow-Credentials" "true"}}
+                       "Access-Control-Allow-Credentials" "true"
+                       "Vary" "Origin"}}
             (when-let [resp (handler req)]
               (-> resp
                   (header "Access-Control-Allow-Origin" allowed-origin)
-                  (header "Access-Control-Allow-Credentials" "true"))))
+                  (header "Access-Control-Allow-Credentials" "true")
+                  (header "Vary" "Origin"))))
           (handler req)))
       (handler req))))
 
