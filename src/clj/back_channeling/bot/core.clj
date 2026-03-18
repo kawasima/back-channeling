@@ -133,7 +133,12 @@
       (catch Exception e
         (.println System/err (str "WebSocket connection failed: " (.getMessage e)))
         (.schedule executor
-          ^Runnable (fn [] (connect-ws! config ai-provider executor))
+          ^Runnable (fn []
+                      (if-let [new-token (try (bot-api/authenticate! config)
+                                              (catch Exception _ nil))]
+                        (do (swap! state assoc :access-token new-token)
+                            (connect-ws! config ai-provider executor))
+                        (.println System/err "Giving up reconnection after auth failure")))
           (long 10) TimeUnit/SECONDS)))))
 
 (defn- start-token-refresh!
@@ -168,7 +173,9 @@
     :openai (back-channeling.bot.ai.openai/->OpenAIProvider
               (:api-key ai-provider)
               (or (:model ai-provider) "gpt-4o")
-              (or (:base-url ai-provider) "https://api.openai.com/v1"))))
+              (or (:base-url ai-provider) "https://api.openai.com/v1"))
+    (throw (ex-info (str "Unknown AI provider type: " (:type ai-provider))
+                    {:ai-provider (dissoc ai-provider :api-key)}))))
 
 ;; -- Entry point -----------------------------------------------------------
 
