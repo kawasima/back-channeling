@@ -6,7 +6,8 @@
             [back-channeling.websocket.socketapp :refer [broadcast-message]]
             (back-channeling.boundary [threads :as threads]
                                       [users :as users])
-            (back-channeling.resource [base :refer [base-resource has-permission? thread-allowed?]])))
+            (back-channeling.resource [base :refer [base-resource has-permission? thread-allowed?
+                                                      perm-read-thread perm-write-thread]])))
 
 (defn threads-resource [{:keys [datomic socketapp]} board-name]
   (liberator/resource base-resource
@@ -15,8 +16,8 @@
                                   [:thread/title [:string {:min 1 :max 255}]]
                                   [:comment/content [:string {:min 1 :max 4000}]]])
    :allowed? #(case (get-in % [:request :request-method])
-                :get  (has-permission? % #{:read-thread :read-any-thread})
-                :post (has-permission? % #{:write-thread :write-any-thread}))
+                :get  (has-permission? % perm-read-thread)
+                :post (has-permission? % perm-write-thread))
 
    :handle-created (fn [ctx]
                      {:db/id (:db/id ctx)})
@@ -40,8 +41,8 @@
    :malformed? #(parse-request %)
 
    :allowed? #(case (get-in % [:request :request-method])
-                :get  (has-permission? % #{:read-thread :read-any-thread})
-                :put  (has-permission? % #{:read-thread :read-any-thread}))
+                :get  (has-permission? % perm-read-thread)
+                :put  (has-permission? % perm-read-thread))
 
    :put! (fn [{{:keys [add-watcher remove-watcher open-thread close-thread]} :edn identity :identity :as ctx}]
            (when (thread-allowed? ctx datomic #{:read-any-thread} thread-id)
@@ -65,6 +66,6 @@
 (defn thread-readonly-resource [{:keys [datomic]} thread-id]
   (liberator/resource base-resource
    :allowed-methods [:get]
-   :allowed? #(has-permission? % #{:read-thread :read-any-thread})
+   :allowed? #(has-permission? % perm-read-thread)
    :handle-ok (fn [_]
                 (threads/find-thread datomic thread-id))))

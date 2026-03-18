@@ -11,23 +11,48 @@
             (back-channeling [layout :refer [layout]]
                              [signup :as signup]
                              [style :as style])
+            [buddy.hashers :as hashers]
+            [buddy.core.hash]
+            [buddy.core.codecs]
             [datomic.api :as d])
   (:import [java.io FileInputStream]))
 
+(defn- legacy-sha256-check
+  "Check password against legacy sha256(salt + password) hash."
+  [password salt stored-hash]
+  (let [passwd-bytes (into-array Byte/TYPE (concat salt (.getBytes password)))
+        hash-hex (buddy.core.codecs/bytes->hex (buddy.core.hash/sha256 passwd-bytes))]
+    (= hash-hex stored-hash)))
+
+(defn- upgrade-to-bcrypt
+  "Replace legacy sha256 credential with bcrypt hash."
+  [connection credential-id password]
+  @(d/transact connection
+     [[:db/retract credential-id :password-credential/salt]
+      [:db/add credential-id :password-credential/password (hashers/derive password)]]))
+
 (defn auth-by-password [{:keys [connection]} username password]
   (when (and (not-empty username) (not-empty password))
-    (d/q '{:find [(pull ?s [:*]) .]
-           :in [$ ?uname ?passwd]
-           :where [[?s :user/name ?uname]
-                   [?p :password-credential/user ?s]
-                   [?p :password-credential/salt ?salt]
-                   [(concat ?salt ?passwd) ?passwd-seq]
-                   [(into-array Byte/TYPE ?passwd-seq) ?passwd-bytes]
-                   [(buddy.core.hash/sha256 ?passwd-bytes) ?hash]
-                   [(buddy.core.codecs/bytes->hex ?hash) ?hash-hex]
-                   [?p :password-credential/password ?hash-hex]]}
-         (d/db connection)
-         username password)))
+    (let [db (d/db connection)
+          result (d/q '{:find [[(pull ?s [:*]) (pull ?p [:db/id :password-credential/password :password-credential/salt])]]
+                        :in [$ ?uname]
+                        :where [[?s :user/name ?uname]
+                                [?p :password-credential/user ?s]]}
+                      db username)]
+      (when-let [[user credential] result]
+        (let [stored-hash (:password-credential/password credential)
+              salt (:password-credential/salt credential)]
+          (cond
+            ;; bcrypt hash (starts with "$2a$" or similar)
+            (and stored-hash (.startsWith stored-hash "$"))
+            (when (hashers/check password stored-hash)
+              user)
+
+            ;; legacy sha256 hash — verify and upgrade
+            (and stored-hash salt)
+            (when (legacy-sha256-check password salt stored-hash)
+              (upgrade-to-bcrypt connection (:db/id credential) password)
+              user)))))))
 
 (defn index-view [req {:keys [prefix env plugin-js-path]}]
   (layout prefix req

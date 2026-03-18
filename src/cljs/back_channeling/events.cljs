@@ -9,16 +9,21 @@
 
 ;; -- Initialize ------------------------------------------------------------
 
+(defn- read-meta [property]
+  (some-> js/document
+          (.querySelector (str "meta[property='" property "']"))
+          (.getAttribute "content")))
+
 (rf/reg-event-fx
  ::initialize
  (fn [_ _]
-   (let [prefix (some-> js/document
-                         (.querySelector "meta[property='bc:prefix']")
-                         (.getAttribute "content"))
-         user-name (some-> js/document
-                           (.querySelector "meta[property='bc:user:name']")
-                           (.getAttribute "content"))]
-     {:db (assoc db/default-db :prefix prefix)
+   (let [prefix (read-meta "bc:prefix")
+         user-name (read-meta "bc:user:name")
+         user-email (read-meta "bc:user:email")
+         local-user (when user-name
+                      {:user/name user-name :user/email user-email})]
+     {:db (cond-> (assoc db/default-db :prefix prefix)
+            local-user (assoc :local-user local-user))
       :dispatch-n (cond-> [[::-fetch-reactions]
                             [::-fetch-users]
                             [::connect-socket]]
@@ -66,9 +71,11 @@
 (rf/reg-event-fx
  ::move-to-boards
  (fn [{:keys [db]} _]
-   {:db (assoc db :page (if (not-empty (:boards db))
-                          {:type :boards}
-                          {:type :loading}))
+   {:db (-> db
+            (assoc :page (if (not-empty (:boards db))
+                           {:type :boards}
+                           {:type :loading}))
+            (dissoc :search-highlight))
     :dispatch [::fetch-boards]}))
 
 (rf/reg-event-fx
@@ -110,8 +117,9 @@
  (fn [{:keys [db]} [_ {:keys [board/name]}]]
    {:db (-> (if (= name (get-in db [:board :board/name]))
               db
-              (assoc db :board {} :threads {}))
-            (assoc :page {:type :board :board/name name :loading? true}))
+              (assoc db :board {} :threads {} :thread-order []))
+            (assoc :page {:type :board :board/name name :loading? true})
+            (dissoc :search-highlight))
     :dispatch [::fetch-board name]}))
 
 (rf/reg-event-fx
@@ -128,16 +136,30 @@
 
 (rf/reg-event-fx
  ::move-to-thread
- (fn [{:keys [db]} [_ {:keys [db/id board/name comment/no] :as thread}]]
+ (fn [{:keys [db]} [_ {:keys [db/id board/name comment/no search-query] :as thread}]]
    (let [from (-> (get-in db [:threads id :thread/comments]) count inc)
-         need-board-refresh? (not= name (get-in db [:board :board/name]))]
+         need-board-refresh? (not= name (get-in db [:board :board/name]))
+         current-order (if need-board-refresh? [] (:thread-order db []))
+         already-open? (some #{id} current-order)
+         new-order (if already-open?
+                     current-order
+                     (conj current-order id))
+         evict-ids (when (> (count new-order) db/max-open-threads)
+                     (subvec new-order 0 (- (count new-order) db/max-open-threads)))
+         final-order (if evict-ids
+                       (subvec new-order (count evict-ids))
+                       new-order)]
      (cond-> {:db (cond-> db
                     need-board-refresh? (assoc :threads {})
+                    evict-ids (update :threads #(apply dissoc % evict-ids))
                     true (assoc :page {:type :board
                                        :thread/id id
                                        :board/name name
                                        :comment/no no
-                                       :loading? true}))
+                                       :loading? true}
+                                :thread-order final-order)
+                    search-query (assoc :search-highlight search-query)
+                    (nil? search-query) (dissoc :search-highlight))
               :dispatch-n [[::fetch-comments {:thread thread :from from
                                               :callback-event ::comments-fetched-for-thread}]
                            [::scroll-to-comment no]]}
@@ -217,7 +239,9 @@
  (fn [{:keys [db]} [_ {:keys [thread/id board/name]}]]
    (let [new-threads (dissoc (:threads db) id)
          next-id (-> new-threads first first)]
-     {:db (update db :threads dissoc id)
+     {:db (-> db
+              (update :threads dissoc id)
+              (update :thread-order (fn [order] (filterv #(not= % id) order))))
       :navigate (if next-id
                   (str "#/board/" name "/" next-id)
                   (str "#/board/" name))})))
@@ -388,6 +412,18 @@
    (when comment-no
      {:scroll-to-comment comment-no})))
 
+;; -- Search highlight -------------------------------------------------------
+
+(rf/reg-event-db
+ ::set-search-highlight
+ (fn [db [_ query]]
+   (assoc db :search-highlight query)))
+
+(rf/reg-event-db
+ ::clear-search-highlight
+ (fn [db _]
+   (dissoc db :search-highlight)))
+
 ;; -- Focus title on window focus -------------------------------------------
 
 (rf/reg-event-fx
@@ -429,3 +465,129 @@
           :page {:type :article}
           :target-thread (js/parseInt thread-id)
           :article {:article/name nil :article/blocks []})))
+
+;; -- Search threads --------------------------------------------------------
+
+(rf/reg-event-fx
+ ::search-threads
+ (fn [{:keys [db]} [_ board-name query]]
+   {:http {:path (str "/api/board/" board-name "/threads?q=" (js/encodeURIComponent query))
+           :handler (fn [response] [::search-results-fetched response])}}))
+
+(rf/reg-event-db
+ ::search-results-fetched
+ (fn [db [_ results]]
+   (assoc db :search-result results)))
+
+(rf/reg-event-db
+ ::clear-search-result
+ (fn [db _]
+   (dissoc db :search-result)))
+
+;; -- Save board ------------------------------------------------------------
+
+(rf/reg-event-fx
+ ::save-board
+ (fn [_ [_ {:keys [board on-success on-error]}]]
+   {:http-raw {:path "/api/boards"
+               :method :POST
+               :body board
+               :handler (fn [_]
+                          (when on-success (on-success))
+                          (set! (.-href js/location) (str "#/board/" (:board/name board))))
+               :error-handler (fn [_ xhrio]
+                                (when on-error (on-error xhrio)))}}))
+
+;; -- Save comment ----------------------------------------------------------
+
+(rf/reg-event-fx
+ ::save-comment
+ (fn [_ [_ {:keys [board-name comment on-success]}]]
+   (if (= (:comment/format comment) :comment.format/voice)
+     {:http-raw {:path (str "/api/board/" board-name "/thread/" (:thread/id comment) "/voices")
+                 :method :POST
+                 :body (:comment/content comment)
+                 :format (case (.-type (:comment/content comment))
+                           "audio/webm" :webm
+                           "audio/ogg"  :ogg
+                           "audio/wav"  :wav)
+                 :handler (fn [response]
+                            (rf/dispatch [::post-comment-text
+                                          {:board-name board-name
+                                           :comment (merge comment response)
+                                           :on-success on-success}]))}}
+     {:http-raw {:path (str "/api/board/" board-name "/thread/" (:thread/id comment) "/comments")
+                 :method :POST
+                 :body comment
+                 :handler (fn [response] (when on-success (on-success response)))}})))
+
+(rf/reg-event-fx
+ ::post-comment-text
+ (fn [_ [_ {:keys [board-name comment on-success]}]]
+   {:http-raw {:path (str "/api/board/" board-name "/thread/" (:thread/id comment) "/comments")
+               :method :POST
+               :body comment
+               :handler (fn [response] (when on-success (on-success response)))}}))
+
+;; -- Watch / Unwatch thread (API call) -------------------------------------
+
+(rf/reg-event-fx
+ ::watch-thread-api
+ (fn [_ [_ {:keys [board-name thread user on-done]}]]
+   {:http-raw {:path (str "/api/board/" board-name "/thread/" (:db/id thread))
+               :method :PUT
+               :body {:add-watcher user}
+               :handler (fn [_]
+                          (rf/dispatch [::watch-thread {:thread thread :board/name board-name}])
+                          (when on-done (on-done true)))}}))
+
+(rf/reg-event-fx
+ ::unwatch-thread-api
+ (fn [_ [_ {:keys [board-name thread user on-done]}]]
+   {:http-raw {:path (str "/api/board/" board-name "/thread/" (:db/id thread))
+               :method :PUT
+               :body {:remove-watcher user}
+               :handler (fn [_]
+                          (rf/dispatch [::unwatch-thread {:thread thread :board/name board-name}])
+                          (when on-done (on-done false)))}}))
+
+;; -- Add reaction to comment -----------------------------------------------
+
+(rf/reg-event-fx
+ ::add-reaction
+ (fn [_ [_ {:keys [board-name thread-id comment-no reaction on-done]}]]
+   {:http {:path (str "/api/board/" board-name "/thread/" thread-id "/comment/" comment-no)
+           :method :POST
+           :body (select-keys reaction [:reaction/name])
+           :handler (fn [_] (when on-done [::reaction-added]) nil)}}))
+
+;; -- Fetch thread (for curation) -------------------------------------------
+
+(rf/reg-event-fx
+ ::fetch-thread-comments
+ (fn [_ [_ thread-id]]
+   {:http {:path (str "/api/thread/" thread-id)
+           :handler (fn [response] [::thread-comments-fetched response])}}))
+
+(rf/reg-event-db
+ ::thread-comments-fetched
+ (fn [db [_ thread]]
+   (assoc-in db [:curation-thread :thread/comments] (:thread/comments thread))))
+
+;; -- Save article ----------------------------------------------------------
+
+(rf/reg-event-fx
+ ::save-article
+ (fn [_ [_ {:keys [article user thread-id on-success on-error]}]]
+   (if-let [id (:db/id article)]
+     {:http-raw {:path (str "/api/article/" id)
+                 :method :PUT
+                 :body (assoc article :article/curator user :article/thread thread-id)
+                 :handler (fn [_] (when on-success (on-success id)))}}
+     {:http-raw {:path "/api/articles"
+                 :method :POST
+                 :body (assoc article :article/curator user :article/thread thread-id)
+                 :handler (fn [response]
+                            (when on-success (on-success (:db/id response))))
+                 :error-handler (fn [_ xhrio]
+                                  (when on-error (on-error xhrio)))}})))

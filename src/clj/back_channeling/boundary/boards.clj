@@ -35,21 +35,20 @@
          (or (:permissions identity) #{})))
 
   (find-threads [{:keys [connection]} board-id identity]
-    (->> (d/q '{:find [?th (count ?c) ?cn]
-                :in [$ ?bd ?name]
-                :where [[?bd :board/threads ?th]
-                        [?th :thread/comments ?c]
-                        [(back-channeling.boundary.boards/find-readnum $ ?th ?name) ?cn]]}
-              (d/db connection)
-              board-id
-              (:user/name identity))
-         (mapv
-          (fn [[th cnt cn]]
-            (-> (d/pull (d/db connection) '[:db/id :thread/title :thread/since
-                                            :thread/last-updated :thread/public?
-                                            {:thread/watchers [:user/name :user/email]}] th)
-                (assoc :thread/resnum cnt)
-                (assoc :thread/readnum cn))))))
+    (let [db (d/db connection)]
+      (->> (d/q '{:find [(pull ?th [:db/id :thread/title :thread/since
+                                    :thread/last-updated :thread/public?
+                                    {:thread/watchers [:user/name :user/email]}])
+                         (count ?c) ?cn]
+                  :in [$ ?bd ?name]
+                  :where [[?bd :board/threads ?th]
+                          [?th :thread/comments ?c]
+                          [(back-channeling.boundary.boards/find-readnum $ ?th ?name) ?cn]]}
+                db board-id (:user/name identity))
+           (mapv (fn [[th cnt cn]]
+                   (-> th
+                       (assoc :thread/resnum cnt)
+                       (assoc :thread/readnum cn)))))))
 
   (save
     ([{:keys [connection]} board]

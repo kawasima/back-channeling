@@ -3,8 +3,7 @@
             [hiccup.page :refer [include-js]]
             [ring.util.response :refer [resource-response content-type header redirect]]
 
-            [buddy.core.nonce :as nonce]
-            [buddy.core.hash]
+            [buddy.hashers :as hashers]
             [back-channeling [layout :refer [layout]]]
             [datomic.api :as d]))
 
@@ -162,12 +161,8 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
   (let [[error-map _] (validate-user datomic user)]
     (if error-map
       (signup-view {:error-map error-map :params user} options)
-      (let [salt (nonce/random-nonce 16)
-            password (some-> (not-empty (:password-credential/password user))
-                             (.getBytes)
-                             (#(into-array Byte/TYPE (concat salt %)))
-                             buddy.core.hash/sha256
-                             buddy.core.codecs/bytes->hex)]
+      (let [password (some-> (not-empty (:password-credential/password user))
+                             hashers/derive)]
         (if-not (or password (:token-credential/token user))
           (throw (Exception. user)))
         (let [user-id (d/tempid :db.part/user -1)
@@ -182,8 +177,7 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
                       (when password
                         {:db/id password-id
                          :password-credential/user user-id
-                         :password-credential/password password
-                         :password-credential/salt salt})]
+                         :password-credential/password password})]
                      (remove nil?))]
           (-> (d/transact (:connection datomic) t)
               deref)

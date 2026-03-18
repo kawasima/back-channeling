@@ -62,3 +62,19 @@
 (rf/reg-sub
  :prefix
  (fn [db _] (:prefix db)))
+
+(rf/reg-sub
+ :search-highlight
+ (fn [db _] (:search-highlight db)))
+
+(rf/reg-sub
+ :local-user
+ (fn [db _] (:local-user db)))
+
+(rf/reg-sub
+ :search-result
+ (fn [db _] (:search-result db)))
+
+(rf/reg-sub
+ :curation-thread
+ (fn [db _] (:curation-thread db)))

@@ -27,9 +27,26 @@
         (fn [x] (if (string? x) (f x options) x))
         html))
 
+(def ^:private re-special-chars #"([.*+?^${}()|\\])")
+
+(defn- escape-regex [s]
+  (string/replace s re-special-chars "\\$1"))
+
+(defn highlight-text [text {:keys [search-highlight]}]
+  (if (and search-highlight (not (string/blank? search-highlight)))
+    (let [pattern (re-pattern (str "(?i)" (escape-regex search-highlight)))]
+      (interleave
+       (vec (.split text pattern))
+       (concat (->> (re-seq pattern text)
+                    (map (fn [match]
+                           [:mark {:style {:background-color "#fff3cd"}} match])))
+               (repeat ""))))
+    text))
+
 (defn format-plain [text & options]
   (-> (list text)
       (decorate-comment link-to-url options)
-      (decorate-comment reference-res options)))
+      (decorate-comment reference-res options)
+      (decorate-comment highlight-text options)))
 
 

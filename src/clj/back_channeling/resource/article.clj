@@ -2,11 +2,11 @@
   (:require [liberator.core :as liberator]
 
             (back-channeling [util :refer [parse-request]])
-            (back-channeling.boundary [articles :as articles])))
+            (back-channeling.boundary [articles :as articles])
+            (back-channeling.resource [base :refer [base-resource has-permission?]])))
 
 (defn articles-resource [{:keys [datomic]}]
-  (liberator/resource
-   :available-media-types ["application/edn" "application/json"]
+  (liberator/resource base-resource
    :allowed-methods [:get :post]
    :malformed? #(parse-request %)
    :post-to-existing? (fn [{{article-name :article/name} :edn :as ctx}]
@@ -30,8 +30,7 @@
    :handle-ok (fn [_] (articles/find-all datomic))))
 
 (defn article-resource [{:keys [datomic]} article-id]
-  (liberator/resource
-   :available-media-types ["application/edn" "application/json"]
+  (liberator/resource base-resource
    :allowed-methods [:get :put :delete]
    :malformed? #(parse-request %)
    :put! (fn [{article :edn req :request}]

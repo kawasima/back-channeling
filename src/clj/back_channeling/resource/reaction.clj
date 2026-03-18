@@ -8,5 +8,4 @@
    base-resource
    :allowed-methods [:get]
    :handle-ok (fn [_]
-                (println datomic)
                 (reactions/find-all datomic))))

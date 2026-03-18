@@ -2,20 +2,13 @@
   (:require [reagent.core :as r]
             [re-frame.core :as rf]
             [clojure.string :as string]
-            [back-channeling.api :as api]
-            [back-channeling.components.avatar :refer [avatar]]
-            [back-channeling.components.comment :refer [comment-view]])
-  (:import [goog.i18n DateTimeFormat]))
+            [back-channeling.events :as events]
+            [back-channeling.components.comment :refer [comment-view]]
+            [back-channeling.format-helper :refer [date-format-medium]]))
 
-(def date-format-m (DateTimeFormat. goog.i18n.DateTimeFormat.Format.MEDIUM_DATETIME
-                                    (aget goog.i18n (str "DateTimeSymbols_" (.-language js/navigator)))))
-
-(defn open-thread [thread-id state]
+(defn- open-thread [thread-id]
   (when thread-id
-    (api/request (str "/api/thread/" thread-id)
-                 {:handler (fn [response]
-                             (swap! state assoc-in [:thread :thread/comments]
-                                    (:thread/comments response)))})))
+    (rf/dispatch [::events/fetch-thread-comments thread-id])))
 
 (defn editorial-space-view [{:keys [content]}]
   (let [local (r/atom {:editing? true
@@ -53,8 +46,7 @@
        (clojure.string/join "\n\n")))
 
 (defn article-page []
-  (let [user {:user/name (some-> js/document (.querySelector "meta[property='bc:user:name']") (.getAttribute "content"))
-              :user/email (some-> js/document (.querySelector "meta[property='bc:user:email']") (.getAttribute "content"))}
+  (let [user @(rf/subscribe [:local-user])
         local (r/atom {:selected-thread-comments #{}
                         :curated-comment-ids #{}
                         :editing-article nil
@@ -79,7 +71,7 @@
                    :curated-comment-ids (into #{} (keep :curating-block/id) (:article/blocks editing-article))
                    :thread {:db/id target-thread}))
           (when target-thread
-            (open-thread target-thread local))
+            (open-thread target-thread))
           (reset! initialized? true)
           (when-let [markdown-btn (some-> @root-ref (.querySelector "button.markdown.button"))]
             (set! (.-onclick markdown-btn)
@@ -92,7 +84,9 @@
 
       :reagent-render
       (fn []
-        (let [{:keys [selected-thread-comments curated-comment-ids editorial-space thread editing-article error-map]} @local]
+        (let [{:keys [selected-thread-comments curated-comment-ids editorial-space thread editing-article error-map]} @local
+              curation-thread @(rf/subscribe [:curation-thread])
+              thread (merge thread curation-thread)]
           [:div.curation.full.height.content {:ref (fn [el] (reset! root-ref el))}
            [:div.ui.full.height.grid
             [:div.full.height.row
@@ -175,22 +169,22 @@
                                  (swap! local assoc :error-map {:article/blocks ["All editable spaces must be saved."]})
 
                                  :else
-                                 (if-let [id (:db/id article)]
-                                   (api/request (str "/api/article/" id) :PUT
-                                                (assoc article :article/curator user :article/thread (:db/id thread))
-                                                {:handler (fn [_]
-                                                            (swap! local assoc-in [:editing-article :db/id] id))})
-                                   (api/request "/api/articles" :POST
-                                                (assoc article :article/curator user :article/thread (:db/id thread))
-                                                {:handler (fn [response]
-                                                            (set! (.-href js/location) (str "#/article/" (:db/id response)))
-                                                            (.reload js/location))
-                                                 :error-handler (fn [_ xhrio]
-                                                                  (let [message
-                                                                        (condp == (.getStatus xhrio)
-                                                                          409 "Specified artifact name is already used."
-                                                                          "Unknown error")]
-                                                                    (swap! local assoc :error-map {:article/name [message]})))})))))}
+                                 (rf/dispatch
+                                  [::events/save-article
+                                   {:article article
+                                    :user user
+                                    :thread-id (:db/id thread)
+                                    :on-success (fn [id]
+                                                  (if (:db/id article)
+                                                    (swap! local assoc-in [:editing-article :db/id] id)
+                                                    (do (set! (.-href js/location) (str "#/article/" id))
+                                                        (.reload js/location))))
+                                    :on-error (fn [xhrio]
+                                                (let [message
+                                                      (condp == (.getStatus xhrio)
+                                                        409 "Specified artifact name is already used."
+                                                        "Unknown error")]
+                                                  (swap! local assoc :error-map {:article/name [message]})))}]))))}
                 [:i.save.icon] "Save"]]
               (when-not (empty? error-map)
                 [:div.ui.error.message
@@ -241,7 +235,7 @@
                         [:i.close.icon]]]
                       [:div.metadata
                        [:span (get-in curating-block [:curating-block/posted-by :user/name])
-                        "(" (.format date-format-m (get-in curating-block [:curating-block/posted-at] (js/Date.))) ")"]]
+                        "(" (.format date-format-medium (get-in curating-block [:curating-block/posted-at] (js/Date.))) ")"]]
                       [:div.text
                        (if (= (:curating-block/id curating-block) 0)
                          [editorial-space-view

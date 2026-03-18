@@ -49,19 +49,21 @@
 
 (extend-type Socketapp
   ISendMessage
-  (broadcast-message [{:keys [channels path]} message]
+  (broadcast-message [{:keys [channels path logger]} message]
     (doseq [[channel user] (get @channels path)]
       (WebSockets/sendText (pr-str message) channel
                            (proxy [WebSocketCallback] []
                              (complete [channel context])
-                             (onError [channel context throwable])))))
-  (multicast-message [{:keys [channels path]} message users]
+                             (onError [channel context throwable]
+                               (log logger :warn ::ws-send-error {:user user :error throwable}))))))
+  (multicast-message [{:keys [channels path logger]} message users]
     (doseq [[channel user] (get @channels path)]
       (when (users user)
         (WebSockets/sendText (pr-str message) channel
                              (proxy [WebSocketCallback] []
                                (complete [channel context])
-                               (onError [channel context throwable]))))))
+                               (onError [channel context throwable]
+                                 (log logger :warn ::ws-send-error {:user user :error throwable})))))))
 
   (on-connect [{:keys [channels path cache] :as socketapp} exchange channel]
     (if-let [user (some-> (tokens/auth-by cache (token-from-request exchange))
@@ -73,9 +75,9 @@
     (handle-command socketapp (edn/read-string message) ch))
 
   (on-close [{:keys [channels path] :as socketapp} ch close-reason]
-    (swap! channels update-in [path] dissoc ch)
-    (handle-command socketapp
-                    [:leave (find-user-by-channel socketapp ch)] ch)))
+    (let [user (find-user-by-channel socketapp ch)]
+      (swap! channels update-in [path] dissoc ch)
+      (handle-command socketapp [:leave user] ch))))
 
 (defmethod ig/init-key :back-channeling.websocket/socketapp [_ {:keys [logger path cache]}]
   (map->Socketapp {:logger logger

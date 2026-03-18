@@ -1,24 +1,15 @@
 (ns back-channeling.components.root
   (:require [reagent.core :as r]
             [re-frame.core :as rf]
-            [back-channeling.api :as api]
             [back-channeling.events :as events]
             [back-channeling.components.avatar :refer [avatar]]
             [back-channeling.components.board :refer [board-view boards-view]]
             [back-channeling.components.curation :refer [article-page]]
             [back-channeling.component-helper :refer [make-click-outside-fn]]))
 
-(defn search-threads [state board-name query]
-  (api/request (str "/api/board/" board-name "/threads?q=" (js/encodeURIComponent query))
-               {:handler (fn [results]
-                           (swap! state assoc :search-result results))}))
-
 (defn root-view []
   (let [local (r/atom {:open-profile? false
-                         :open-users? false
-                         :search-result nil
-                         :user {:user/name (some-> js/document (.querySelector "meta[property='bc:user:name']") (.getAttribute "content"))
-                                :user/email (some-> js/document (.querySelector "meta[property='bc:user:email']") (.getAttribute "content"))}})
+                        :open-users? false})
         click-outside-fn (atom nil)
         root-ref (atom nil)]
     (r/create-class
@@ -34,8 +25,8 @@
                      (fn [_]
                        (swap! local assoc
                               :open-profile? false
-                              :open-users? false
-                              :search-result nil))))
+                              :open-users? false)
+                       (rf/dispatch [::events/clear-search-result]))))
             (.addEventListener js/document "mousedown" @click-outside-fn)))
         (.addEventListener js/window "focus"
                            (fn [_] (rf/dispatch [::events/window-focused]))))
@@ -47,7 +38,9 @@
 
       :reagent-render
       (fn []
-        (let [{:keys [open-profile? search-result user]} @local
+        (let [{:keys [open-profile?]} @local
+              user @(rf/subscribe [:local-user])
+              search-result @(rf/subscribe [:search-result])
               page-type @(rf/subscribe [:page-type])
               board @(rf/subscribe [:board])
               socket @(rf/subscribe [:socket])
@@ -61,7 +54,8 @@
             (when (= page-type :board)
               [:div.center.menu
                [:a.item {:href "#/"}
-                [:h2.ui.header [:i.list.grey.icon] [:div.content (:board/name board)]]]
+                [:span {:style {:font-size "1.1em" :font-weight "500" :color "#555"}}
+                 [:i.comments.outline.icon] (:board/name board)]]
                (when (or (nil? (:user/permissions board))
                          (:search-thread (:user/permissions board)))
                  [:div.item
@@ -71,10 +65,10 @@
                      {:type "text"
                       :placeholder "Keyword"
                       :on-key-up (fn [e]
-                                   (if-let [query (.. e -target -value)]
-                                     (if (> (count query) 2)
-                                       (search-threads local (:board/name board) query)
-                                       (swap! local assoc :search-result nil))))}]
+                                   (let [query (.. e -target -value)]
+                                     (if (and query (> (count query) 2))
+                                       (rf/dispatch [::events/search-threads (:board/name board) query])
+                                       (rf/dispatch [::events/clear-search-result]))))}]
                     [:i.search.icon]]
                    (when (not-empty search-result)
                      [:div.results.transition.visible
@@ -82,10 +76,13 @@
                         ^{:key (str "sr-" (:db/id res) "-" (:comment/no res))}
                         [:a.result {:on-click
                                     (fn [_]
-                                      (swap! local assoc :search-result nil)
-                                      (set! (.-href js/location) (str "#/board/" (:board/name res)
-                                                                      "/" (:db/id res)
-                                                                      "/" (:comment/no res))))}
+                                      (let [q (some-> (.querySelector js/document ".ui.search input.prompt") .-value)]
+                                        (rf/dispatch [::events/clear-search-result])
+                                        (rf/dispatch [::events/move-to-thread
+                                                      {:db/id (:db/id res)
+                                                       :board/name (:board/name res)
+                                                       :comment/no (:comment/no res)
+                                                       :search-query q}])))}
                          [:div.content
                           [:div.title (:thread/title res)]]])])]])])
             [:div.right.menu
