@@ -1,5 +1,6 @@
 (ns back-channeling.resource.voice
   (:require [liberator.core :as liberator]
+            [liberator.representation :refer [ring-response]]
             (back-channeling.boundary [boards :as boards])
             (back-channeling.resource [base :refer [base-resource has-permission?]]))
   (:import [java.util UUID]
@@ -73,7 +74,9 @@
    :new? (fn [ctx] (not (::size-exceeded ctx)))
    :respond-with-entity? true
    :handle-ok (fn [ctx]
-                {:status 413
-                 :message "Voice file exceeds size limit"})
+                (ring-response
+                 {:status 413
+                  :headers {"Content-Type" "application/edn"}
+                  :body (pr-str {:message "Voice file exceeds size limit"})}))
    :handle-created (fn [ctx]
                      {:comment/content (str thread-id "/" (::filename ctx))})))

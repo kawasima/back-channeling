@@ -79,7 +79,8 @@
       :back-channeling.auth.backend/token
       {:cache  (ig/ref :back-channeling.database/cache)
        :logger (ig/ref :duct/logger)}
-      :back-channeling.auth.backend/session {}
+      :back-channeling.auth.backend/session
+      {:prefix (ig/ref :back-channeling.path/prefix)}
 
       :back-channeling.auth.backend/bouncr
       {:datomic (ig/ref :back-channeling.database/datomic)}

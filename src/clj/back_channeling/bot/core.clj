@@ -93,7 +93,8 @@
   (when-let [^WebSocket old (:ws-connection @state)]
     (try
       (.sendClose old WebSocket/NORMAL_CLOSURE "reconnecting")
-      (catch Exception _))))
+      (catch Exception e
+        (.println System/err (str "Error closing old WebSocket: " (.getMessage e)))))))
 
 (defn- server-url->ws-url [^String server-url]
   (let [uri (URI. server-url)]
@@ -136,7 +137,9 @@
         (.schedule executor
           ^Runnable (fn []
                       (if-let [new-token (try (bot-api/authenticate! config)
-                                              (catch Exception _ nil))]
+                                              (catch Exception e
+                                                (.println System/err (str "Re-authentication failed: " (.getMessage e)))
+                                                nil))]
                         (do (swap! state assoc :access-token new-token)
                             (connect-ws! config ai-provider executor))
                         (.println System/err "Giving up reconnection after auth failure")))

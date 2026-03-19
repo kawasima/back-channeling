@@ -6,13 +6,13 @@
 
 (defn- handle-unauthorized-default
   "A default response constructor for an unauthorized request."
-  [request data]
+  [prefix request data]
   (if (api-access? request)
     {:status 401 :headers {} :body "Unauthorized"}
-    ;; FIXME shoud prepend the given prefix.
-    (redirect (str "/login?url=" (:uri request)))))
+    (redirect (str prefix "/login?url=" (:uri request)))))
 
 (defmethod ig/init-key :back-channeling.auth.backend/session
-  [_ {:keys [unauthorized-handler]
-      :or {unauthorized-handler handle-unauthorized-default}}]
-  (session-backend {:unauthorized-handler unauthorized-handler}))
+  [_ {:keys [prefix unauthorized-handler]
+      :or {prefix ""}}]
+  (let [handler (or unauthorized-handler (partial handle-unauthorized-default prefix))]
+    (session-backend {:unauthorized-handler handler})))

@@ -54,7 +54,9 @@
             (try
               (when (hashers/check password stored-hash)
                 user)
-              (catch Exception _ nil))
+              (catch Exception e
+                (.println System/err (str "Password verification error: " (.getMessage e)))
+                nil))
 
             ;; legacy sha256 hash — verify and upgrade
             (and stored-hash salt)

@@ -318,7 +318,7 @@
              :method :POST
              :handler (fn [response] [::open-socket (:access-token response)])
              :error-handler (fn [_ _]
-                              (.error js/console "Can't connect websocket (;;)")
+                              (.error js/console "Can't connect websocket")
                               nil)}})))
 
 (rf/reg-event-fx
@@ -583,7 +583,7 @@
    {:http {:path (str "/api/board/" board-name "/thread/" thread-id "/comment/" comment-no)
            :method :POST
            :body (select-keys reaction [:reaction/name])
-           :handler (fn [_] (when on-done [::reaction-added]) nil)}}))
+           :handler (fn [_] (when on-done (on-done)))}}))
 
 ;; -- Fetch thread (for curation) -------------------------------------------
 

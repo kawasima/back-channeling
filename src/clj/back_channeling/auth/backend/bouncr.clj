@@ -57,7 +57,9 @@
               :user/permissions (set (some->> (:permissions cred)
                                               (map #(keyword (->kebab-case %)))
                                               set))})
-           (catch Exception _ nil)))))
+           (catch Exception e
+             (.println System/err (str "Failed to parse Bouncr credential: " (.getMessage e)))
+             nil)))))
     (-authenticate [_ request data]
       (authfn datomic data))
 
