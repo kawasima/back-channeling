@@ -4,7 +4,7 @@
             [back-channeling.events :as events]
             [back-channeling.components.avatar :refer [avatar]]
             [back-channeling.components.board :refer [board-view boards-view]]
-            [back-channeling.components.curation :refer [article-page]]
+            [back-channeling.components.curation :refer [article-page articles-list-view]]
             [back-channeling.component-helper :refer [make-click-outside-fn]]))
 
 (defn root-view []
@@ -105,9 +105,10 @@
                 [:i.icon.sign.out]
                 "Logout"]]]]]
            (case page-type
-             :boards  [boards-view]
-             :board   [board-view]
-             :article [article-page]
+             :boards   [boards-view]
+             :board    [board-view]
+             :articles [articles-list-view]
+             :article  [article-page]
              ;; :initializing, :loading
              [:div.main.content.full.height
               [:div.ui.active.centered.inline.text.loader "Loading..."]])]))})))

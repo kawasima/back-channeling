@@ -386,7 +386,6 @@
        :update-thread {:dispatch [::ws-update-thread data]}
        :join         {:db (update db :users conj data)}
        :leave        {:db (update db :users disj data)}
-       :call         (do (js/alert (:message data)) {})
        {}))))
 
 (rf/reg-event-fx
@@ -466,7 +465,7 @@
 (rf/reg-event-db
  ::articles-fetched
  (fn [db [_ articles]]
-   (assoc db :page {:type :article} :articles articles)))
+   (assoc db :page {:type :articles} :articles articles)))
 
 (rf/reg-event-fx
  ::fetch-article

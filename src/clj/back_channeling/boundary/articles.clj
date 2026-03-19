@@ -31,7 +31,9 @@
          (d/db connection) article-name))
 
   (find-all [{:keys [connection]}]
-    (d/q '{:find [[(pull ?a [:*]) ...]]
+    (d/q '{:find [[(pull ?a [:db/id :article/name
+                             {:article/curator [:user/name]}
+                             {:article/thread [:db/id :thread/title]}]) ...]]
            :where [[?a :article/name]]}
          (d/db connection)))
 

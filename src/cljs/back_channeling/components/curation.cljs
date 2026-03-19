@@ -258,3 +258,27 @@
                            (:curating-block/content curating-block)))]]])
                   (:article/blocks editing-article)))]]]]]]))
       })))
+
+(defn articles-list-view []
+  (let [articles @(rf/subscribe [:articles])]
+    [:div.main.content.full.height
+     [:h2.ui.header
+      [:i.file.text.outline.icon]
+      [:div.content "Articles"]]
+     [:div.ui.cards
+      (doall
+       (for [article articles]
+         ^{:key (str "article-" (:db/id article))}
+         [:a.card.link
+          {:on-click (fn [_]
+                       (set! (.-href js/location) (str "#/article/" (:db/id article))))}
+          [:div.content
+           [:div.header (:article/name article)]
+           [:div.meta
+            (when-let [curator-name (get-in article [:article/curator :user/name])]
+              [:span [:i.user.icon] curator-name])
+            (when-let [thread-title (get-in article [:article/thread :thread/title])]
+              [:span {:style {:margin-left "1em"}} [:i.comments.icon] thread-title])]]]))]
+     (when (empty? articles)
+       [:div.ui.message
+        [:p "No articles yet."]])]))

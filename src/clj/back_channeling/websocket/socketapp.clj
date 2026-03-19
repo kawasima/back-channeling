@@ -58,11 +58,6 @@
     (broadcast-message socketapp
                        [:leave (select-keys message [:user/name :user/email])])))
 
-(defmethod handle-command :call [socketapp [_ message] ch]
-  (multicast-message socketapp
-                     [:call message]
-                     (:to message)))
-
 (defrecord Socketapp [channels path cache logger scheduler])
 
 (defn- make-ws-callback [logger user]

@@ -31,7 +31,7 @@
     (swap! (:channels app) assoc-in ["/ws" ch] {:user nil :board nil})
 
     ;; Send a non-auth command — should be ignored
-    (on-message app ch (pr-str [:call {:message "hi"}]))
+    (on-message app ch (pr-str [:join {:user/name "alice" :user/email "alice@test.com"}]))
 
     ;; Channel should still be unauthenticated
     (is (nil? (find-user-by-channel app ch)))))
