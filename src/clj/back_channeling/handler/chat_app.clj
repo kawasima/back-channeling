@@ -49,8 +49,8 @@
         (let [stored-hash (:password-credential/password credential)
               salt (:password-credential/salt credential)]
           (cond
-            ;; bcrypt hash (starts with "$2a$" or similar)
-            (and stored-hash (.startsWith stored-hash "$"))
+            ;; buddy hashers format (bcrypt+sha512, bcrypt, etc.) — no salt column
+            (and stored-hash (nil? salt))
             (try
               (when (hashers/check password stored-hash)
                 user)
@@ -159,6 +159,6 @@
                  {:status 404 :headers {} :body "Not found"}))))]
     (if login-enabled?
       (routes r
-              (wrap-anti-forgery (login-routes {:prefix prefix :datomic datomic}))
-              (default-logout-route))
+              (default-logout-route)
+              (wrap-anti-forgery (login-routes {:prefix prefix :datomic datomic})))
       (if logout-route (routes r logout-route) r))))

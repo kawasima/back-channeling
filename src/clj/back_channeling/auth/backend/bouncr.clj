@@ -30,9 +30,15 @@
                     :where [[?u :user/name ?n]]}
                   (d/db connection) (data :user/name))]
     (merge {:db/id user} data)
-    (register-user datomic
-                   (:user/name data)
-                   (:user/email data))))
+    (do (register-user datomic
+                       (:user/name data)
+                       (:user/email data))
+        ;; Re-query to get the resolved entity id for the newly created user
+        (let [user-id (d/q '{:find [?u .]
+                             :in [$ ?n]
+                             :where [[?u :user/name ?n]]}
+                           (d/db connection) (:user/name data))]
+          (merge {:db/id user-id} data)))))
 
 (defmethod ig/init-key :back-channeling.auth.backend/bouncr
   ;; Returns nil when :pkey is not configured. Do not include this

@@ -12,15 +12,19 @@
   :db/valueType :db.type/ref
   :db/cardinality :db.cardinality/one}
 
- {:db/ident :curator-block/posted-at
+ {:db/ident :curating-block/posted-at
   :db/valueType :db.type/instant
   :db/cardinality :db.cardinality/one}
- {:db/ident :curator-block/posted-by
+ {:db/ident :curating-block/posted-by
   :db/valueType :db.type/ref
   :db/cardinality :db.cardinality/one}
- {:db/ident :curator-block/content
+ {:db/ident :curating-block/content
   :db/valueType :db.type/string
   :db/cardinality :db.cardinality/one}
- {:db/ident :curator-block/format
+ {:db/ident :curating-block/format
   :db/valueType :db.type/ref
-  :db/cardinality :db.cardinality/one}]
+  :db/cardinality :db.cardinality/one}
+
+ {:db/ident :curating-block.format/plain}
+ {:db/ident :curating-block.format/markdown}
+ {:db/ident :curating-block.format/voice}]

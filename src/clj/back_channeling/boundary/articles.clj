@@ -38,40 +38,41 @@
   (find-blocks [{:keys [connection]} id]
     (d/pull (d/db connection) '[:article/blocks] id))
 
-  (save [{:keys [connection]} article]
-    (let [id (d/tempid :db.part/user)
-          tempids (-> (d/transact
-                       connection
-                       (apply concat [{:db/id id
-                                       :article/name (:article/name article)
-                                       :article/curator [:user/name (get-in article [:article/curator :user/name])]
-                                       :article/thread (:article/thread article)}]
-                              (for [block (:article/blocks article)]
-                                (let [tempid (d/tempid :db.part/user)]
-                                  [[:db/add id :article/blocks tempid]
-                                   {:db/id tempid
-                                    :curating-block/content (:curating-block/content block)
-                                    :curating-block/format  (:curating-block/format  block)
-                                    :curating-block/posted-at (:curating-block/posted-at block)
-                                    :curating-block/posted-by [:user/name (get-in block [:curating-block/posted-by :user/name])]}]))))
-                      deref
-                      :tempids)]
-      (d/resolve-tempid (d/db connection) tempids id)))
+  (save
+    ([{:keys [connection]} article]
+     (let [id (d/tempid :db.part/user)
+           tempids (-> (d/transact
+                        connection
+                        (apply concat [{:db/id id
+                                        :article/name (:article/name article)
+                                        :article/curator [:user/name (get-in article [:article/curator :user/name])]
+                                        :article/thread (:article/thread article)}]
+                               (for [block (:article/blocks article)]
+                                 (let [tempid (d/tempid :db.part/user)]
+                                   [[:db/add id :article/blocks tempid]
+                                    {:db/id tempid
+                                     :curating-block/content (:curating-block/content block)
+                                     :curating-block/format  (:curating-block/format  block)
+                                     :curating-block/posted-at (:curating-block/posted-at block)
+                                     :curating-block/posted-by [:user/name (get-in block [:curating-block/posted-by :user/name])]}]))))
+                       deref
+                       :tempids)]
+       (d/resolve-tempid (d/db connection) tempids id)))
 
-  (save [{:keys [connection]} article retract-transaction]
-    (-> (d/transact
-         connection
-         (apply
-          concat retract-transaction
-          [{:db/id (:db/id article)
-            :article/name (:article/name article)
-            :article/curator [:user/name (get-in article [:article/curator :user/name])]}]
-          (for [block (:article/blocks article)]
-            (let [tempid (d/tempid :db.part/user)]
-              [[:db/add (:db/id article) :article/blocks tempid]
-               {:db/id tempid
-                :curating-block/content (:curating-block/content block)
-                :curating-block/format  (:curating-block/format  block)
-                :curating-block/posted-at (:curating-block/posted-at block)
-                :curating-block/posted-by [:user/name (get-in block [:curating-block/posted-by :user/name])]}]))))
-        deref)))
+    ([{:keys [connection]} article retract-transaction]
+     (-> (d/transact
+          connection
+          (apply
+           concat retract-transaction
+           [{:db/id (:db/id article)
+             :article/name (:article/name article)
+             :article/curator [:user/name (get-in article [:article/curator :user/name])]}]
+           (for [block (:article/blocks article)]
+             (let [tempid (d/tempid :db.part/user)]
+               [[:db/add (:db/id article) :article/blocks tempid]
+                {:db/id tempid
+                 :curating-block/content (:curating-block/content block)
+                 :curating-block/format  (:curating-block/format  block)
+                 :curating-block/posted-at (:curating-block/posted-at block)
+                 :curating-block/posted-by [:user/name (get-in block [:curating-block/posted-by :user/name])]}]))))
+         deref))))
