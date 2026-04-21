@@ -27,6 +27,10 @@
         (fn [x] (if (string? x) (f x options) x))
         html))
 
+;; Escapes metacharacters for splicing into a regex outside a character class.
+;; `-` and `/` are intentionally omitted: `-` is only special inside `[...]`,
+;; and `/` is only a regex-literal delimiter (irrelevant to `new RegExp(str)`).
+;; Callers must not splice the result inside `[...]`.
 (def ^:private re-special-chars #"([.*+?^${}()|\[\]\\])")
 
 (defn escape-regex [s]
