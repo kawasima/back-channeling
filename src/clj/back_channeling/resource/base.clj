@@ -26,7 +26,7 @@
       ;; Permission system active — require at least one matching permission
       (boolean (some permissions user-permissions)))))
 
-(defn thread-allowed? [ctx datomic _permissions thread-id]
-  (or (has-permission? ctx #{:write-any-thread})
+(defn thread-allowed? [ctx datomic permissions thread-id]
+  (or (has-permission? ctx permissions)
       (:thread/public? (threads/pull datomic thread-id))
       (> (or (comments/count-writenum datomic thread-id (:identity ctx)) 0) 0)))
