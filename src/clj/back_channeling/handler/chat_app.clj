@@ -1,14 +1,13 @@
 (ns back-channeling.handler.chat-app
-  (:require [clojure.edn :as edn]
-            [ring.util.response :refer [resource-response content-type header redirect]]
+  (:require [clojure.walk :as walk]
+            [ring.util.response :refer [resource-response content-type redirect]]
             [ring.util.anti-forgery :refer [anti-forgery-field]]
             [ring.middleware.anti-forgery :refer [wrap-anti-forgery]]
             [integrant.core :as ig]
             [liberator.dev]
             [hiccup.page :refer [include-js]]
             [hiccup.util :as util]
-            [compojure.core :refer [GET POST routing routes] :as compojure]
-            [compojure.route :as route]
+            [compojure.core :refer [GET POST routes]]
 
             (back-channeling [layout :refer [layout]]
                              [signup :as signup]
@@ -121,7 +120,7 @@
    (GET "/signup" req
      (signup/signup-view req options))
    (POST "/signup" req
-     (signup/signup (select-keys (clojure.walk/keywordize-keys (:params req))
+     (signup/signup (select-keys (walk/keywordize-keys (:params req))
                                  [:user/email :user/name
                                   :password-credential/password
                                   :token-credential/token])

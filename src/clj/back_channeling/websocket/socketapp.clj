@@ -36,9 +36,9 @@
        (filter #(= (:user/name %) user-name))
        first))
 
-(defmulti handle-command (fn [socketapp msg ch] (first msg)))
+(defmulti handle-command (fn [_socketapp msg _ch] (first msg)))
 
-(defmethod handle-command :default [{:keys [logger]} [cmd] ch]
+(defmethod handle-command :default [{:keys [logger]} [cmd] _ch]
   (log logger :warn ::unknown-command {:command cmd}))
 
 (defmethod handle-command :auth [{:keys [channels path cache] :as socketapp} [_ {:keys [token]}] ch]
@@ -53,7 +53,7 @@
 
 ;; :leave is only dispatched internally from on-close — derive user from
 ;; the channel data, never trust client-supplied fields.
-(defmethod handle-command :leave [socketapp [_ message] ch]
+(defmethod handle-command :leave [socketapp [_ message] _ch]
   (when message
     (broadcast-message socketapp
                        [:leave (select-keys message [:user/name :user/email])])))
@@ -86,7 +86,7 @@
         (WebSockets/sendText (pr-str message) channel
                              (make-ws-callback logger user)))))
 
-  (on-connect [{:keys [channels path logger ^ScheduledExecutorService scheduler] :as socketapp} exchange channel]
+  (on-connect [{:keys [channels path logger ^ScheduledExecutorService scheduler]} _exchange channel]
     ;; Store channel as unauthenticated. Client must send :auth message.
     (swap! channels assoc-in [path channel] {:user nil :board nil})
     ;; Close channel if not authenticated within 10 seconds
@@ -114,7 +114,7 @@
       (catch Exception e
         (log logger :warn ::ws-message-parse-error {:error (.getMessage e)}))))
 
-  (on-close [{:keys [channels path] :as socketapp} ch close-reason]
+  (on-close [{:keys [channels path] :as socketapp} ch _close-reason]
     (let [user (find-user-by-channel socketapp ch)]
       (swap! channels update-in [path] dissoc ch)
       (when user

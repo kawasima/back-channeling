@@ -1,6 +1,6 @@
 (ns back-channeling.comment-helper
-  (:require [clojure.string :as string])
-  (:use [clojure.walk :only [walk]]))
+  (:require [clojure.string :as string]
+            [clojure.walk :refer [walk]]))
 
 (defn link-to-url [text _]
   (let [pattern #"(?:https?|ftp)://[^\s/$.?#]\.[^\s]*"]

@@ -3,7 +3,7 @@
 
             (back-channeling [util :refer [parse-request]])
             (back-channeling.boundary [articles :as articles])
-            (back-channeling.resource [base :refer [base-resource has-permission?]])))
+            (back-channeling.resource [base :refer [base-resource]])))
 
 (defn articles-resource [{:keys [datomic]}]
   (liberator/resource base-resource

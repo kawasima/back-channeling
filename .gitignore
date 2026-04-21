@@ -16,7 +16,8 @@ pom.xml
 /profiles.clj
 /dev/resources/local.edn
 /dev/src/local.clj
-.clj-kondo/
+.clj-kondo/*
+!.clj-kondo/config.edn
 .lsp/
 /resources/back_channeling/public/js/cljs/
 /resources/back_channeling/public/js/clojure/

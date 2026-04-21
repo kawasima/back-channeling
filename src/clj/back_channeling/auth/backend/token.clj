@@ -7,7 +7,7 @@
 (defmethod ig/init-key :back-channeling.auth.backend/token [_ {:keys [cache logger]}]
   (token-backend
    {:authfn
-    (fn [req token]
+    (fn [_req token]
       (try
         (let [user (tokens/auth-by cache token)]
           (log logger :debug ::authenticated-token {:token token :user user})

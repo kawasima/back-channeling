@@ -1,7 +1,6 @@
 (ns back-channeling.signup
-  (:require [hiccup.core :refer [html]]
-            [hiccup.page :refer [include-js]]
-            [ring.util.response :refer [resource-response content-type header redirect]]
+  (:require [hiccup.page :refer [include-js]]
+            [ring.util.response :refer [redirect]]
             [ring.util.anti-forgery :refer [anti-forgery-field]]
 
             [buddy.hashers :as hashers]
@@ -165,7 +164,7 @@ c0.848,0,1.591-0.354,2.041-0.971S68.334,54.815,68.074,54.008z"}]]])
       (signup-view {:error-map error-map :params user} options)
       (let [password (some-> (not-empty (:password-credential/password user))
                              hashers/derive)]
-        (if-not (or password (:token-credential/token user))
+        (when-not (or password (:token-credential/token user))
           (throw (Exception. user)))
         (let [user-id (d/tempid :db.part/user -1)
               token-id (d/tempid :db.part/user -2)

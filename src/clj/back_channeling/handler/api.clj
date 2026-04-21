@@ -1,7 +1,7 @@
 (ns back-channeling.handler.api
   (:require [integrant.core :as ig]
-            [compojure.core :refer :all]
-            [compojure.coercions :refer :all]
+            [compojure.core :refer [ANY context]]
+            [compojure.coercions :refer [as-int]]
             [clojure.data.json :as json]
             (back-channeling.resource [board  :refer [boards-resource board-resource]]
                                       [thread :refer [threads-resource thread-resource thread-readonly-resource]]
@@ -23,7 +23,7 @@
   (-write [uuid out options]
     (json/-write (.toString uuid) out options)))
 
-(defmethod ig/init-key :back-channeling.handler/api [_ {:keys [prefix] :as options}]
+(defmethod ig/init-key :back-channeling.handler/api [_ options]
   (context "/api" []
     (ANY "/token" []  (token-resource options))
     (ANY "/boards" [] (boards-resource options))
@@ -45,7 +45,7 @@
                              (when from (Long/parseLong from))
                              (when to (Long/parseLong to)))))
       (ANY "/thread/:thread-id/voices" [thread-id :<< as-int]
-        (voices-resource options board-name thread-id))
+        (voices-resource options thread-id))
       (ANY "/thread/:thread-id/comment/:comment-no"
         [thread-id :<< as-int comment-no :<< as-int]
         (comment-resource options board-name thread-id comment-no))

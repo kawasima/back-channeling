@@ -6,7 +6,7 @@
             [buddy.auth.protocols :as proto]
             [buddy.sign.jwt :as jwt]
             [compojure.core :refer [POST routes]]
-            [camel-snake-kebab.core :refer :all]
+            [camel-snake-kebab.core :refer [->kebab-case]]
             [back-channeling.auth.util :refer [api-access?]]))
 
 (defn- handle-unauthorized-default
@@ -60,7 +60,7 @@
            (catch Exception e
              (.println System/err (str "Failed to parse Bouncr credential: " (.getMessage e)))
              nil)))))
-    (-authenticate [_ request data]
+    (-authenticate [_ _request data]
       (authfn datomic data))
 
     proto/IAuthorization
