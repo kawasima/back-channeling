@@ -6,7 +6,7 @@
 
 (defn- handle-unauthorized-default
   "A default response constructor for an unauthorized request."
-  [prefix request data]
+  [prefix request _data]
   (if (api-access? request)
     {:status 401 :headers {} :body "Unauthorized"}
     (redirect (str prefix "/login?url=" (:uri request)))))

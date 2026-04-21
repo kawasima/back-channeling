@@ -1,14 +1,9 @@
 (ns back-channeling.api
-  (:require-macros [cljs.core.async.macros :refer [go go-loop]])
-  (:require [cljs.core.async :refer [put! <! chan pub sub unsub-all]]
-              [clojure.browser.net :as net]
-              [goog.events :as events]
-              [goog.string :as gstring]
-              [goog.ui.Component]
-              [goog.net.ErrorCode]
-              [goog.net.EventType])
-  (:use [cljs.reader :only [read-string]])
-  (:import [goog.events KeyCodes]))
+  (:require [clojure.browser.net :as net]
+            [goog.events :as events]
+            [goog.net.ErrorCode]
+            [goog.net.EventType]
+            [cljs.reader :refer [read-string]]))
 
 (defn handle-each-type [handler response xhrio]
   (if (fn? handler)
@@ -29,12 +24,12 @@
    (let [xhrio (net/xhr-connection)]
      (when handler
        (events/listen xhrio goog.net.EventType/SUCCESS
-                      (fn [e]
+                      (fn [_]
                         (let [res (read-string (.getResponseText xhrio))]
                           (handler res)))))
      (when error-handler
        (events/listen xhrio goog.net.EventType/ERROR
-                      (fn [e]
+                      (fn [_]
                         (let [res (read-string (.getResponseText xhrio))]
                           (cond
                             (fn? error-handler)

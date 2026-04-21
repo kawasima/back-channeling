@@ -1,6 +1,5 @@
 (ns back-channeling.resource.token
   (:require [liberator.core :as liberator]
-            (back-channeling [util :refer [parse-request]])
             (back-channeling.boundary [users :as users]
                                       [tokens :as tokens])))
 

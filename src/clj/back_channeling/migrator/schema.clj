@@ -1,6 +1,5 @@
 (ns back-channeling.migrator.schema
   (:require [integrant.core :as ig]
-            [clojure.java.io :as io]
             [clojure.edn :as edn]
             [duct.logger :refer [log]]
             [datomic.api :as d])
@@ -47,7 +46,7 @@
     (Integer/parseInt u)))
 
 (defmethod ig/init-key :back-channeling.migrator/schema
-  [key {:keys [up down datomic logger] :as opts}]
+  [_ {:keys [datomic logger]}]
   (let [connection (:connection datomic)
         migrations (find-migration-files)
         current-version (find-or-create-version connection)

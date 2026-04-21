@@ -2,6 +2,8 @@
   (:require [clojure.test :refer :all]
             [datomic.api :as d]
             [buddy.hashers :as hashers]
+            [buddy.core.codecs]
+            [buddy.core.hash]
             [back-channeling.test-helper :as th]
             [back-channeling.handler.chat-app :as chat-app]))
 

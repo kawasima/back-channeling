@@ -9,7 +9,7 @@
            [io.undertow.servlet Servlets]
            [io.undertow.servlet.util ImmediateInstanceFactory]
            [io.undertow.websockets WebSocketConnectionCallback]
-           [io.undertow.websockets.core WebSockets WebSocketCallback AbstractReceiveListener]))
+           [io.undertow.websockets.core AbstractReceiveListener]))
 
 (defn websocket-callback [socketapp]
   (proxy [WebSocketConnectionCallback] []

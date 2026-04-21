@@ -1,4 +1,5 @@
 (ns back-channeling.boundary.comments
+  (:refer-clojure :exclude [count])
   (:require [datomic.api :as d]
             [back-channeling.database.datomic])
   (:import [java.util Date]))

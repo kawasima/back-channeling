@@ -25,7 +25,7 @@
 
 ;; -- comment-new-view -------------------------------------------------------
 
-(defn comment-new-view [{:keys [app thread]}]
+(defn comment-new-view [{:keys [thread]}]
   (let [state (r/atom {:comment {:comment/content ""
                                  :comment/format "comment.format/plain"
                                  :thread/id (when thread (:db/id thread))}

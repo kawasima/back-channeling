@@ -8,7 +8,7 @@
 (defn- body-as-string
   "Returns a request body as String."
   [ctx]
-  (if-let [body (get-in ctx [:request :body])]
+  (when-let [body (get-in ctx [:request :body])]
     (condp instance? body
       java.lang.String body
       (slurp (io/reader body)))))

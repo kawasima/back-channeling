@@ -1,9 +1,8 @@
 (ns back-channeling.events
   (:require [re-frame.core :as rf]
             [back-channeling.db :as db]
-            [back-channeling.api :as api]
-            [back-channeling.helper :refer [find-thread find-board]])
-  (:use [cljs.reader :only [read-string]]))
+            [back-channeling.helper :refer [find-thread find-board]]
+            [cljs.reader :refer [read-string]]))
 
 (def title "Back Channeling")
 
@@ -186,7 +185,7 @@
 
 (rf/reg-event-fx
  ::comments-fetched-for-thread
- (fn [{:keys [db]} [_ {:keys [thread from comments]}]]
+ (fn [{:keys [db]} [_ {:keys [thread comments]}]]
    (let [id (:db/id thread)]
      {:db (-> db
               (assoc-in [:threads id :db/id] id)
@@ -211,7 +210,7 @@
 
 (rf/reg-event-db
  ::add-comments
- (fn [db [_ {:keys [comment/from comments] {:keys [db/id]} :thread}]]
+ (fn [db [_ {:keys [comments] {:keys [db/id]} :thread}]]
    (let [lastnum (-> comments last (:comment/no 0))
          threads (get-in db [:board :board/threads])
          idx (find-thread threads id)
@@ -229,7 +228,7 @@
 
 (rf/reg-event-db
  ::refresh-comment
- (fn [db [_ {:keys [comment/no comment] {id :db/id} :thread}]]
+ (fn [db [_ {:keys [comment] {id :db/id} :thread}]]
    (update-in db [:threads id :thread/comments]
               (fn [comments]
                 (map #(if (= (:db/id comment) (:db/id %)) comment %) comments)))))
@@ -261,7 +260,7 @@
 
 (rf/reg-event-fx
  ::thread-saved
- (fn [_ [_ {:keys [response thread board]}]]
+ (fn [_ [_ {:keys [response board]}]]
    {:navigate (str "#/board/" (:board/name board) "/" (:db/id response))}))
 
 ;; -- Delete comment ---------------------------------------------------------
@@ -304,7 +303,7 @@
 
 (rf/reg-event-fx
  ::refresh-board
- (fn [{:keys [db]} [_ board-name]]
+ (fn [_ [_ board-name]]
    {:http {:path (str "/api/board/" board-name)
            :handler (fn [response] [::board-fetched response])}}))
 
@@ -493,7 +492,7 @@
 
 (rf/reg-event-fx
  ::search-threads
- (fn [{:keys [db]} [_ board-name query]]
+ (fn [_ [_ board-name query]]
    {:http {:path (str "/api/board/" board-name "/threads?q=" (js/encodeURIComponent query))
            :handler (fn [response] [::search-results-fetched response])}}))
 

@@ -1,6 +1,5 @@
 (ns back-channeling.boundary.tokens
-  (:require [integrant.core :as ig]
-            [clojure.core.cache :as cache]
+  (:require [clojure.core.cache :as cache]
             [back-channeling.database.cache])
   (:import [java.util UUID]))
 

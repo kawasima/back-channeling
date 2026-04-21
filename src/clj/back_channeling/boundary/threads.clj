@@ -51,7 +51,7 @@
                          {:board/name board-name}))))
          (filter #(:comment/public? %))
          (group-by :db/id)
-         (map (fn [[k v]]
+         (map (fn [[_ v]]
                 (apply max-key :score/value v)))
          (sort-by :score/value >)
          (take 50)

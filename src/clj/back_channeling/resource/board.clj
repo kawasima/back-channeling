@@ -2,7 +2,6 @@
   (:require [liberator.core :as liberator]
             (back-channeling [util :refer [parse-request]])
             (back-channeling.boundary [boards :as boards]
-                                      [threads :as threads]
                                       [comments :as comments])
             (back-channeling.resource [base :refer [base-resource has-permission?]])))
 
@@ -23,7 +22,7 @@
                 :get  true
                 :post (has-permission? % #{:create-board}))
 
-   :post! (fn [{board :edn req :request}]
+   :post! (fn [{board :edn}]
             {:db/id (boards/save datomic board)})
 
    :handle-created (fn [ctx]
@@ -39,7 +38,7 @@
    :allowed? #(case (get-in % [:request :request-method])
                 :get (has-permission? % #{:read-board})
                 :put (has-permission? % #{:modify-board}))
-   :exists? (fn [ctx]
+   :exists? (fn [_]
               (if-let [board (boards/find-by-name datomic board-name)]
                 {:board board}
                 false))

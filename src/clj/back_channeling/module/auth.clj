@@ -1,13 +1,10 @@
 (ns back-channeling.module.auth
   (:require [integrant.core :as ig]
             [duct.core :as core]
-            [ring.util.response :refer [header redirect resource-response content-type]]
+            [ring.util.response :refer [header]]
             [buddy.auth :refer [authenticated?]]
-            [buddy.auth.backends.session :refer [session-backend]]
-            [buddy.auth.backends.token :refer [token-backend]]
             [buddy.auth.middleware :refer [wrap-authentication wrap-authorization]]
-            [buddy.auth.accessrules :refer [wrap-access-rules]]
-            [buddy.auth.http :as http]))
+            [buddy.auth.accessrules :refer [wrap-access-rules]]))
 
 (defn wrap-same-origin-policy [handler console]
   (fn [req]
@@ -30,7 +27,7 @@
       (handler req))))
 
 (defn api-access? [req]
-  (if-let [accept (get-in req [:headers "accept"])]
+  (when-let [accept (get-in req [:headers "accept"])]
     (or (.contains accept "application/json")
         (.contains accept "application/edn"))))
 
@@ -45,8 +42,7 @@
   #(wrap-access-rules % {:rules rules :policy policy}))
 
 (defmethod ig/init-key :back-channeling.middleware/authorization
-  [_ {:keys [prefix backend]
-      :or {prefix ""}}]
+  [_ {:keys [backend]}]
   #(wrap-authorization % backend))
 
 (defmethod ig/init-key :back-channeling.middleware/authentication [_ {:keys [backends]}]

@@ -27,7 +27,7 @@
 
 ;; -- thread-watch-icon ------------------------------------------------------
 
-(defn thread-watch-icon [{:keys [thread board-name user initial-watching?]}]
+(defn thread-watch-icon [{:keys [initial-watching?]}]
   (let [hover? (r/atom false)
         watching? (r/atom initial-watching?)]
     (fn [{:keys [thread board-name user]}]
@@ -46,7 +46,7 @@
 
 ;; -- thread-list-view -------------------------------------------------------
 
-(defn thread-list-view [board]
+(defn thread-list-view [_board]
   (let [local (r/atom {:sort-key [:thread/last-updated :desc]
                         :filters {:watching? false :writing? false}})]
     (fn [board]
@@ -126,7 +126,7 @@
 
 ;; -- thread-new-view --------------------------------------------------------
 
-(defn thread-new-view [board]
+(defn thread-new-view [_board]
   (let [local (r/atom {:thread {:thread/title ""
                                 :comment/content ""
                                 :comment/format "comment.format/plain"}

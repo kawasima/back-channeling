@@ -88,7 +88,7 @@
                              :comment/posted-at now
                              :comment/posted-by user
                              :comment/content (:comment/content comment)
-                             :comment/format (get :comment/format comment :comment.format/plain)}]
+                             :comment/format (get comment :comment/format :comment.format/plain)}]
                    watchers)))))
    :handle-ok
    (fn [{identity :identity :as ctx}]
@@ -108,7 +108,7 @@
 
 (defn comment-resource
   "Returns a resource that react to a comment"
-  [{:keys [socketapp] {:keys [connection] :as datomic} :datomic} board-name thread-id comment-no]
+  [{:keys [socketapp datomic]} board-name thread-id comment-no]
   {:pre [(integer? thread-id) (integer? comment-no)]}
   (liberator/resource
    base-resource

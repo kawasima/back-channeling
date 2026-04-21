@@ -1,7 +1,6 @@
 (ns back-channeling.resource.voice
   (:require [liberator.core :as liberator]
             [liberator.representation :refer [ring-response]]
-            (back-channeling.boundary [boards :as boards])
             (back-channeling.resource [base :refer [base-resource has-permission?]]))
   (:import [java.util UUID]
            [java.io InputStream]
@@ -34,7 +33,7 @@
                n)))))
       (close [] (.close in)))))
 
-(defn voices-resource [{:keys [datomic]} thread-id]
+(defn voices-resource [_ thread-id]
   (liberator/resource base-resource
    :allowed-methods [:post]
    :malformed? (fn [ctx]
@@ -73,7 +72,7 @@
                   {::size-exceeded true}))))
    :new? (fn [ctx] (not (::size-exceeded ctx)))
    :respond-with-entity? true
-   :handle-ok (fn [ctx]
+   :handle-ok (fn [_]
                 (ring-response
                  {:status 413
                   :headers {"Content-Type" "application/edn"}

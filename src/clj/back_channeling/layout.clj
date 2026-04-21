@@ -1,5 +1,5 @@
 (ns back-channeling.layout
-  (:use [hiccup.page :only [html5 include-css include-js]]))
+  (:require [hiccup.page :refer [html5 include-css include-js]]))
 
 (defn layout [prefix req & body]
   (html5

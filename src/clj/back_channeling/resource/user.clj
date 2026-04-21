@@ -1,6 +1,5 @@
 (ns back-channeling.resource.user
   (:require [liberator.core :as liberator]
-            (back-channeling [util :refer [parse-request]])
             (back-channeling.boundary [users :as users])
             (back-channeling.resource [base :refer [base-resource]])))
 
@@ -13,7 +12,7 @@
 (defn user-resource [{:keys [datomic]} user-name]
   (liberator/resource base-resource
    :allowed-methods [:get]
-   :exists? (fn [ctx]
+   :exists? (fn [_]
               (when-let [user (users/find-by-name datomic user-name)]
                 {::user user}))
 

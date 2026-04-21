@@ -1,0 +1,13 @@
+{:lint-as {garden.units/defunit clojure.core/defn}
+ :ns-groups [{:pattern "(.*-test|back-channeling\\.test-helper)$" :name test-ns}]
+ :config-in-ns
+ {dev     {:linters {:unused-namespace    {:level :off}
+                     :unused-referred-var {:level :off}
+                     :refer-all           {:level :off}
+                     :use                 {:level :off}}}
+  test-ns {:linters {:refer-all           {:level :off}
+                     :unused-binding      {:level :off}
+                     :unused-private-var  {:level :off}
+                     :unused-namespace    {:level :off}
+                     :unused-referred-var {:level :off}
+                     :duplicate-require   {:level :off}}}}}
