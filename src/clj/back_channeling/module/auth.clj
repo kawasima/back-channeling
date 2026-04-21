@@ -65,8 +65,7 @@
       :back-channeling.auth/access-rules
       {:prefix (ig/ref :back-channeling.path/prefix)}
       :back-channeling.middleware/authentication {}
-      :back-channeling.middleware/authorization
-      {:prefix (ig/ref :back-channeling.path/prefix)}
+      :back-channeling.middleware/authorization {}
 
       :back-channeling.middleware/access-rules
       {:rules (ig/ref :back-channeling.auth/access-rules)}

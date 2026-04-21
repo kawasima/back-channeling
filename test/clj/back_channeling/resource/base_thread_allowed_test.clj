@@ -55,4 +55,14 @@
                                       :user/permissions #{:write-thread}}}
                  :identity {:user/name "bob"
                             :user/permissions #{:write-thread}}}]
+        (is (false? (thread-allowed? ctx (:datomic *system*) #{:write-any-thread} thread-id)))))
+
+    (testing "permissions argument is honored (not hardcoded to write-any-thread)"
+      ;; Thread is closed by the previous testing block.
+      ;; bob has :read-any-thread but NOT :write-any-thread and has not posted.
+      (let [ctx {:request {:identity {:user/name "bob"
+                                      :user/permissions #{:read-any-thread}}}
+                 :identity {:user/name "bob"
+                            :user/permissions #{:read-any-thread}}}]
+        (is (true?  (thread-allowed? ctx (:datomic *system*) #{:read-any-thread}  thread-id)))
         (is (false? (thread-allowed? ctx (:datomic *system*) #{:write-any-thread} thread-id)))))))
