@@ -27,7 +27,7 @@
         (fn [x] (if (string? x) (f x options) x))
         html))
 
-(def ^:private re-special-chars #"([.*+?^${}()|\\[\]])")
+(def ^:private re-special-chars #"([.*+?^${}()|\[\]\\])")
 
 (defn escape-regex [s]
   (string/replace s re-special-chars "\\$1"))
